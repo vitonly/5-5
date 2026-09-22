@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dota 5x5 — Платформа обучения
 
-## Getting Started
+Веб-платформа для обучения Dota: вход через Telegram, домашние задания, FIFA-карточки игроков, сезонные оценки, субботние 5v5 с автобалансом команд, система очков и штрафов.
 
-First, run the development server:
+## Возможности
+
+- **Вход через Telegram** — один клик для учеников
+- **FIFA-карточка** — игровой рейтинг, коэффициент сезона, итоговый рейтинг 1–100
+- **Домашки** — выдача, отправка с файлами, проверка и оценка
+- **Сезонная оценка** — осень/зима/лето, открытые оценки, автозакрытие
+- **5v5** — автобаланс команд по рейтингу, учёт побед/поражений и стриков
+- **Очки и штрафы** — публичная таблица лидеров
+
+## Быстрый старт
+
+### 1. Установка
 
 ```bash
+npm install
+cp .env.example .env
+npx prisma db push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Сайт откроется на [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Настройка Telegram-бота
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Создайте бота через [@BotFather](https://t.me/BotFather) (`/newbot`)
+2. Привяжите домен: `/setdomain` → выберите бота → `localhost` (для разработки)
+3. Скопируйте токен в `.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=ваш_токен
+   NEXT_PUBLIC_BOT_USERNAME=имя_бота_без_@
+   ```
+4. Укажите свой Telegram ID в `ADMIN_TELEGRAM_IDS` (узнать можно у [@userinfobot](https://t.me/userinfobot))
 
-## Learn More
+### 3. Переменные окружения
 
-To learn more about Next.js, take a look at the following resources:
+| Переменная | Описание |
+|-----------|----------|
+| `DATABASE_URL` | SQLite: `file:./dev.db` (для продакшена — PostgreSQL) |
+| `TELEGRAM_BOT_TOKEN` | Токен бота от BotFather |
+| `NEXT_PUBLIC_BOT_USERNAME` | Username бота без @ |
+| `JWT_SECRET` | Случайная строка для сессий |
+| `ADMIN_TELEGRAM_IDS` | Telegram ID админов через запятую |
+| `NEXT_PUBLIC_APP_URL` | URL сайта |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Деплой
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Vercel** — задеплойте репозиторий
+2. **База данных** — [Neon](https://neon.tech) или [Supabase](https://supabase.com) (PostgreSQL)
+3. Обновите `DATABASE_URL` на PostgreSQL connection string
+4. В BotFather укажите домен Vercel через `/setdomain`
 
-## Deploy on Vercel
+## Формула рейтинга
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+Итоговый рейтинг = Игровой рейтинг × Коэффициент сезона
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Игровой рейтинг** — указывает ученик, корректирует админ (1–100)
+- **Коэффициент сезона** — среднее всех оценок от других игроков ÷ 5
+
+## Структура
+
+```
+src/
+├── app/           # Страницы и API
+├── components/    # UI-компоненты
+└── lib/           # Бизнес-логика
+prisma/
+└── schema.prisma  # Схема БД
+```
+
+## Скрипты
+
+```bash
+npm run dev        # Разработка
+npm run build      # Сборка
+npm run db:push    # Применить схему БД
+```

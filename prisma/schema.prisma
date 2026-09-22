@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  STUDENT
+}
+
+enum SeasonName {
+  AUTUMN
+  WINTER
+  SPRING
+}
+
+enum MaterialType {
+  VIDEO
+  STREAM
+  ARTICLE
+}
+
+enum SeasonStatus {
+  OPEN
+  CLOSED
+}
+
+enum HomeworkStatus {
+  ASSIGNED
+  SUBMITTED
+  GRADED
+  OVERDUE
+  REVISION
+}
+
+enum MatchSessionStatus {
+  PLANNED
+  TEAMS_SET
+  COMPLETED
+}
+
+enum DotaRole {
+  CARRY
+  MID
+  OFFLANE
+  SUPPORT
+  HARD_SUPPORT
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum VibeValue {
+  LIKE
+  NEUTRAL
+  DISLIKE
+}
+
+model User {
+  id             String   @id @default(cuid())
+  telegramId     String?  @unique
+  telegramChatId String?
+  telegramLinkToken String? @unique
+  login          String?  @unique
+  passwordHash   String?
+  username       String?
+  firstName      String
+  lastName       String?
+  photoUrl       String?
+  role           UserRole @default(STUDENT)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  profile             PlayerProfile?
+  homeworkAssignments HomeworkAssignment[]
+  homeworkSubmissions HomeworkSubmission[]
+  pointLogs           PointLog[]
+  penaltiesGiven      Penalty[]            @relation("PenaltyAdmin")
+  penaltiesReceived   Penalty[]            @relation("PenaltyTarget")
+  ratingsGiven        PeerRating[]         @relation("Rater")
+  ratingsReceived     PeerRating[]         @relation("Target")
+  vibeVotesGiven      VibeVote[]           @relation("VibeVoter")
+  vibeVotesReceived   VibeVote[]           @relation("VibeTarget")
+  matchParticipants   MatchParticipant[]
+  sentMessages        Message[]            @relation("MessageSender")
+  receivedMessages    Message[]            @relation("MessageRecipient")
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  sender      User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User     @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  body        String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([senderId])
+  @@index([recipientId])
+}
+
+model LearningMaterial {
+  id          String       @id @default(cuid())
+  type        MaterialType @default(VIDEO)
+  title       String       @default("")
+  description String       @default("")
+  url          String?
+  positions    String       @default("[]")
+  skillLevels  String       @default("[]")
+  createdAt    DateTime     @default(now())
+}
+
+model PlayerProfile {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steamAccountId    Int?
+  mmr               Int?
+  rankTier          Int?
+  seasonCoefficient Float     @default(1.0)
+  skillMod          Int       @default(0)
+  vibeMod           Float     @default(0)
+  finalRating       Int       @default(50)
+  primaryRole       DotaRole?
+  secondaryRole     DotaRole?
+  wins              Int       @default(0)
+  losses            Int       @default(0)
+  totalPoints       Float     @default(0)
+  winStreak         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model RatingSeason {
+  id          String       @id @default(cuid())
+  name        SeasonName
+  year        Int
+  status      SeasonStatus @default(CLOSED)
+  isActive    Boolean      @default(false)
+  openedAt    DateTime?
+  closedAt    DateTime?
+  closesAt    DateTime?
+  createdAt   DateTime     @default(now())
+  peerRatings PeerRating[]
+  vibeVotes   VibeVote[]
+  pointLogs   PointLog[]
+
+  @@unique([name, year])
+}
+
+model PeerRating {
+  id        String       @id @default(cuid())
+  seasonId  String
+  season    RatingSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  raterId   String
+  rater     User         @relation("Rater", fields: [raterId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User         @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
+  mechanics Int
+  macro     Int
+  teamplay  Int          @default(5)
+  createdAt DateTime     @default(now())
+
+  @@unique([seasonId, raterId, targetId])
+}
+
+model VibeVote {
+  id        String       @id @default(cuid())
+  seasonId  String
+  season    RatingSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  voterId   String
+  voter     User         @relation("VibeVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User         @relation("VibeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  value     VibeValue
+  createdAt DateTime     @default(now())
+
+  @@unique([seasonId, voterId, targetId])
+}
+
+model Homework {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  materialIds String   @default("[]")
+  createdAt   DateTime @default(now())
+  assignments HomeworkAssignment[]
+}
+
+model HomeworkAssignment {
+  id               String         @id @default(cuid())
+  homeworkId       String
+  homework         Homework       @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  deadline         DateTime
+  revisionDeadline DateTime?
+  revisionNote     String?
+  status           HomeworkStatus @default(ASSIGNED)
+  createdAt        DateTime       @default(now())
+  submission       HomeworkSubmission?
+
+  @@index([studentId])
+}
+
+model HomeworkSubmission {
+  id           String             @id @default(cuid())
+  assignmentId String             @unique
+  assignment   HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  textAnswer   String
+  fileUrls     String             @default("[]")
+  grade        Int?
+  excellent    Boolean            @default(false)
+  feedback     String?
+  submittedAt  DateTime           @default(now())
+  gradedAt     DateTime?
+}
+
+model PointLog {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seasonId   String?
+  season     RatingSeason? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  delta      Float
+  reason     String
+  sourceType String?
+  sourceId   String?
+  createdAt  DateTime      @default(now())
+
+  @@index([userId])
+  @@index([seasonId])
+  @@index([sourceType, sourceId])
+}
+
+model Penalty {
+  id        String   @id @default(cuid())
+  targetId  String
+  target    User     @relation("PenaltyTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  adminId   String
+  admin     User     @relation("PenaltyAdmin", fields: [adminId], references: [id])
+  amount    Float
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model MatchSession {
+  id              String             @id @default(cuid())
+  date            DateTime
+  status          MatchSessionStatus @default(PLANNED)
+  radiantPlayerIds String            @default("[]")
+  direPlayerIds    String            @default("[]")
+  teamAssignments  String            @default("{}")
+  createdAt       DateTime           @default(now())
+  games           MatchGame[]
+}
+
+model MatchGame {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    MatchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  gameNumber Int
+  winnerTeam String
+  createdAt  DateTime @default(now())
+  participants MatchParticipant[]
+}
+
+model MatchParticipant {
+  id             String    @id @default(cuid())
+  gameId         String
+  game           MatchGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team           String
+  won            Boolean
+  prevWinStreak  Int       @default(0)
+  pointsAwarded  Float     @default(0)
+}

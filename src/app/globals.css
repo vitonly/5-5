@@ -1,26 +1,207 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* поверхности */
+  --bg: #f2f6f6;
+  --surface: #ffffff;
+  --surface-muted: #fafcfc;
+  --control: #edf2f2;
+  --border: #d7e1e1;
+  --border-soft: #e7eded;
+
+  /* текст */
+  --text: #16211f;
+  --text-2: #566766;
+  --text-3: #6b7c7a;
+  --text-4: #8a9998;
+
+  /* очки школы */
+  --points: #0d8b92;
+  --points-hover: #14a3ab;
+  --points-bg: #dff3f3;
+  --points-border: #a9dcde;
+
+  /* рейтинг силы */
+  --power: #3a5ccc;
+  --power-bg: #e4e9fa;
+  --power-border: #b9c6f0;
+
+  /* семантика */
+  --success: #1b9e74;
+  --success-bg: #e1f5ee;
+  --success-border: #abdfc9;
+  --danger: #c74a3f;
+  --danger-bg: #fbe9e7;
+  --danger-border: #efc0ba;
+  --admin: #6b57d6;
+  --admin-bg: #edeafb;
+  --admin-border: #c7bff2;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-frame: 14px;
+  --radius-pill: 999px;
+
+  --font-display: var(--font-chakra-petch), system-ui, sans-serif;
+  --font-body: var(--font-ibm-plex), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-control: var(--control);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
+  --color-points: var(--points);
+  --color-points-hover: var(--points-hover);
+  --color-points-bg: var(--points-bg);
+  --color-points-border: var(--points-border);
+  --color-power: var(--power);
+  --color-power-bg: var(--power-bg);
+  --color-power-border: var(--power-border);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-admin: var(--admin);
+  --color-admin-bg: var(--admin-bg);
+  --color-admin-border: var(--admin-border);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+.h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+h2,
+.h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+h3,
+.h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-shell {
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+@media (min-width: 720px) {
+  .page-shell {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  h1,
+  .h1 {
+    font-size: 44px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .page-shell {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (max-width: 719px) {
+  h1,
+  .h1 {
+    font-size: 28px;
+    line-height: 1.15;
+  }
+
+  h2,
+  .h2 {
+    font-size: 22px;
+  }
+}
+
+/* admin scope — indigo accents */
+.admin-scope {
+  --focus-accent: var(--admin);
+}
+.admin-scope input:focus,
+.admin-scope textarea:focus,
+.admin-scope select:focus {
+  border-color: var(--admin) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(107, 87, 214, 0.15);
+}
+
+.img-placeholder {
+  background: repeating-linear-gradient(135deg, #e4ebeb 0 8px, #eef3f3 8px 16px);
+}
+
+select {
+  height: 44px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  font-size: 15px;
+}
+select:focus {
+  border-color: var(--points);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(13, 139, 146, 0.15);
 }
