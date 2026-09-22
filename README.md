@@ -2,81 +2,68 @@
 
 Веб-платформа для обучения Dota: вход через Telegram, домашние задания, FIFA-карточки игроков, сезонные оценки, субботние 5v5 с автобалансом команд, система очков и штрафов.
 
-## Возможности
+## Быстрый старт (локально)
 
-- **Вход через Telegram** — один клик для учеников
-- **FIFA-карточка** — игровой рейтинг, коэффициент сезона, итоговый рейтинг 1–100
-- **Домашки** — выдача, отправка с файлами, проверка и оценка
-- **Сезонная оценка** — осень/зима/лето, открытые оценки, автозакрытие
-- **5v5** — автобаланс команд по рейтингу, учёт побед/поражений и стриков
-- **Очки и штрафы** — публичная таблица лидеров
-
-## Быстрый старт
-
-### 1. Установка
+1. Создайте бесплатную БД на [Neon](https://neon.tech) и скопируйте connection string.
+2. Установите зависимости и настройте env:
 
 ```bash
 npm install
 cp .env.example .env
+# Впишите DATABASE_URL (Postgres), JWT_SECRET, Telegram и т.д.
 npx prisma db push
 npm run dev
 ```
 
-Сайт откроется на [http://localhost:3000](http://localhost:3000).
+Сайт: [http://localhost:3000](http://localhost:3000).
 
-### 2. Настройка Telegram-бота
+Для файлов локально `BLOB_READ_WRITE_TOKEN` не нужен — файлы пишутся в `public/uploads`.
 
-1. Создайте бота через [@BotFather](https://t.me/BotFather) (`/newbot`)
-2. Привяжите домен: `/setdomain` → выберите бота → `localhost` (для разработки)
-3. Скопируйте токен в `.env`:
-   ```
-   TELEGRAM_BOT_TOKEN=ваш_токен
-   NEXT_PUBLIC_BOT_USERNAME=имя_бота_без_@
-   ```
-4. Укажите свой Telegram ID в `ADMIN_TELEGRAM_IDS` (узнать можно у [@userinfobot](https://t.me/userinfobot))
+### Telegram-бот
 
-### 3. Переменные окружения
+1. [@BotFather](https://t.me/BotFather) → `/newbot`
+2. Токен и username в `.env`
+3. Свой Telegram ID в `ADMIN_TELEGRAM_IDS` ([@userinfobot](https://t.me/userinfobot))
+
+## Переменные окружения
 
 | Переменная | Описание |
 |-----------|----------|
-| `DATABASE_URL` | SQLite: `file:./dev.db` (для продакшена — PostgreSQL) |
-| `TELEGRAM_BOT_TOKEN` | Токен бота от BotFather |
-| `NEXT_PUBLIC_BOT_USERNAME` | Username бота без @ |
+| `DATABASE_URL` | PostgreSQL (Neon), с `?sslmode=require` |
 | `JWT_SECRET` | Случайная строка для сессий |
+| `TELEGRAM_BOT_TOKEN` | Токен бота |
+| `NEXT_PUBLIC_BOT_USERNAME` | Username бота без @ |
 | `ADMIN_TELEGRAM_IDS` | Telegram ID админов через запятую |
 | `NEXT_PUBLIC_APP_URL` | URL сайта |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob (обязателен на Vercel) |
+| `CRON_SECRET` | Опционально для cron |
+| `TWITCH_*` | Опционально |
 
-## Деплой
+## Деплой на Vercel + Neon
 
-1. **Vercel** — задеплойте репозиторий
-2. **База данных** — [Neon](https://neon.tech) или [Supabase](https://supabase.com) (PostgreSQL)
-3. Обновите `DATABASE_URL` на PostgreSQL connection string
-4. В BotFather укажите домен Vercel через `/setdomain`
+1. **Neon** — [neon.tech](https://neon.tech) → Create project → скопировать `DATABASE_URL`.
+2. **Vercel** — [vercel.com](https://vercel.com) → Add New → Project → Import `vitonly/5-5` (GitHub).
+3. **Environment Variables** (Production):
 
-## Формула рейтинга
+| Variable | Value |
+|----------|--------|
+| `DATABASE_URL` | строка из Neon |
+| `JWT_SECRET` | длинная случайная строка |
+| `TELEGRAM_BOT_TOKEN` | из BotFather |
+| `NEXT_PUBLIC_BOT_USERNAME` | без @ |
+| `ADMIN_TELEGRAM_IDS` | ваш Telegram ID |
+| `NEXT_PUBLIC_APP_URL` | `https://<проект>.vercel.app` (после первого деплоя можно уточнить) |
+| `BLOB_READ_WRITE_TOKEN` | Vercel → Storage → Create Blob Store → токен |
 
-```
-Итоговый рейтинг = Игровой рейтинг × Коэффициент сезона
-```
+4. Deploy. Сборка сама выполнит `prisma db push`.
+5. BotFather: `/setdomain` → домен Vercel; webhook (если нужен): `https://<url>/api/telegram/webhook`.
 
-- **Игровой рейтинг** — указывает ученик, корректирует админ (1–100)
-- **Коэффициент сезона** — среднее всех оценок от других игроков ÷ 5
-
-## Структура
-
-```
-src/
-├── app/           # Страницы и API
-├── components/    # UI-компоненты
-└── lib/           # Бизнес-логика
-prisma/
-└── schema.prisma  # Схема БД
-```
+Прод-БД сначала пустая — ученики и админ появляются после первого Telegram-логина (`ADMIN_TELEGRAM_IDS` делает админом).
 
 ## Скрипты
 
 ```bash
 npm run dev        # Разработка
-npm run build      # Сборка
-npm run db:push    # Применить схему БД
+npm run build      # Сборка (+ prisma generate && db push)
+npm run db:push    # Накатить схему
 ```
