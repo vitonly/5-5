@@ -179,7 +179,7 @@ export function calcMatchWinPoints(options: {
   const { winStreak, winnerAvgRating, loserAvgRating, offRole } = options;
 
   if (winStreak >= 2) {
-    let delta = POINT_VALUES.MATCH_WIN_STREAK;
+    let delta: number = POINT_VALUES.MATCH_WIN_STREAK;
     const parts = ["Победа в 5v5 (2 победы подряд)"];
     if (offRole) {
       delta = roundPoints(delta + POINT_VALUES.OFF_ROLE_BONUS);
@@ -188,7 +188,7 @@ export function calcMatchWinPoints(options: {
     return { delta, reason: parts.join(", ") };
   }
 
-  let delta = POINT_VALUES.MATCH_WIN;
+  let delta: number = POINT_VALUES.MATCH_WIN;
   const parts = ["Победа в 5v5"];
 
   const upset = upsetMultiplier(winnerAvgRating, loserAvgRating);

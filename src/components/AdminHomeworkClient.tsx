@@ -180,16 +180,17 @@ export function AdminHomeworkClient({
   }
 
   function updateReviewInput(assignmentId: string, patch: Partial<ReviewInput>) {
-    setGradeInputs((prev) => ({
-      ...prev,
-      [assignmentId]: {
+    setGradeInputs((prev) => {
+      const current = prev[assignmentId] ?? {
         feedback: "",
         revisionDeadline: "",
         excellent: false,
-        ...prev[assignmentId],
-        ...patch,
-      },
-    }));
+      };
+      return {
+        ...prev,
+        [assignmentId]: { ...current, ...patch },
+      };
+    });
   }
 
   function ReviewAssignmentCard({ a }: { a: (typeof pendingReview)[number] }) {

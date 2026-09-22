@@ -9,6 +9,7 @@ type StreamMaterial = {
   description?: string;
   url?: string | null;
   positions: string;
+  type?: string;
 };
 
 export function StreamCard({
@@ -58,7 +59,7 @@ export function StreamCard({
           Эфир
         </span>
         <p className="mt-1 truncate text-sm font-semibold text-[var(--text)] group-hover:text-[var(--points)]">
-          {isLive && live.title ? live.title : materialDisplayTitle(material)}
+          {isLive && live.title ? live.title : materialDisplayTitle({ ...material, type: material.type ?? "STREAM" })}
         </p>
         <p className="font-mono-num text-xs text-[var(--text-3)]">{login}</p>
         {material.description && (

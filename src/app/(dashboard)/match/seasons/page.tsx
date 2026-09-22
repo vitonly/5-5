@@ -79,7 +79,7 @@ export default async function MatchSeasonsPage() {
                       >
                         <span>
                           <span className="mr-2 text-[var(--text-4)]">{i + 1}.</span>
-                          <PlayerLink user={{ id: r.userId, ...r.user! }} viewer={user} />
+                          <PlayerLink user={r.user!} viewer={user} />
                         </span>
                         <PointsPill value={r.points} />
                       </li>
