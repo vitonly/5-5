@@ -4,11 +4,10 @@ import { prisma } from "@/lib/db";
 import { setSessionCookieOnResponse } from "@/lib/session";
 import { normalizeBotUsername } from "@/lib/telegram-auth";
 
-/** Создать тикет входа через бота */
+/** Создать тикет входа через бота / завершить вход */
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({} as { action?: string; token?: string }));
 
-  // Завершить вход: выдать cookie
   if (body.action === "complete" && body.token) {
     return completeTicket(String(body.token));
   }
@@ -55,7 +54,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (ticket.status === "USED") {
-    return NextResponse.json({ status: "USED" });
+    // Клиент может повторить complete — отдаём READY-подобный сигнал
+    return NextResponse.json({ status: "READY", role: "STUDENT", reused: true });
   }
 
   if (ticket.status === "READY" && ticket.userId) {
@@ -70,36 +70,69 @@ export async function GET(request: NextRequest) {
 }
 
 async function completeTicket(token: string) {
-  const ticket = await prisma.loginTicket.findUnique({ where: { token } });
-  if (!ticket || !ticket.userId) {
-    return NextResponse.json({ error: "Тикет не найден", status: "INVALID" }, { status: 400 });
-  }
-  if (ticket.expiresAt < new Date()) {
-    return NextResponse.json({ error: "Истёк", status: "EXPIRED" }, { status: 400 });
-  }
-  if (ticket.status === "USED") {
-    return NextResponse.json({ error: "Уже использован", status: "USED" }, { status: 400 });
-  }
-  if (ticket.status !== "READY") {
-    return NextResponse.json({ error: "Ещё не подтверждён", status: ticket.status }, { status: 400 });
-  }
+  try {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 8) {
+      return NextResponse.json(
+        {
+          error:
+            "JWT_SECRET не задан или слишком короткий в Vercel Environment Variables. Задай любую длинную строку и сделай Redeploy.",
+        },
+        { status: 500 }
+      );
+    }
 
-  const user = await prisma.user.findUnique({
-    where: { id: ticket.userId },
-    select: { role: true },
-  });
+    const ticket = await prisma.loginTicket.findUnique({ where: { token } });
+    if (!ticket || !ticket.userId) {
+      return NextResponse.json(
+        { error: "Тикет не найден. Нажмите «Войти через бота» ещё раз.", status: "INVALID" },
+        { status: 400 }
+      );
+    }
 
-  const response = NextResponse.json({
-    ok: true,
-    status: "READY",
-    role: user?.role ?? "STUDENT",
-  });
+    if (ticket.expiresAt < new Date() && ticket.status !== "USED") {
+      return NextResponse.json(
+        { error: "Ссылка истекла. Нажмите «Войти через бота» ещё раз.", status: "EXPIRED" },
+        { status: 400 }
+      );
+    }
 
-  await setSessionCookieOnResponse(response, ticket.userId);
-  await prisma.loginTicket.update({
-    where: { id: ticket.id },
-    data: { status: "USED" },
-  });
+    if (ticket.status !== "READY" && ticket.status !== "USED") {
+      return NextResponse.json(
+        { error: "Ещё не подтверждено в Telegram. Нажмите Start в боте.", status: ticket.status },
+        { status: 400 }
+      );
+    }
 
-  return response;
+    const user = await prisma.user.findUnique({
+      where: { id: ticket.userId },
+      select: { role: true },
+    });
+
+    const response = NextResponse.json({
+      ok: true,
+      status: "READY",
+      role: user?.role ?? "STUDENT",
+    });
+
+    await setSessionCookieOnResponse(response, ticket.userId);
+
+    if (ticket.status !== "USED") {
+      await prisma.loginTicket.update({
+        where: { id: ticket.id },
+        data: { status: "USED" },
+      });
+    }
+
+    return response;
+  } catch (e) {
+    return NextResponse.json(
+      {
+        error:
+          e instanceof Error
+            ? `Ошибка сессии: ${e.message}`
+            : "Не удалось создать сессию",
+      },
+      { status: 500 }
+    );
+  }
 }

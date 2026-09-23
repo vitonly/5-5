@@ -64,7 +64,11 @@ function LoginForm() {
           if (!done.ok) {
             setBotWaiting(false);
             setBotToken(null);
-            setError(doneData.error || "Не удалось создать сессию. Попробуйте ещё раз.");
+            setError(
+              typeof doneData.error === "string"
+                ? doneData.error
+                : `Не удалось создать сессию (${done.status}). Попробуйте ещё раз.`
+            );
             return;
           }
           // Жёсткий переход — cookie уже в ответе
