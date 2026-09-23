@@ -123,16 +123,30 @@ function PatternLayer({ design }: { design: CardDesign }) {
 export function CardFrame({
   design,
   rating,
-  name,
+  firstName,
+  lastName,
   photoUrl,
 }: {
   design: CardDesign;
   rating: number;
-  name: string;
+  firstName: string;
+  lastName?: string | null;
   photoUrl?: string | null;
 }) {
   const clipId = `clip-${design.id}`;
   const borderId = `border-${design.id}`;
+  const line1 = firstName.trim().toUpperCase();
+  const line2 = (lastName || "").trim().toUpperCase();
+  const single = !line2 ? line1 : null;
+  const nameFontSize = single
+    ? single.length > 14
+      ? 13
+      : single.length > 10
+        ? 15
+        : 17
+    : Math.max(line1.length, line2.length) > 12
+      ? 13
+      : 15;
 
   return (
     <svg
@@ -190,7 +204,7 @@ export function CardFrame({
           </g>
         )}
 
-        {/* Rating поверх фото */}
+        {/* Сила поверх фото */}
         <text
           x="28"
           y="72"
@@ -203,37 +217,56 @@ export function CardFrame({
           {rating}
         </text>
 
-        {/* Bottom fade */}
-        <rect x="-6" y="275" width={CARD_WIDTH + 12} height="130" fill={`url(#fade-${design.id})`} />
+        {/* Bottom fade — выше сужения щита */}
+        <rect x="-6" y="250" width={CARD_WIDTH + 12} height="120" fill={`url(#fade-${design.id})`} />
 
-        {/* Name bar — на всю ширину карточки */}
-        <rect x="-6" y="315" width={CARD_WIDTH + 12} height="90" fill="rgba(0,0,0,0.55)" />
-        {(() => {
-          const display = name.length > 22 ? `${name.slice(0, 21)}…` : name;
-          const fontSize =
-            display.length > 18 ? 12 : display.length > 14 ? 14 : display.length > 10 ? 16 : 18;
-          const long = display.length > 11;
-          return (
+        {/* Name bar в широкой части карточки (до сужения к острию) */}
+        <rect
+          x="24"
+          y="278"
+          width={CARD_WIDTH - 48}
+          height={line2 ? 56 : 42}
+          rx="4"
+          fill="rgba(0,0,0,0.55)"
+        />
+        {single ? (
+          <text
+            x={CARD_WIDTH / 2}
+            y="306"
+            fill={design.text}
+            fontSize={nameFontSize}
+            fontWeight="900"
+            textAnchor="middle"
+            fontFamily="system-ui, sans-serif"
+          >
+            {fitLine(single, 16)}
+          </text>
+        ) : (
+          <>
             <text
               x={CARD_WIDTH / 2}
-              y="362"
+              y="300"
               fill={design.text}
-              fontSize={fontSize}
+              fontSize={nameFontSize}
               fontWeight="900"
               textAnchor="middle"
               fontFamily="system-ui, sans-serif"
-              letterSpacing={long ? 0 : 1}
-              {...(long
-                ? {
-                    textLength: CARD_WIDTH - 40,
-                    lengthAdjust: "spacingAndGlyphs" as const,
-                  }
-                : {})}
             >
-              {display}
+              {fitLine(line1, 16)}
             </text>
-          );
-        })()}
+            <text
+              x={CARD_WIDTH / 2}
+              y="320"
+              fill={design.text}
+              fontSize={nameFontSize}
+              fontWeight="900"
+              textAnchor="middle"
+              fontFamily="system-ui, sans-serif"
+            >
+              {fitLine(line2, 16)}
+            </text>
+          </>
+        )}
 
         {/* Shine line top */}
         <path
@@ -246,4 +279,9 @@ export function CardFrame({
       </g>
     </svg>
   );
+}
+
+function fitLine(value: string, maxChars: number) {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars - 1)}…`;
 }

@@ -1,6 +1,5 @@
 import { CardFrame } from "@/components/CardFrame";
 import { cardSeed, generateCardDesign } from "@/lib/card-design";
-import { displayName } from "@/lib/utils";
 import type { DotaRole } from "@prisma/client";
 
 interface PlayerCardProps {
@@ -23,14 +22,7 @@ interface PlayerCardProps {
   };
 }
 
-function cardName(user: PlayerCardProps["user"]) {
-  const full = displayName(user).toUpperCase();
-  // CardFrame сам ужимает длинные имена; здесь только нормализуем регистр
-  return full;
-}
-
 export function PlayerCard({ user, profile }: PlayerCardProps) {
-  const name = cardName(user);
   const seed = cardSeed(user);
   const design = generateCardDesign(seed, profile.finalRating);
 
@@ -38,7 +30,8 @@ export function PlayerCard({ user, profile }: PlayerCardProps) {
     <CardFrame
       design={design}
       rating={profile.finalRating}
-      name={name}
+      firstName={user.firstName || user.username || "Игрок"}
+      lastName={user.lastName}
       photoUrl={user.photoUrl}
     />
   );

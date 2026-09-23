@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { PointsPill, PowerPill } from "@/components/StatPills";
-import { rankLabel } from "@/lib/labels";
-import { DOTA_ROLE_SHORT } from "@/lib/labels";
 import { playerProfilePath } from "@/lib/utils";
 import type { DotaRole } from "@prisma/client";
 
@@ -68,7 +66,6 @@ export function TopPlayerCard({
   }
 
   const name = [player.firstName, player.lastName].filter(Boolean).join(" ");
-  const role = player.primaryRole ? DOTA_ROLE_SHORT[player.primaryRole] : null;
   const canSeePower = viewer?.role === "ADMIN" || viewer?.id === player.id;
 
   return (
@@ -113,20 +110,13 @@ export function TopPlayerCard({
           />
 
           <div className="relative z-[1] flex h-full flex-col px-4 pb-10 pt-4">
-            <div className="flex w-full items-start justify-between">
+            <div className="flex w-full items-start">
               {canSeePower ? <PowerPill value={player.finalRating} /> : <span />}
-              <span className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-white/70">
-                #{rank}
-              </span>
             </div>
 
             <div className="mt-auto min-w-0 text-center">
               <p className="truncate font-display text-[18px] font-bold uppercase tracking-wide text-white drop-shadow">
                 {name || player.username || "Игрок"}
-              </p>
-              <p className="mt-1 truncate text-[13px] text-white/75">
-                {rankLabel(player.rankTier)}
-                {role ? ` · ${role}` : ""}
               </p>
               <div className="mt-3 flex justify-center">
                 <PointsPill value={player.totalPoints} />
