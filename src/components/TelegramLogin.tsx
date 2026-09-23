@@ -4,27 +4,32 @@ import { useEffect, useRef } from "react";
 
 interface TelegramLoginProps {
   botUsername: string;
-  onAuth: (user: Record<string, string | number>) => void;
+  /** Абсолютный URL callback для redirect-flow */
+  authUrl: string;
 }
 
-declare global {
-  interface Window {
-    onTelegramAuth?: (user: Record<string, string | number>) => void;
-  }
+function normalizeBot(raw: string) {
+  return raw.trim().replace(/^@/, "");
 }
 
-export function TelegramLogin({ botUsername, onAuth }: TelegramLoginProps) {
+/**
+ * Официальный Login Widget с data-auth-url (redirect).
+ * Надёжнее, чем data-onauth callback в попапе.
+ */
+export function TelegramLogin({ botUsername, authUrl }: TelegramLoginProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const bot = normalizeBot(botUsername);
 
   useEffect(() => {
-    window.onTelegramAuth = onAuth;
+    if (!bot || !authUrl) return;
+
     const script = document.createElement("script");
     script.src = "https://telegram.org/js/telegram-widget.js?22";
     script.async = true;
-    script.setAttribute("data-telegram-login", botUsername);
+    script.setAttribute("data-telegram-login", bot);
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "8");
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    script.setAttribute("data-auth-url", authUrl);
     script.setAttribute("data-request-access", "write");
 
     const container = containerRef.current;
@@ -32,11 +37,15 @@ export function TelegramLogin({ botUsername, onAuth }: TelegramLoginProps) {
       container.innerHTML = "";
       container.appendChild(script);
     }
+  }, [bot, authUrl]);
 
-    return () => {
-      delete window.onTelegramAuth;
-    };
-  }, [botUsername, onAuth]);
+  if (!bot) {
+    return (
+      <p className="text-center text-sm text-[var(--danger)]">
+        Не задан NEXT_PUBLIC_BOT_USERNAME
+      </p>
+    );
+  }
 
   return <div ref={containerRef} className="flex justify-center" />;
 }

@@ -91,6 +91,19 @@ model User {
   matchParticipants   MatchParticipant[]
   sentMessages        Message[]            @relation("MessageSender")
   receivedMessages    Message[]            @relation("MessageRecipient")
+  loginTickets        LoginTicket[]
+}
+
+model LoginTicket {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  status    String   @default("PENDING")
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([status, expiresAt])
 }
 
 model Message {

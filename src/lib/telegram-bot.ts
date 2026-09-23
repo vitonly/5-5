@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db";
 import { isAdminTelegramId } from "@/lib/session";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { upsertTelegramUser } from "@/lib/telegram-auth";
 
-type TelegramUser = {
+type TelegramUserMsg = {
   id: number;
   first_name: string;
   last_name?: string;
@@ -11,7 +12,7 @@ type TelegramUser = {
 
 type TelegramMessage = {
   message_id: number;
-  from: TelegramUser;
+  from: TelegramUserMsg;
   chat: { id: number; type: string };
   text?: string;
 };
@@ -21,7 +22,7 @@ export type TelegramUpdate = {
   message?: TelegramMessage;
 };
 
-async function linkByTelegramId(from: TelegramUser, chatId: string) {
+async function linkByTelegramId(from: TelegramUserMsg, chatId: string) {
   const telegramId = String(from.id);
   const isAdmin = isAdminTelegramId(telegramId);
 
@@ -40,24 +41,15 @@ async function linkByTelegramId(from: TelegramUser, chatId: string) {
   }
 
   if (isAdmin) {
-    const admin = await prisma.user.upsert({
-      where: { telegramId },
-      update: {
-        telegramChatId: chatId,
-        firstName: from.first_name,
-        lastName: from.last_name || null,
-        username: from.username || null,
-        role: "ADMIN",
-      },
-      create: {
-        telegramId,
-        telegramChatId: chatId,
-        firstName: from.first_name,
-        lastName: from.last_name || null,
-        username: from.username || null,
-        role: "ADMIN",
-        profile: { create: {} },
-      },
+    const admin = await upsertTelegramUser({
+      id: from.id,
+      first_name: from.first_name,
+      last_name: from.last_name,
+      username: from.username,
+    });
+    await prisma.user.update({
+      where: { id: admin.id },
+      data: { telegramChatId: chatId },
     });
     return admin.id;
   }
@@ -65,7 +57,7 @@ async function linkByTelegramId(from: TelegramUser, chatId: string) {
   return null;
 }
 
-async function linkByToken(token: string, from: TelegramUser, chatId: string) {
+async function linkByToken(token: string, from: TelegramUserMsg, chatId: string) {
   const user = await prisma.user.findUnique({ where: { telegramLinkToken: token } });
   if (!user) return null;
 
@@ -89,6 +81,32 @@ async function linkByToken(token: string, from: TelegramUser, chatId: string) {
   return user.id;
 }
 
+async function completeWebLogin(token: string, from: TelegramUserMsg, chatId: string) {
+  const ticket = await prisma.loginTicket.findUnique({ where: { token } });
+  if (!ticket || ticket.status !== "PENDING" || ticket.expiresAt < new Date()) {
+    return false;
+  }
+
+  const user = await upsertTelegramUser({
+    id: from.id,
+    first_name: from.first_name,
+    last_name: from.last_name,
+    username: from.username,
+  });
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { telegramChatId: chatId },
+  });
+
+  await prisma.loginTicket.update({
+    where: { id: ticket.id },
+    data: { status: "READY", userId: user.id },
+  });
+
+  return true;
+}
+
 export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void> {
   const message = update.message;
   if (!message?.text || !message.from) return;
@@ -99,6 +117,23 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   if (!text.startsWith("/start")) return;
 
   const param = text.split(/\s+/)[1];
+
+  if (param?.startsWith("login_")) {
+    const token = param.slice(6);
+    const ok = await completeWebLogin(token, message.from, chatId);
+    if (ok) {
+      await sendTelegramMessage(
+        chatId,
+        "✅ Вход подтверждён! Вернитесь на сайт — страница обновится сама."
+      );
+    } else {
+      await sendTelegramMessage(
+        chatId,
+        "❌ Ссылка для входа устарела. Нажмите «Войти через бота» на сайте ещё раз."
+      );
+    }
+    return;
+  }
 
   if (param?.startsWith("link_")) {
     const token = param.slice(5);
@@ -120,7 +155,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
       return;
     }
 
-    await sendTelegramMessage(chatId, "❌ Ссылка для привязки недействительна. Получите новую в профиле на сайте.");
+    await sendTelegramMessage(
+      chatId,
+      "❌ Ссылка для привязки недействительна. Получите новую в профиле на сайте."
+    );
     return;
   }
 
@@ -135,7 +173,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
 
   await sendTelegramMessage(
     chatId,
-    "👋 Привет! Чтобы получать уведомления, войдите на сайт и нажмите «Привязать Telegram» в профиле."
+    "👋 Привет! Чтобы войти на сайт, откройте страницу входа и нажмите «Войти через бота»."
   );
 }
 

@@ -36,8 +36,16 @@ npm run dev
 | `ADMIN_TELEGRAM_IDS` | Telegram ID админов через запятую |
 | `NEXT_PUBLIC_APP_URL` | URL сайта |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob (обязателен на Vercel) |
-| `CRON_SECRET` | Опционально для cron |
+| `CRON_SECRET` | Секрет для bootstrap / setWebhook |
 | `TWITCH_*` | Опционально |
+
+После первого деплоя один раз выставьте webhook бота:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "https://ВАШ_ДОМЕН/api/telegram/setup-webhook" -Headers @{ Authorization = "Bearer ВАШ_CRON_SECRET" }
+```
+
+Вход: виджет Telegram **или** кнопка «Войти через бота» (без oauth-окна).
 
 ## Деплой на Vercel + Neon
 
