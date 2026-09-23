@@ -14,20 +14,34 @@ function getSecret() {
 
 export type SessionUser = User & { profile: PlayerProfile | null };
 
-export async function createSession(userId: string) {
-  const token = await new SignJWT({ userId })
+export async function createSessionToken(userId: string) {
+  return new SignJWT({ userId })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("30d")
     .sign(getSecret());
+}
 
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30,
+};
+
+export async function createSession(userId: string) {
+  const token = await createSessionToken(userId);
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  cookieStore.set(COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+}
+
+/** Надёжная установка cookie на конкретный NextResponse (для Route Handlers). */
+export async function setSessionCookieOnResponse(
+  response: { cookies: { set: (name: string, value: string, options: typeof SESSION_COOKIE_OPTIONS) => void } },
+  userId: string
+) {
+  const token = await createSessionToken(userId);
+  response.cookies.set(COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
 }
 
 export async function destroySession() {

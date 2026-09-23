@@ -42,27 +42,54 @@ function LoginForm() {
   useEffect(() => {
     if (!botWaiting || !botToken) return;
 
+    let cancelled = false;
     const id = setInterval(async () => {
       try {
-        const res = await fetch(`/api/auth/telegram/ticket?token=${encodeURIComponent(botToken)}`);
+        const res = await fetch(
+          `/api/auth/telegram/ticket?token=${encodeURIComponent(botToken)}`,
+          { credentials: "same-origin", cache: "no-store" }
+        );
         const data = await res.json();
+        if (cancelled) return;
+
         if (data.status === "READY") {
           clearInterval(id);
-          router.push(data.role === "ADMIN" ? "/admin" : "/");
-          router.refresh();
+          const done = await fetch("/api/auth/telegram/ticket", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ action: "complete", token: botToken }),
+          });
+          const doneData = await done.json().catch(() => ({}));
+          if (!done.ok) {
+            setBotWaiting(false);
+            setBotToken(null);
+            setError(doneData.error || "Не удалось создать сессию. Попробуйте ещё раз.");
+            return;
+          }
+          // Жёсткий переход — cookie уже в ответе
+          window.location.href = doneData.role === "ADMIN" ? "/admin" : "/";
         } else if (data.status === "EXPIRED" || data.status === "INVALID") {
           clearInterval(id);
           setBotWaiting(false);
           setBotToken(null);
           setError("Ссылка входа истекла. Нажмите «Войти через бота» ещё раз.");
+        } else if (data.status === "USED") {
+          clearInterval(id);
+          setBotWaiting(false);
+          setBotToken(null);
+          setError("Этот вход уже использован. Нажмите «Войти через бота» ещё раз.");
         }
       } catch {
-        /* ignore poll errors */
+        /* ignore transient poll errors */
       }
-    }, 2000);
+    }, 1500);
 
-    return () => clearInterval(id);
-  }, [botWaiting, botToken, router]);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [botWaiting, botToken]);
 
   const handlePasswordLogin = useCallback(async () => {
     setLoading(true);

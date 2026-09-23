@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
-import { createSession } from "@/lib/session";
+import { setSessionCookieOnResponse } from "@/lib/session";
 import { normalizeBotUsername } from "@/lib/telegram-auth";
 
 /** Создать тикет входа через бота */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({} as { action?: string; token?: string }));
+
+  // Завершить вход: выдать cookie
+  if (body.action === "complete" && body.token) {
+    return completeTicket(String(body.token));
+  }
+
   const bot = normalizeBotUsername(process.env.NEXT_PUBLIC_BOT_USERNAME);
   if (!bot) {
-    return NextResponse.json({ error: "Бот не настроен" }, { status: 500 });
+    return NextResponse.json({ error: "Бот не настроен (NEXT_PUBLIC_BOT_USERNAME)" }, { status: 500 });
   }
 
   const token = randomBytes(16).toString("hex");
@@ -25,7 +32,7 @@ export async function POST() {
   });
 }
 
-/** Статус тикета; при READY создаёт сессию */
+/** Только статус, без cookie */
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) {
@@ -38,10 +45,12 @@ export async function GET(request: NextRequest) {
   }
 
   if (ticket.expiresAt < new Date()) {
-    await prisma.loginTicket.update({
-      where: { id: ticket.id },
-      data: { status: "EXPIRED" },
-    });
+    if (ticket.status !== "EXPIRED") {
+      await prisma.loginTicket.update({
+        where: { id: ticket.id },
+        data: { status: "EXPIRED" },
+      });
+    }
     return NextResponse.json({ status: "EXPIRED" });
   }
 
@@ -50,11 +59,6 @@ export async function GET(request: NextRequest) {
   }
 
   if (ticket.status === "READY" && ticket.userId) {
-    await createSession(ticket.userId);
-    await prisma.loginTicket.update({
-      where: { id: ticket.id },
-      data: { status: "USED" },
-    });
     const user = await prisma.user.findUnique({
       where: { id: ticket.userId },
       select: { role: true },
@@ -63,4 +67,39 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ status: "PENDING" });
+}
+
+async function completeTicket(token: string) {
+  const ticket = await prisma.loginTicket.findUnique({ where: { token } });
+  if (!ticket || !ticket.userId) {
+    return NextResponse.json({ error: "Тикет не найден", status: "INVALID" }, { status: 400 });
+  }
+  if (ticket.expiresAt < new Date()) {
+    return NextResponse.json({ error: "Истёк", status: "EXPIRED" }, { status: 400 });
+  }
+  if (ticket.status === "USED") {
+    return NextResponse.json({ error: "Уже использован", status: "USED" }, { status: 400 });
+  }
+  if (ticket.status !== "READY") {
+    return NextResponse.json({ error: "Ещё не подтверждён", status: ticket.status }, { status: 400 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: ticket.userId },
+    select: { role: true },
+  });
+
+  const response = NextResponse.json({
+    ok: true,
+    status: "READY",
+    role: user?.role ?? "STUDENT",
+  });
+
+  await setSessionCookieOnResponse(response, ticket.userId);
+  await prisma.loginTicket.update({
+    where: { id: ticket.id },
+    data: { status: "USED" },
+  });
+
+  return response;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSession } from "@/lib/session";
+import { setSessionCookieOnResponse } from "@/lib/session";
 import { upsertTelegramUser, validateTelegramAuth } from "@/lib/telegram-auth";
 
 /**
@@ -8,7 +8,12 @@ import { upsertTelegramUser, validateTelegramAuth } from "@/lib/telegram-auth";
  */
 export async function GET(request: NextRequest) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  const appUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (host ? `${proto}://${host}` : request.nextUrl.origin)
+  ).replace(/\/$/, "");
   const loginUrl = new URL("/login", appUrl);
 
   if (!botToken || botToken === "dev-token") {
@@ -39,10 +44,11 @@ export async function GET(request: NextRequest) {
       username: params.username,
       photo_url: params.photo_url,
     });
-    await createSession(user.id);
 
     const dest = user.role === "ADMIN" ? "/admin" : "/";
-    return NextResponse.redirect(new URL(dest, appUrl));
+    const response = NextResponse.redirect(new URL(dest, appUrl));
+    await setSessionCookieOnResponse(response, user.id);
+    return response;
   } catch {
     loginUrl.searchParams.set("error", "telegram_failed");
     return NextResponse.redirect(loginUrl);
