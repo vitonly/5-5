@@ -7,7 +7,8 @@ import { RatingBreakdown } from "@/components/RatingBreakdown";
 import { PointHistory } from "@/components/PointHistory";
 import { WeeklyPointsChart, MetricTile } from "@/components/WeeklyPointsChart";
 import { PointsPill } from "@/components/StatPills";
-import { DOTA_ROLE_LABELS } from "@/lib/labels";
+import { DOTA_ROLE_LABELS, rankLabel } from "@/lib/labels";
+import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { displayName } from "@/lib/utils";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import type { VibeValue } from "@/lib/rating";
@@ -57,6 +58,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     : [];
 
   const profile = user.profile;
+  const secondaryRoles = parseSecondaryRoles(profile.secondaryRoles, profile.secondaryRole);
   const isOwnProfile = viewer?.id === user.id;
   const canSeePower = isOwnProfile || viewer?.role === "ADMIN";
   const historyTitle = isOwnProfile ? "Моя история очков" : "История очков";
@@ -66,19 +68,34 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   const matchesPlayed = profile.wins + profile.losses;
   const winrate =
     matchesPlayed > 0 ? Math.round((profile.wins / matchesPlayed) * 100) : null;
+  const steamLink = profile.steamAccountId
+    ? `https://www.opendota.com/players/${profile.steamAccountId}`
+    : null;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">{displayName(user)}</h1>
-          {profile.primaryRole && (
-            <p className="mt-1 text-sm text-[var(--text-2)]">
-              {DOTA_ROLE_LABELS[profile.primaryRole]}
-              {profile.secondaryRole && ` / ${DOTA_ROLE_LABELS[profile.secondaryRole]}`}
-              {profile.mmr != null && ` · MMR ${profile.mmr}`}
-            </p>
-          )}
+          <p className="mt-1 text-sm text-[var(--text-2)]">
+            {rankLabel(profile.rankTier)}
+            {profile.primaryRole && ` · ${DOTA_ROLE_LABELS[profile.primaryRole]}`}
+            {secondaryRoles.length > 0 &&
+              ` / ${secondaryRoles.map((r) => DOTA_ROLE_LABELS[r]).join(", ")}`}
+            {steamLink && (
+              <>
+                {" · "}
+                <a
+                  href={steamLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--points)] underline"
+                >
+                  OpenDota
+                </a>
+              </>
+            )}
+          </p>
         </div>
         {isOwnProfile && viewer?.role === "STUDENT" && (
           <Link
@@ -94,7 +111,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
         <div className="space-y-4">
           <PlayerCard user={user} profile={profile} />
           <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[var(--points-border)] bg-[var(--points-bg)] px-4 py-3">
-            <span className="text-sm text-[var(--text-2)]">Очки школы</span>
+            <span className="text-sm text-[var(--text-2)]">Очки платформы</span>
             <PointsPill value={profile.totalPoints} />
           </div>
         </div>

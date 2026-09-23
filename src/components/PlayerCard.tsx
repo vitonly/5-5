@@ -24,10 +24,9 @@ interface PlayerCardProps {
 }
 
 function cardName(user: PlayerCardProps["user"]) {
-  const full = displayName(user);
-  if (full.length <= 14) return full.toUpperCase();
-  if (user.lastName) return user.lastName.toUpperCase();
-  return user.firstName.toUpperCase();
+  const full = displayName(user).toUpperCase();
+  // CardFrame сам ужимает длинные имена; здесь только нормализуем регистр
+  return full;
 }
 
 export function PlayerCard({ user, profile }: PlayerCardProps) {

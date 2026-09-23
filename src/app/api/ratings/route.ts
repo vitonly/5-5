@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Такой сезон уже существует" }, { status: 400 });
   }
 
-  await prisma.ratingSeason.updateMany({ data: { isActive: false } });
+  await prisma.ratingSeason.updateMany({
+    where: { OR: [{ isActive: true }, { status: "OPEN" }] },
+    data: { isActive: false, status: "CLOSED", closedAt: new Date() },
+  });
+
+  // Новый сезон стартует с нулевых очков платформы; история — в PointLog прошлых сезонов
+  await prisma.playerProfile.updateMany({ data: { totalPoints: 0 } });
 
   const season = await prisma.ratingSeason.create({
     data: {

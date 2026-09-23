@@ -208,18 +208,32 @@ export function CardFrame({
 
         {/* Name bar — на всю ширину карточки */}
         <rect x="-6" y="315" width={CARD_WIDTH + 12} height="90" fill="rgba(0,0,0,0.55)" />
-        <text
-          x={CARD_WIDTH / 2}
-          y="362"
-          fill={design.text}
-          fontSize="18"
-          fontWeight="900"
-          textAnchor="middle"
-          fontFamily="system-ui, sans-serif"
-          letterSpacing="1"
-        >
-          {name.length > 16 ? `${name.slice(0, 15)}…` : name}
-        </text>
+        {(() => {
+          const display = name.length > 22 ? `${name.slice(0, 21)}…` : name;
+          const fontSize =
+            display.length > 18 ? 12 : display.length > 14 ? 14 : display.length > 10 ? 16 : 18;
+          const long = display.length > 11;
+          return (
+            <text
+              x={CARD_WIDTH / 2}
+              y="362"
+              fill={design.text}
+              fontSize={fontSize}
+              fontWeight="900"
+              textAnchor="middle"
+              fontFamily="system-ui, sans-serif"
+              letterSpacing={long ? 0 : 1}
+              {...(long
+                ? {
+                    textLength: CARD_WIDTH - 40,
+                    lengthAdjust: "spacingAndGlyphs" as const,
+                  }
+                : {})}
+            >
+              {display}
+            </text>
+          );
+        })()}
 
         {/* Shine line top */}
         <path

@@ -9,6 +9,7 @@ import {
   isOffRole,
   undoMatchGame,
 } from "@/lib/points";
+import { parseSecondaryRoles } from "@/lib/secondary-roles";
 
 type TeamAssignment = Record<string, { team: string; position: number }>;
 
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
       name: displayName(p.user),
       finalRating: p.finalRating,
       primaryRole: p.primaryRole,
+      secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
     }));
 
     try {

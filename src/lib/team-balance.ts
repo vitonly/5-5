@@ -5,6 +5,8 @@ export interface BalancePlayer {
   name: string;
   finalRating: number;
   primaryRole?: DotaRole | null;
+  /** Вторичные роли по приоритету (0 — высший) */
+  secondaryRoles?: DotaRole[];
 }
 
 export interface AssignedPlayer extends BalancePlayer {
@@ -31,35 +33,80 @@ const CORE_POSITION: Partial<Record<DotaRole, number>> = {
   OFFLANE: 3,
 };
 
-// Саппорт универсален: SUPPORT и HARD_SUPPORT могут занять и 4, и 5 позицию.
+const SUPPORT_ROLES: DotaRole[] = ["SUPPORT", "HARD_SUPPORT"];
+
+function preferredPositions(player: BalancePlayer): number[] {
+  const roles: DotaRole[] = [];
+  if (player.primaryRole) roles.push(player.primaryRole);
+  for (const r of player.secondaryRoles ?? []) {
+    if (!roles.includes(r)) roles.push(r);
+  }
+
+  const positions: number[] = [];
+  for (const role of roles) {
+    const core = CORE_POSITION[role];
+    if (core && !positions.includes(core)) positions.push(core);
+  }
+  const wantsSupport = roles.some((r) => SUPPORT_ROLES.includes(r));
+  if (wantsSupport) {
+    // Хард-саппорт в приоритете на 5, обычный — на 4
+    const hardFirst = roles.includes("HARD_SUPPORT");
+    const supportOrder = hardFirst ? [5, 4] : [4, 5];
+    for (const s of supportOrder) {
+      if (!positions.includes(s)) positions.push(s);
+    }
+  }
+  return positions;
+}
+
 function assignPositions(team: BalancePlayer[]): AssignedPlayer[] {
   const taken = new Set<number>();
   const assigned = new Map<string, number>();
 
-  // 1. Кор-роли на свои позиции
+  // Раунды по приоритету ролей: сначала primary у всех, потом secondary #1, #2, #3
+  const maxDepth = 1 + Math.max(0, ...team.map((p) => p.secondaryRoles?.length ?? 0));
+
+  for (let depth = 0; depth < maxDepth; depth++) {
+    for (const p of team) {
+      if (assigned.has(p.id)) continue;
+      const roles: DotaRole[] = [];
+      if (depth === 0 && p.primaryRole) roles.push(p.primaryRole);
+      if (depth > 0) {
+        const sec = p.secondaryRoles?.[depth - 1];
+        if (sec) roles.push(sec);
+      }
+      for (const role of roles) {
+        const core = CORE_POSITION[role];
+        if (core && !taken.has(core)) {
+          taken.add(core);
+          assigned.set(p.id, core);
+          break;
+        }
+        if (SUPPORT_ROLES.includes(role)) {
+          const slots = (role === "HARD_SUPPORT" ? [5, 4] : [4, 5]).filter((s) => !taken.has(s));
+          const slot = slots[0];
+          if (slot) {
+            taken.add(slot);
+            assigned.set(p.id, slot);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Запасной проход по объединённым предпочтениям
   for (const p of team) {
-    const pos = p.primaryRole ? CORE_POSITION[p.primaryRole] : undefined;
-    if (pos && !taken.has(pos)) {
-      taken.add(pos);
-      assigned.set(p.id, pos);
+    if (assigned.has(p.id)) continue;
+    for (const pos of preferredPositions(p)) {
+      if (!taken.has(pos)) {
+        taken.add(pos);
+        assigned.set(p.id, pos);
+        break;
+      }
     }
   }
 
-  // 2. Саппорты (универсальны) — сначала хард-саппорт на 5, обычный на 4
-  const supports = team.filter(
-    (p) => !assigned.has(p.id) && (p.primaryRole === "SUPPORT" || p.primaryRole === "HARD_SUPPORT")
-  );
-  const supportSlots = [5, 4].filter((s) => !taken.has(s));
-  supports.sort((a, b) => (a.primaryRole === "HARD_SUPPORT" ? -1 : 1));
-  for (const s of supports) {
-    const slot = supportSlots.shift();
-    if (slot) {
-      taken.add(slot);
-      assigned.set(s.id, slot);
-    }
-  }
-
-  // 3. Остальные игроки заполняют свободные позиции по порядку
   const freeSlots = [1, 2, 3, 4, 5].filter((s) => !taken.has(s));
   for (const p of team) {
     if (!assigned.has(p.id)) {

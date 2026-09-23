@@ -37,15 +37,12 @@ function PlaceholderCard({ rank, first }: { rank: number; first: boolean }) {
         }}
       >
         <div
-          className="flex flex-col items-center bg-[var(--surface)] px-4 pb-10 pt-5"
+          className="flex flex-col items-center justify-end bg-[var(--surface)] px-4 pb-10 pt-5"
           style={{ clipPath: CLIP, minHeight: first ? 300 : 260 }}
         >
           <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
             Место {rank}
           </p>
-          <div className="mt-8 flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-[var(--border)] text-[var(--text-4)]">
-            —
-          </div>
           <p className="mt-4 font-mono-num text-sm text-[var(--text-3)]">Свободно</p>
         </div>
       </div>
@@ -64,6 +61,7 @@ export function TopPlayerCard({
 }) {
   const first = rank === 1;
   const w = first ? 250 : 212;
+  const h = first ? 320 : 280;
 
   if (!player) {
     return <PlaceholderCard rank={rank} first={first} />;
@@ -71,8 +69,7 @@ export function TopPlayerCard({
 
   const name = [player.firstName, player.lastName].filter(Boolean).join(" ");
   const role = player.primaryRole ? DOTA_ROLE_SHORT[player.primaryRole] : null;
-  const canSeePower =
-    viewer?.role === "ADMIN" || viewer?.id === player.id;
+  const canSeePower = viewer?.role === "ADMIN" || viewer?.id === player.id;
 
   return (
     <Link
@@ -91,41 +88,50 @@ export function TopPlayerCard({
         }}
       >
         <div
-          className="relative flex flex-col items-center bg-[var(--surface)] px-4 pb-12 pt-4"
-          style={{ clipPath: CLIP, minHeight: first ? 320 : 280 }}
+          className="relative overflow-hidden bg-[var(--control)]"
+          style={{ clipPath: CLIP, height: h }}
         >
-          <div className="flex w-full items-start justify-between">
-            {canSeePower ? (
-              <PowerPill value={player.finalRating} />
-            ) : (
-              <span />
-            )}
-            <span className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
-              #{rank}
-            </span>
-          </div>
+          {player.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={player.photoUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover object-top"
+            />
+          ) : (
+            <div className="img-placeholder absolute inset-0 flex items-center justify-center font-mono-num text-xs text-[var(--text-4)]">
+              фото
+            </div>
+          )}
 
-          <div className="mt-3 h-[88px] w-[88px] overflow-hidden rounded-full border-2 border-[var(--border)] bg-[var(--control)]">
-            {player.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={player.photoUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className="img-placeholder flex h-full w-full items-center justify-center font-mono-num text-[10px] text-[var(--text-4)]">
-                фото
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(8,18,20,0.35) 0%, rgba(8,18,20,0.1) 35%, rgba(8,18,20,0.55) 70%, rgba(8,18,20,0.92) 100%)",
+            }}
+          />
+
+          <div className="relative z-[1] flex h-full flex-col px-4 pb-10 pt-4">
+            <div className="flex w-full items-start justify-between">
+              {canSeePower ? <PowerPill value={player.finalRating} /> : <span />}
+              <span className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-white/70">
+                #{rank}
+              </span>
+            </div>
+
+            <div className="mt-auto min-w-0 text-center">
+              <p className="truncate font-display text-[18px] font-bold uppercase tracking-wide text-white drop-shadow">
+                {name || player.username || "Игрок"}
+              </p>
+              <p className="mt-1 truncate text-[13px] text-white/75">
+                {rankLabel(player.rankTier)}
+                {role ? ` · ${role}` : ""}
+              </p>
+              <div className="mt-3 flex justify-center">
+                <PointsPill value={player.totalPoints} />
               </div>
-            )}
-          </div>
-
-          <p className="mt-3 max-w-full truncate font-display text-[18px] font-bold uppercase tracking-wide text-[var(--text)]">
-            {name || player.username || "Игрок"}
-          </p>
-          <p className="mt-1 text-center text-[13px] text-[var(--text-3)]">
-            {rankLabel(player.rankTier)}
-            {role ? ` · ${role}` : ""}
-          </p>
-
-          <div className="mt-3">
-            <PointsPill value={player.totalPoints} />
+            </div>
           </div>
         </div>
       </div>
