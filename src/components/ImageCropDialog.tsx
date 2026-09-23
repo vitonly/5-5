@@ -16,7 +16,7 @@ type ImageCropDialogProps = {
   aspect?: number;
   sourceMimeType?: string;
   onClose: () => void;
-  onConfirm: (file: File) => void;
+  onConfirm: (file: File) => void | Promise<void>;
 };
 
 export function ImageCropDialog({
@@ -43,8 +43,11 @@ export function ImageCropDialog({
       const { mimeType, extension } = cropOutputFormat(sourceMimeType);
       const blob = await cropImageToBlob(imageSrc, croppedArea, mimeType);
       const file = new File([blob], `avatar.${extension}`, { type: mimeType });
-      onConfirm(file);
+      await onConfirm(file);
       onClose();
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Не удалось обработать изображение");
     } finally {
       setProcessing(false);
     }

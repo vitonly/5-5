@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
         onBeforeGenerateToken: async () => ({
           maximumSizeInBytes: MAX_BYTES,
           addRandomSuffix: true,
+          // без allowedContentTypes — принимаем любой тип (аватар, dem, pdf…)
         }),
         onUploadCompleted: async () => {
           /* no-op */
