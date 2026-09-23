@@ -14,7 +14,10 @@ async function main() {
   const password = "1";
   const passwordHash = hashPassword(password);
 
-  const existing = await prisma.user.findUnique({ where: { login } });
+  const existing = await prisma.user.findUnique({
+    where: { login },
+    include: { profile: true },
+  });
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },

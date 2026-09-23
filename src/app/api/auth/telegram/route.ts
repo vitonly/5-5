@@ -10,11 +10,12 @@ export async function POST(request: NextRequest) {
     if (process.env.NODE_ENV === "production") {
       return NextResponse.json({ error: "Telegram bot не настроен" }, { status: 500 });
     }
-  } else if (!validateTelegramAuth(body as TelegramUser, botToken)) {
+  } else if (!validateTelegramAuth(body as Record<string, string | number | undefined>, botToken)) {
     return NextResponse.json({ error: "Неверная подпись Telegram" }, { status: 401 });
   }
 
-  const user = await upsertTelegramUser(body as TelegramUser);
+  const data = body as TelegramUser;
+  const user = await upsertTelegramUser(data);
   await createSession(user.id);
   return NextResponse.json({ success: true, role: user.role });
 }
