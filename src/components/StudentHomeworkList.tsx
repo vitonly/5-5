@@ -147,15 +147,11 @@ function HomeworkCard({
     }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        setFiles((prev) => [...prev, data.url]);
-      } else {
-        setError("Не удалось загрузить файл");
-      }
+      const { uploadAppFile } = await import("@/lib/upload-client");
+      const data = await uploadAppFile(file);
+      setFiles((prev) => [...prev, data.url]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось загрузить файл");
     } finally {
       setUploading(false);
     }

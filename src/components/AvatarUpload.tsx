@@ -45,13 +45,11 @@ export function AvatarUpload({
   async function uploadCroppedFile(file: File) {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        onPhotoChange(data.url);
-      }
+      const { uploadAppFile } = await import("@/lib/upload-client");
+      const data = await uploadAppFile(file);
+      onPhotoChange(data.url);
+    } catch (e) {
+      console.error(e);
     } finally {
       setUploading(false);
       closeCrop();
