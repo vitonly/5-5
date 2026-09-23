@@ -45,7 +45,7 @@ export function AdminSeasonsClient({
 
   async function seasonAction(
     seasonId: string,
-    action: "close" | "open" | "activate" | "setDeadline",
+    action: "close" | "open" | "activate" | "setDeadline" | "delete",
     deadline?: string
   ) {
     await fetch("/api/ratings", {
@@ -203,6 +203,21 @@ export function AdminSeasonsClient({
                     Открыть снова (без сброса)
                   </Button>
                 )}
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    const label = `${SEASON_LABELS[season.name]} ${season.year}`;
+                    if (
+                      confirm(
+                        `Удалить сезон «${label}»?\n\nГолоса скилла и вайба за этот сезон будут стёрты. Записи очков платформы останутся, но без привязки к сезону.`
+                      )
+                    ) {
+                      seasonAction(season.id, "delete");
+                    }
+                  }}
+                >
+                  Удалить сезон
+                </Button>
               </div>
             </CardContent>
           </Card>

@@ -121,6 +121,20 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ season });
   }
 
+  if (action === "delete") {
+    await requireAdmin();
+    if (!seasonId) {
+      return NextResponse.json({ error: "Не указан сезон" }, { status: 400 });
+    }
+    const existing = await prisma.ratingSeason.findUnique({ where: { id: seasonId } });
+    if (!existing) {
+      return NextResponse.json({ error: "Сезон не найден" }, { status: 404 });
+    }
+    // PeerRating/VibeVote — cascade; PointLog.seasonId — SetNull (история очков остаётся)
+    await prisma.ratingSeason.delete({ where: { id: seasonId } });
+    return NextResponse.json({ deleted: true, seasonId });
+  }
+
   const season = await prisma.ratingSeason.findUnique({ where: { id: seasonId } });
   if (!season || season.status !== "OPEN") {
     return NextResponse.json({ error: "Голосование закрыто" }, { status: 400 });
