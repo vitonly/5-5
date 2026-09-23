@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { Button } from "@/components/ui/button";
 import { PlayerCard } from "@/components/PlayerCard";
+import { RankMedalPicker } from "@/components/RankMedalPicker";
 import { DOTA_ROLE_LABELS } from "@/lib/labels";
 import { PlayerLink } from "@/components/PlayerLink";
 import type { User, PlayerProfile } from "@prisma/client";
@@ -20,14 +21,12 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   const [firstName, setFirstName] = useState(selected?.firstName || "");
   const [lastName, setLastName] = useState(selected?.lastName || "");
   const [photoUrl, setPhotoUrl] = useState(selected?.photoUrl || "");
-  const [mmr, setMmr] = useState(selected?.profile?.mmr?.toString() || "");
-  const [rankTier, setRankTier] = useState(selected?.profile?.rankTier?.toString() || "");
+  const [rankTier, setRankTier] = useState<number | null>(selected?.profile?.rankTier ?? null);
 
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
   const [newLogin, setNewLogin] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newMmr, setNewMmr] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -36,8 +35,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
     setFirstName(s.firstName);
     setLastName(s.lastName || "");
     setPhotoUrl(s.photoUrl || "");
-    setMmr(s.profile?.mmr?.toString() || "");
-    setRankTier(s.profile?.rankTier?.toString() || "");
+    setRankTier(s.profile?.rankTier ?? null);
   }
 
   async function saveStudent() {
@@ -50,8 +48,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         firstName,
         lastName,
         photoUrl: photoUrl || null,
-        mmr: mmr === "" ? null : Number(mmr),
-        rankTier: rankTier === "" ? null : Number(rankTier),
+        rankTier,
       }),
     });
     router.refresh();
@@ -68,7 +65,6 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         lastName: newLastName,
         login: newLogin,
         password: newPassword,
-        mmr: newMmr,
       }),
     });
     setCreating(false);
@@ -77,7 +73,6 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
       setNewLastName("");
       setNewLogin("");
       setNewPassword("");
-      setNewMmr("");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -134,16 +129,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
             <Label>Пароль</Label>
             <Input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </div>
-          <div>
-            <Label>MMR (необязательно)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={newMmr}
-              onChange={(e) => setNewMmr(e.target.value)}
-            />
-          </div>
-          <div className="flex items-end">
+          <div className="flex items-end sm:col-span-2">
             <Button
               onClick={createStudent}
               disabled={creating || !newFirstName || !newLogin || !newPassword}
@@ -236,23 +222,10 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                   />
                 </div>
                 <div>
-                  <Label>MMR</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={mmr}
-                    onChange={(e) => setMmr(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Ранг (rank_tier OpenDota, напр. 55 = Легенда 5)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={85}
-                    value={rankTier}
-                    onChange={(e) => setRankTier(e.target.value)}
-                  />
+                  <Label>Рейтинг (медаль)</Label>
+                  <div className="mt-2">
+                    <RankMedalPicker rankTier={rankTier} onChange={setRankTier} />
+                  </div>
                 </div>
                 <p className="text-sm text-[var(--text-3)]">
                   Роль:{" "}

@@ -7,6 +7,7 @@ export default async function AdminSeasonsPage() {
       include: {
         peerRatings: { include: { rater: true, target: true } },
         vibeVotes: { include: { voter: true, target: true } },
+        pointLogs: true,
       },
       orderBy: [{ year: "desc" }, { name: "desc" }],
     }),

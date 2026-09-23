@@ -60,8 +60,18 @@ export async function finalizeSeason(seasonId: string) {
     await refreshPlayerStrength(student.id, seasonId);
   }
 
+  // История очков остаётся в PointLog (привязка к seasonId).
+  // Текущий счётчик платформы обнуляем.
+  await prisma.playerProfile.updateMany({
+    data: { totalPoints: 0 },
+  });
+
   return prisma.ratingSeason.update({
     where: { id: seasonId },
-    data: { status: "CLOSED", closedAt: new Date() },
+    data: {
+      status: "CLOSED",
+      closedAt: new Date(),
+      isActive: false,
+    },
   });
 }

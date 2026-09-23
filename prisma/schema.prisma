@@ -144,6 +144,8 @@ model PlayerProfile {
   finalRating       Int       @default(50)
   primaryRole       DotaRole?
   secondaryRole     DotaRole?
+  /** JSON-массив до 3 ролей, порядок = приоритет (0 — высший) */
+  secondaryRoles    String    @default("[]")
   wins              Int       @default(0)
   losses            Int       @default(0)
   totalPoints       Float     @default(0)

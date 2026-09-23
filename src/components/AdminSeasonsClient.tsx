@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SEASON_LABELS } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
+import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
-import type { RatingSeason, User, PlayerProfile, PeerRating, VibeVote } from "@prisma/client";
+import type { RatingSeason, User, PlayerProfile, PeerRating, VibeVote, PointLog } from "@prisma/client";
 
 type Season = RatingSeason & {
   peerRatings: (PeerRating & { rater: User; target: User })[];
   vibeVotes?: (VibeVote & { voter: User; target: User })[];
+  pointLogs?: PointLog[];
 };
 type Student = User & { profile: PlayerProfile | null };
 
@@ -61,14 +63,23 @@ export function AdminSeasonsClient({
     return { skillDone, vibeDone, expected };
   }
 
+  function seasonPointsByUser(season: Season): Record<string, number> {
+    const map: Record<string, number> = {};
+    for (const log of season.pointLogs ?? []) {
+      map[log.userId] = (map[log.userId] ?? 0) + log.delta;
+    }
+    return map;
+  }
+
   return (
     <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle>Создать сезон</CardTitle>
+          <CardTitle>Открыть сезон</CardTitle>
           <p className="text-sm text-[var(--text-3)]">
-            Новый сезон сразу становится активным (очки 5v5 начисляются в него) и открывает
-            голосование за игроков.
+            Новый сезон становится активным: в него идут очки платформы и голосование. Предыдущие
+            сезоны закрываются, текущие очки платформы обнуляются (история сохраняется в логах
+            сезонов).
           </p>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-4">
@@ -98,29 +109,31 @@ export function AdminSeasonsClient({
               onChange={(e) => setClosesAt(e.target.value)}
             />
           </div>
-          <Button onClick={handleCreateSeason}>Создать сезон</Button>
+          <Button onClick={handleCreateSeason}>Открыть сезон</Button>
         </CardContent>
       </Card>
 
       {seasons.map((season) => {
         const { skillDone, vibeDone, expected } = progress(season);
+        const pointsMap = seasonPointsByUser(season);
+        const seasonTotal = Object.values(pointsMap).reduce((a, b) => a + b, 0);
         return (
           <Card key={season.id}>
             <CardHeader>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <CardTitle>
                   {SEASON_LABELS[season.name]} {season.year}
                 </CardTitle>
                 {season.isActive && <Badge variant="success">Активный</Badge>}
                 <Badge variant={season.status === "OPEN" ? "warning" : "default"}>
-                  {season.status === "OPEN" ? "Голосование открыто" : "Голосование закрыто"}
+                  {season.status === "OPEN" ? "Открыт" : "Закрыт"}
                 </Badge>
               </div>
               <p className="text-sm text-[var(--text-3)]">
-                Скилл: {skillDone}/{expected} · Вайб: {vibeDone}/{expected}
-                {season.closesAt && (
-                  <> · Автозакрытие: {formatDate(season.closesAt)}</>
-                )}
+                Голоса — скилл: {skillDone}/{expected} · вайб: {vibeDone}/{expected}
+                {season.closesAt && <> · Дедлайн: {formatDate(season.closesAt)}</>}
+                {" · "}
+                Очки платформы за сезон: {formatPoints(seasonTotal)}
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -130,10 +143,14 @@ export function AdminSeasonsClient({
                   .length;
                 const expectedPer = students.length - 1;
                 const lowSkill = givenSkill < 3 && expectedPer >= 3;
+                const pts = pointsMap[student.id] ?? 0;
                 return (
                   <p key={student.id} className="text-sm text-[var(--text)]">
                     <PlayerLink user={student} className="inline" />: скилл {givenSkill}/
                     {expectedPer}, вайб {givenVibe}/{expectedPer}
+                    <span className="ml-2 font-mono-num text-[var(--points)]">
+                      {formatPoints(pts)} очк.
+                    </span>
                     {lowSkill && (
                       <span className="ml-2 text-xs text-[var(--danger)]">мало голосов</span>
                     )}
@@ -161,18 +178,29 @@ export function AdminSeasonsClient({
                     </Button>
                   </>
                 )}
-                {!season.isActive && (
+                {!season.isActive && season.status === "OPEN" && (
                   <Button variant="secondary" onClick={() => seasonAction(season.id, "activate")}>
                     Сделать активным
                   </Button>
                 )}
                 {season.status === "OPEN" ? (
-                  <Button variant="destructive" onClick={() => seasonAction(season.id, "close")}>
-                    Закрыть голосование (пересчитать рейтинг)
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Закрыть сезон? Очки платформы у всех сбросятся до 0. История начислений сохранится."
+                        )
+                      ) {
+                        seasonAction(season.id, "close");
+                      }
+                    }}
+                  >
+                    Закрыть сезон (сброс очков)
                   </Button>
                 ) : (
                   <Button variant="secondary" onClick={() => seasonAction(season.id, "open")}>
-                    Открыть голосование
+                    Открыть снова (без сброса)
                   </Button>
                 )}
               </div>

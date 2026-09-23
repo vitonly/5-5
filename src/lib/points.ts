@@ -73,12 +73,20 @@ export async function addPoints(
   return rounded;
 }
 
-/** Сезонные очки учеников (сумма PointLog за сезон). Без сезона — lifetime totalPoints. */
+/** Сезонные очки учеников (сумма PointLog за сезон). Без сезона — текущий totalPoints. */
 export async function getSeasonLeaderboard(seasonId: string | null) {
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
     include: { profile: true },
   });
+
+  const lifetimeGrouped = await prisma.pointLog.groupBy({
+    by: ["userId"],
+    _sum: { delta: true },
+  });
+  const lifetimeByUser = Object.fromEntries(
+    lifetimeGrouped.map((g) => [g.userId, g._sum.delta ?? 0])
+  );
 
   if (!seasonId) {
     return students
@@ -89,7 +97,7 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
         lastName: u.lastName,
         username: u.username,
         totalPoints: u.profile!.totalPoints,
-        lifetimePoints: u.profile!.totalPoints,
+        lifetimePoints: lifetimeByUser[u.id] ?? u.profile!.totalPoints,
       }))
       .sort((a, b) => b.totalPoints - a.totalPoints);
   }
@@ -109,7 +117,7 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
       lastName: u.lastName,
       username: u.username,
       totalPoints: byUser[u.id] ?? 0,
-      lifetimePoints: u.profile!.totalPoints,
+      lifetimePoints: lifetimeByUser[u.id] ?? 0,
     }))
     .sort((a, b) => b.totalPoints - a.totalPoints);
 }

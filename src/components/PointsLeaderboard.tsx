@@ -42,7 +42,7 @@ export function PointsLeaderboard({
               </th>
               {showLifetime && (
                 <th className="px-4 py-3 text-right font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
-                  Всего
+                  За всё время
                 </th>
               )}
               <th className="px-4 py-3 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">

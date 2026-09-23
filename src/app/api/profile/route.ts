@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { recalculateFinalRating } from "@/lib/rating";
-import { extractSteamIdFromInput, fetchOpenDotaSummary } from "@/lib/opendota";
+import { extractSteamIdFromInput } from "@/lib/opendota";
+import {
+  normalizeSecondaryRolesInput,
+  serializeSecondaryRoles,
+} from "@/lib/secondary-roles";
 import type { DotaRole } from "@prisma/client";
 
 export async function GET() {
@@ -22,6 +26,7 @@ export async function PATCH(request: NextRequest) {
   let rankTier = profile.rankTier;
   let steamAccountId = profile.steamAccountId;
   let primaryRole = profile.primaryRole;
+  let secondaryRolesRaw = profile.secondaryRoles;
   let secondaryRole = profile.secondaryRole;
 
   if (body.firstName !== undefined) {
@@ -41,6 +46,10 @@ export async function PATCH(request: NextRequest) {
   if (body.mmr !== undefined) {
     mmr = body.mmr === null || body.mmr === "" ? null : Number(body.mmr);
   }
+  if (body.rankTier !== undefined) {
+    rankTier =
+      body.rankTier === null || body.rankTier === "" ? null : Number(body.rankTier);
+  }
   if (body.steamInput !== undefined) {
     const id = body.steamInput ? extractSteamIdFromInput(body.steamInput) : null;
     steamAccountId = id;
@@ -48,16 +57,16 @@ export async function PATCH(request: NextRequest) {
   if (body.primaryRole !== undefined) {
     primaryRole = body.primaryRole ? (body.primaryRole as DotaRole) : null;
   }
-  if (body.secondaryRole !== undefined) {
+  if (body.secondaryRoles !== undefined) {
+    const roles = normalizeSecondaryRolesInput(body.secondaryRoles, primaryRole);
+    secondaryRolesRaw = serializeSecondaryRoles(roles);
+    secondaryRole = roles[0] ?? null;
+  } else if (body.secondaryRole !== undefined) {
     secondaryRole = body.secondaryRole ? (body.secondaryRole as DotaRole) : null;
-  }
-
-  // Подтягиваем ранг (и оценку MMR) из OpenDota при обновлении Steam ID
-  if (body.refreshRank && steamAccountId) {
-    const summary = await fetchOpenDotaSummary(steamAccountId);
-    if (summary) {
-      if (summary.rankTier) rankTier = summary.rankTier;
-      if (mmr == null && summary.mmrEstimate) mmr = summary.mmrEstimate;
+    if (secondaryRole) {
+      secondaryRolesRaw = serializeSecondaryRoles([secondaryRole]);
+    } else {
+      secondaryRolesRaw = "[]";
     }
   }
 
@@ -79,6 +88,7 @@ export async function PATCH(request: NextRequest) {
         steamAccountId,
         primaryRole,
         secondaryRole,
+        secondaryRoles: secondaryRolesRaw,
       },
     }),
     prisma.user.update({
@@ -93,7 +103,17 @@ export async function PATCH(request: NextRequest) {
 export async function POST(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
-  const { userId, mmr, rankTier, primaryRole, secondaryRole, firstName, lastName, photoUrl } = body;
+  const {
+    userId,
+    mmr,
+    rankTier,
+    primaryRole,
+    secondaryRole,
+    secondaryRoles,
+    firstName,
+    lastName,
+    photoUrl,
+  } = body;
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!targetUser) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
@@ -103,7 +123,27 @@ export async function POST(request: NextRequest) {
 
   const nextMmr = mmr !== undefined ? (mmr === null || mmr === "" ? null : Number(mmr)) : profile.mmr;
   const nextRankTier =
-    rankTier !== undefined ? (rankTier === null || rankTier === "" ? null : Number(rankTier)) : profile.rankTier;
+    rankTier !== undefined
+      ? rankTier === null || rankTier === ""
+        ? null
+        : Number(rankTier)
+      : profile.rankTier;
+
+  const nextPrimary =
+    primaryRole !== undefined ? (primaryRole as DotaRole | null) : profile.primaryRole;
+
+  let nextSecondaryRoles = profile.secondaryRoles;
+  let nextSecondaryRole = profile.secondaryRole;
+  if (secondaryRoles !== undefined) {
+    const roles = normalizeSecondaryRolesInput(secondaryRoles, nextPrimary);
+    nextSecondaryRoles = serializeSecondaryRoles(roles);
+    nextSecondaryRole = roles[0] ?? null;
+  } else if (secondaryRole !== undefined) {
+    nextSecondaryRole = secondaryRole;
+    nextSecondaryRoles = secondaryRole
+      ? serializeSecondaryRoles([secondaryRole as DotaRole])
+      : "[]";
+  }
 
   const ratings = recalculateFinalRating(
     { rankTier: nextRankTier, mmr: nextMmr },
@@ -133,8 +173,9 @@ export async function POST(request: NextRequest) {
         finalRating: ratings.finalRating,
         skillMod: ratings.skillMod,
         vibeMod: ratings.vibeMod,
-        primaryRole: primaryRole ?? profile.primaryRole,
-        secondaryRole: secondaryRole !== undefined ? secondaryRole : profile.secondaryRole,
+        primaryRole: nextPrimary,
+        secondaryRole: nextSecondaryRole,
+        secondaryRoles: nextSecondaryRoles,
       },
     });
 

@@ -49,7 +49,7 @@ export default async function ProfilePage() {
       <div>
         <h1 className="text-3xl font-bold">Мой профиль</h1>
         <p className="mt-1 text-sm text-[var(--text-2)]">
-          Слева — данные игрока. Справа — сила (закрытая) и очки школы.
+          Слева — данные игрока. Справа — сила (закрытая) и очки платформы.
         </p>
       </div>
 

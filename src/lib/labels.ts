@@ -82,12 +82,30 @@ export const MEDAL_BASE_RATING: Record<number, number> = {
   8: 75,
 };
 
-export function rankLabel(rankTier?: number | null): string {
-  if (!rankTier) return "Нет данных";
+export function decodeRankTier(rankTier?: number | null): {
+  medal: number;
+  stars: number;
+} | null {
+  if (!rankTier) return null;
   const medal = Math.floor(rankTier / 10);
   const stars = rankTier % 10;
-  const name = RANK_MEDALS[medal] || "Неизвестно";
-  return stars > 0 ? `${name} ${stars}` : name;
+  if (!RANK_MEDALS[medal]) return null;
+  return { medal, stars: medal === 8 ? 0 : Math.min(5, Math.max(0, stars)) };
+}
+
+/** OpenDota-формат: medal*10+stars (Титан = 80) */
+export function encodeRankTier(medal: number, stars: number): number {
+  if (medal === 8) return 80;
+  const s = Math.min(5, Math.max(1, stars || 1));
+  return medal * 10 + s;
+}
+
+export function rankLabel(rankTier?: number | null): string {
+  const decoded = decodeRankTier(rankTier);
+  if (!decoded) return "Нет данных";
+  const name = RANK_MEDALS[decoded.medal] || "Неизвестно";
+  if (decoded.medal === 8 || decoded.stars <= 0) return name;
+  return `${name} ${"★".repeat(decoded.stars)}`;
 }
 
 export const HOMEWORK_STATUS_LABELS = {

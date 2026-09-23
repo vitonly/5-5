@@ -30,7 +30,7 @@ export function SchoolPointsTile({
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--points-border)] bg-[var(--points-bg)] p-5">
       <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--points)]">
-        Очки школы
+        Очки платформы
       </p>
       <div className="mt-3">
         <PointsPill value={totalPoints} />
