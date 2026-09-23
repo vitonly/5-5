@@ -92,6 +92,7 @@ model User {
   sentMessages        Message[]            @relation("MessageSender")
   receivedMessages    Message[]            @relation("MessageRecipient")
   loginTickets        LoginTicket[]
+  materialViews       MaterialView[]
 }
 
 model LoginTicket {
@@ -129,6 +130,21 @@ model LearningMaterial {
   positions    String       @default("[]")
   skillLevels  String       @default("[]")
   createdAt    DateTime     @default(now())
+  views        MaterialView[]
+}
+
+/** Просмотр материала учеником: после 7 дней — только во вкладке «Просмотренные» */
+model MaterialView {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  materialId String
+  material   LearningMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  viewedAt   DateTime         @default(now())
+
+  @@unique([userId, materialId])
+  @@index([userId])
+  @@index([materialId])
 }
 
 model PlayerProfile {

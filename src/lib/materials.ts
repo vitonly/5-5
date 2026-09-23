@@ -5,11 +5,38 @@ import { parseJsonArray } from "@/lib/utils";
 
 export const NEW_VIDEO_DAYS = 5;
 
+/** Сколько дней просмотренный материал ещё виден в основной ленте (серым внизу) */
+export const VIEWED_ARCHIVE_DAYS = 7;
+
 export function isNewMaterial(createdAt: Date | string, days = NEW_VIDEO_DAYS): boolean {
   const created = new Date(createdAt);
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   return created >= cutoff;
+}
+
+export function daysSince(date: Date | string): number {
+  const t = new Date(date).getTime();
+  return (Date.now() - t) / (1000 * 60 * 60 * 24);
+}
+
+/** Просмотрен недавно — ещё в основной ленте, но серым внизу */
+export function isSoftViewed(viewedAt: Date | string | null | undefined): boolean {
+  if (!viewedAt) return false;
+  return daysSince(viewedAt) < VIEWED_ARCHIVE_DAYS;
+}
+
+/** Просмотрен ≥ недели — только во вкладке «Просмотренные» */
+export function isArchivedViewed(viewedAt: Date | string | null | undefined): boolean {
+  if (!viewedAt) return false;
+  return daysSince(viewedAt) >= VIEWED_ARCHIVE_DAYS;
+}
+
+export type ViewedMap = Record<string, string>; // materialId → ISO viewedAt
+
+export function getViewedAt(views: ViewedMap, materialId: string): Date | null {
+  const raw = views[materialId];
+  return raw ? new Date(raw) : null;
 }
 
 export function parseSkillLevels(raw: string): SkillLevel[] {
