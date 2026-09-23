@@ -1,24 +1,28 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { TelegramLogin } from "@/components/TelegramLogin";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
+function TelegramIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"
+      />
+    </svg>
+  );
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const botUsername = (process.env.NEXT_PUBLIC_BOT_USERNAME || "").replace(/^@/, "");
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
   const isDev = process.env.NODE_ENV !== "production";
-
-  const authUrl = useMemo(() => {
-    const base = appUrl || (typeof window !== "undefined" ? window.location.origin : "");
-    return base ? `${base}/api/auth/telegram/callback` : "";
-  }, [appUrl]);
 
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -71,18 +75,17 @@ function LoginForm() {
             );
             return;
           }
-          // Жёсткий переход — cookie уже в ответе
           window.location.href = doneData.role === "ADMIN" ? "/admin" : "/";
         } else if (data.status === "EXPIRED" || data.status === "INVALID") {
           clearInterval(id);
           setBotWaiting(false);
           setBotToken(null);
-          setError("Ссылка входа истекла. Нажмите «Войти через бота» ещё раз.");
+          setError("Ссылка входа истекла. Нажмите «Войти через Telegram» ещё раз.");
         } else if (data.status === "USED") {
           clearInterval(id);
           setBotWaiting(false);
           setBotToken(null);
-          setError("Этот вход уже использован. Нажмите «Войти через бота» ещё раз.");
+          setError("Этот вход уже использован. Нажмите «Войти через Telegram» ещё раз.");
         }
       } catch {
         /* ignore transient poll errors */
@@ -120,7 +123,7 @@ function LoginForm() {
       const res = await fetch("/api/auth/telegram/ticket", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Не удалось начать вход через бота");
+        setError(data.error || "Не удалось начать вход через Telegram");
         return;
       }
       setBotToken(data.token);
@@ -148,21 +151,15 @@ function LoginForm() {
         <CardDescription>Платформа обучения Dota. Войдите, чтобы продолжить.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {authUrl && botUsername ? (
-          <div className="flex justify-center">
-            <TelegramLogin botUsername={botUsername} authUrl={authUrl} />
-          </div>
-        ) : null}
-
-        <Button
+        <button
           type="button"
-          variant="secondary"
-          className="w-full"
           onClick={handleBotLogin}
           disabled={loading || botWaiting || !botUsername}
+          className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#54A9EB] px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#4B9AD6] disabled:pointer-events-none disabled:opacity-50 min-[720px]:h-11"
         >
-          {botWaiting ? "Ждём подтверждение в Telegram…" : "Войти через бота"}
-        </Button>
+          <TelegramIcon />
+          {botWaiting ? "Ждём подтверждение…" : "Войти через Telegram"}
+        </button>
 
         {botWaiting && (
           <p className="text-center text-[13px] text-[var(--text-2)]">
@@ -208,7 +205,7 @@ function LoginForm() {
         </div>
 
         <p className="text-center text-[13px] text-[var(--text-3)]">
-          Рекомендуем «Войти через бота» — без окна подтверждения на сайте.
+          Логин и пароль выдаёт тренер, если нет Telegram.
         </p>
 
         {isDev && (
