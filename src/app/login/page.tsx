@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
+const TG_LOGIN_TOKEN_KEY = "tg_login_token";
+const TG_LOGIN_URL_KEY = "tg_login_url";
+
 function TelegramIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" aria-hidden>
@@ -16,6 +19,35 @@ function TelegramIcon({ className }: { className?: string }) {
       />
     </svg>
   );
+}
+
+function clearPendingLogin() {
+  try {
+    sessionStorage.removeItem(TG_LOGIN_TOKEN_KEY);
+    sessionStorage.removeItem(TG_LOGIN_URL_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+/** Открыть t.me надёжно на телефоне (window.open после await часто блокируется). */
+function openTelegramUrl(botUrl: string, preopened: Window | null) {
+  if (preopened && !preopened.closed) {
+    try {
+      preopened.location.href = botUrl;
+      return "popup";
+    } catch {
+      try {
+        preopened.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  // Fallback: переход в той же вкладке — после возврата из TG polling восстановится из sessionStorage
+  window.location.href = botUrl;
+  return "navigate";
 }
 
 function LoginForm() {
@@ -30,6 +62,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [botWaiting, setBotWaiting] = useState(false);
   const [botToken, setBotToken] = useState<string | null>(null);
+  const [botUrl, setBotUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const err = searchParams.get("error");
@@ -42,6 +75,21 @@ function LoginForm() {
     };
     setError(map[err] || "Ошибка входа через Telegram.");
   }, [searchParams]);
+
+  // Восстановить ожидание после возврата из Telegram (особенно на телефоне)
+  useEffect(() => {
+    try {
+      const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
+      const savedUrl = sessionStorage.getItem(TG_LOGIN_URL_KEY);
+      if (savedToken) {
+        setBotToken(savedToken);
+        setBotUrl(savedUrl);
+        setBotWaiting(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     if (!botWaiting || !botToken) return;
@@ -68,6 +116,8 @@ function LoginForm() {
           if (!done.ok) {
             setBotWaiting(false);
             setBotToken(null);
+            setBotUrl(null);
+            clearPendingLogin();
             setError(
               typeof doneData.error === "string"
                 ? doneData.error
@@ -75,16 +125,21 @@ function LoginForm() {
             );
             return;
           }
+          clearPendingLogin();
           window.location.href = doneData.role === "ADMIN" ? "/admin" : "/";
         } else if (data.status === "EXPIRED" || data.status === "INVALID") {
           clearInterval(id);
           setBotWaiting(false);
           setBotToken(null);
+          setBotUrl(null);
+          clearPendingLogin();
           setError("Ссылка входа истекла. Нажмите «Войти через Telegram» ещё раз.");
         } else if (data.status === "USED") {
           clearInterval(id);
           setBotWaiting(false);
           setBotToken(null);
+          setBotUrl(null);
+          clearPendingLogin();
           setError("Этот вход уже использован. Нажмите «Войти через Telegram» ещё раз.");
         }
       } catch {
@@ -119,16 +174,39 @@ function LoginForm() {
   const handleBotLogin = useCallback(async () => {
     setError("");
     setLoading(true);
+
+    // Важно: открыть окно СИНХРОННО по клику, до await — иначе на телефоне блокируется
+    let preopened: Window | null = null;
+    try {
+      preopened = window.open("about:blank", "_blank");
+    } catch {
+      preopened = null;
+    }
+
     try {
       const res = await fetch("/api/auth/telegram/ticket", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
+        try {
+          preopened?.close();
+        } catch {
+          /* ignore */
+        }
         setError(data.error || "Не удалось начать вход через Telegram");
         return;
       }
+
+      try {
+        sessionStorage.setItem(TG_LOGIN_TOKEN_KEY, data.token);
+        sessionStorage.setItem(TG_LOGIN_URL_KEY, data.botUrl);
+      } catch {
+        /* ignore */
+      }
+
       setBotToken(data.token);
+      setBotUrl(data.botUrl);
       setBotWaiting(true);
-      window.open(data.botUrl, "_blank", "noopener,noreferrer");
+      openTelegramUrl(data.botUrl, preopened);
     } finally {
       setLoading(false);
     }
@@ -162,9 +240,21 @@ function LoginForm() {
         </button>
 
         {botWaiting && (
-          <p className="text-center text-[13px] text-[var(--text-2)]">
-            В Telegram нажмите <b>Start</b> / <b>Запустить</b>. Эта страница обновится сама.
-          </p>
+          <div className="space-y-2 text-center text-[13px] text-[var(--text-2)]">
+            <p>
+              В Telegram нажмите <b>Start</b> / <b>Запустить</b>. Эта страница обновится сама.
+            </p>
+            {botUrl && (
+              <a
+                href={botUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center text-[var(--points)] underline"
+              >
+                Не открылось? Открыть Telegram
+              </a>
+            )}
+          </div>
         )}
 
         <div className="flex items-center gap-3 text-[13px] text-[var(--text-4)]">
