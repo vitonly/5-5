@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { isAdminTelegramId } from "@/lib/session";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { upsertTelegramUser } from "@/lib/telegram-auth";
+import { handleMatchSignupCallback } from "@/lib/match-signup";
 
 type TelegramUserMsg = {
   id: number;
@@ -17,9 +18,20 @@ type TelegramMessage = {
   text?: string;
 };
 
+type TelegramCallbackQuery = {
+  id: string;
+  from: TelegramUserMsg;
+  message?: {
+    message_id: number;
+    chat: { id: number; type: string };
+  };
+  data?: string;
+};
+
 export type TelegramUpdate = {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 };
 
 async function linkByTelegramId(from: TelegramUserMsg, chatId: string) {
@@ -108,6 +120,18 @@ async function completeWebLogin(token: string, from: TelegramUserMsg, chatId: st
 }
 
 export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void> {
+  const cq = update.callback_query;
+  if (cq?.data && cq.from) {
+    const chatId = String(cq.message?.chat.id ?? cq.from.id);
+    await handleMatchSignupCallback({
+      callbackQueryId: cq.id,
+      data: cq.data,
+      telegramUserId: String(cq.from.id),
+      chatId,
+    });
+    return;
+  }
+
   const message = update.message;
   if (!message?.text || !message.from) return;
 

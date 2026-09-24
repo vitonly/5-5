@@ -7,7 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MATCH_STATUS_LABELS, POSITION_LABELS } from "@/lib/labels";
+import {
+  MATCH_MODE_LABELS,
+  MATCH_RSVP_LABELS,
+  MATCH_STATUS_LABELS,
+  POSITION_LABELS,
+} from "@/lib/labels";
 import { displayName, formatDate, parseJsonArray } from "@/lib/utils";
 import { PlayerLink } from "@/components/PlayerLink";
 import {
@@ -15,9 +20,18 @@ import {
   parseTeamAssignments,
   type LineupSlot,
 } from "@/lib/match-lineup";
-import type { MatchSession, MatchGame, User } from "@prisma/client";
+import type {
+  MatchGame,
+  MatchRsvp,
+  MatchSession,
+  User,
+} from "@prisma/client";
 
-type Session = MatchSession & { games: MatchGame[] };
+type RsvpWithUser = MatchRsvp & { user: User };
+type Session = MatchSession & {
+  games: MatchGame[];
+  rsvps?: RsvpWithUser[];
+};
 type Student = User;
 type DraftSlot = { userId: string; position: number };
 type DraftTagged = DraftSlot & { team: "RADIANT" | "DIRE" };
@@ -32,6 +46,10 @@ export function AdminMatchesClient({
   const router = useRouter();
   const [date, setDate] = useState("");
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [openDate, setOpenDate] = useState("");
+  const [inviteIds, setInviteIds] = useState<string[]>([]);
+  const [creatingOpen, setCreatingOpen] = useState(false);
+  const [openError, setOpenError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftRadiant, setDraftRadiant] = useState<DraftSlot[]>([]);
   const [draftDire, setDraftDire] = useState<DraftSlot[]>([]);
@@ -43,12 +61,23 @@ export function AdminMatchesClient({
     [students]
   );
 
+  const withTelegram = useMemo(
+    () => students.filter((s) => Boolean(s.telegramChatId)),
+    [students]
+  );
+
   function togglePlayer(id: string) {
     setSelectedPlayers((prev) => {
       if (prev.includes(id)) return prev.filter((p) => p !== id);
       if (prev.length >= 10) return prev;
       return [...prev, id];
     });
+  }
+
+  function toggleInvite(id: string) {
+    setInviteIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
   }
 
   async function createSession() {
@@ -60,6 +89,32 @@ export function AdminMatchesClient({
     setDate("");
     setSelectedPlayers([]);
     router.refresh();
+  }
+
+  async function createOpenSignup(allWithTg: boolean) {
+    setCreatingOpen(true);
+    setOpenError("");
+    try {
+      const res = await fetch("/api/matches/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          allWithTg
+            ? { date: openDate, inviteAll: true }
+            : { date: openDate, inviteUserIds: inviteIds }
+        ),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOpenError(typeof data.error === "string" ? data.error : "Ошибка");
+        return;
+      }
+      setOpenDate("");
+      setInviteIds([]);
+      router.refresh();
+    } finally {
+      setCreatingOpen(false);
+    }
   }
 
   async function recordResult(sessionId: string, winnerTeam: string, gameNumber: number) {
@@ -77,6 +132,37 @@ export function AdminMatchesClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, completeSession: true }),
     });
+    router.refresh();
+  }
+
+  async function startSession(sessionId: string) {
+    const res = await fetch("/api/matches", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, action: "startSession" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Не удалось стартовать");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function removeFromSignup(sessionId: string, userId: string, name: string) {
+    if (!confirm(`Убрать ${name} из 5v5? Место займёт первый из очереди, команды пересоберутся.`)) {
+      return;
+    }
+    const res = await fetch("/api/matches/signup", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "removePlayer", sessionId, userId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Не удалось убрать");
+      return;
+    }
     router.refresh();
   }
 
@@ -110,7 +196,6 @@ export function AdminMatchesClient({
     setEditError("");
   }
 
-  /** Свап выбранного игрока со слотом (команда + позиция) */
   function assignPlayer(team: "RADIANT" | "DIRE", position: number, newUserId: string) {
     setEditError("");
     const all: DraftTagged[] = [
@@ -171,7 +256,7 @@ export function AdminMatchesClient({
     <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle>Новая сессия 5v5</CardTitle>
+          <CardTitle>Свой состав (вручную)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -203,6 +288,69 @@ export function AdminMatchesClient({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Открытая запись (Telegram)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-[var(--text-3)]">
+            Ученикам уйдёт сообщение с кнопками «Я играю» / «Не играю». Первые 10 — в состав,
+            остальные в очередь. С Telegram: {withTelegram.length} из {students.length}.
+          </p>
+          <div>
+            <Label>Дата</Label>
+            <Input
+              type="datetime-local"
+              value={openDate}
+              onChange={(e) => setOpenDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Кому отправить ({inviteIds.length})</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {students.map((s) => {
+                const hasTg = Boolean(s.telegramChatId);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={!hasTg}
+                    onClick={() => hasTg && toggleInvite(s.id)}
+                    title={hasTg ? undefined : "Нет привязанного Telegram"}
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      !hasTg
+                        ? "cursor-not-allowed border-[var(--border)] opacity-40"
+                        : inviteIds.includes(s.id)
+                          ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                          : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
+                    }`}
+                  >
+                    {displayName(s)}
+                    {!hasTg ? " · нет TG" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {openError && <p className="text-sm text-[var(--danger)]">{openError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => createOpenSignup(false)}
+              disabled={!openDate || inviteIds.length === 0 || creatingOpen}
+            >
+              {creatingOpen ? "Отправка…" : "Открыть запись выбранным"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => createOpenSignup(true)}
+              disabled={!openDate || withTelegram.length === 0 || creatingOpen}
+            >
+              Всем с Telegram ({withTelegram.length})
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {initial.map((session) => {
         const radiantIds = parseJsonArray(session.radiantPlayerIds);
         const direIds = parseJsonArray(session.direPlayerIds);
@@ -210,14 +358,34 @@ export function AdminMatchesClient({
         const radiantLineup = lineupForTeam("RADIANT", radiantIds, assignments);
         const direLineup = lineupForTeam("DIRE", direIds, assignments);
         const isEditing = editingId === session.id;
-        const canEdit = session.status !== "COMPLETED" && radiantIds.length === 5;
+        const beforeStart =
+          session.status === "PLANNED" || session.status === "TEAMS_SET";
+        const canEdit =
+          beforeStart && radiantIds.length === 5 && session.status !== "COMPLETED";
+        const rsvps = session.rsvps ?? [];
+        const joined = rsvps.filter((r) => r.status === "JOINED");
+        const queued = rsvps
+          .filter((r) => r.status === "QUEUED")
+          .sort((a, b) => {
+            const ta = a.respondedAt ? new Date(a.respondedAt).getTime() : 0;
+            const tb = b.respondedAt ? new Date(b.respondedAt).getTime() : 0;
+            return ta - tb;
+          });
+        const declined = rsvps.filter(
+          (r) => r.status === "DECLINED" || r.status === "REMOVED"
+        );
+        const invited = rsvps.filter((r) => r.status === "INVITED");
+        const isOpen = session.mode === "OPEN_SIGNUP";
 
         return (
           <Card key={session.id}>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle>{formatDate(session.date)}</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="admin">
+                    {MATCH_MODE_LABELS[session.mode] ?? session.mode}
+                  </Badge>
                   <Badge>{MATCH_STATUS_LABELS[session.status]}</Badge>
                   {canEdit && !isEditing && (
                     <Button variant="secondary" size="sm" onClick={() => startEdit(session)}>
@@ -228,16 +396,46 @@ export function AdminMatchesClient({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isOpen && beforeStart && (
+                <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3 text-sm">
+                  <p className="font-medium text-[var(--text)]">
+                    Запись: {joined.length}/10 в составе · очередь {queued.length} · ждут{" "}
+                    {invited.length}
+                  </p>
+                  {joined.length > 0 && (
+                    <RsvpList
+                      title="В составе"
+                      items={joined}
+                      canRemove={beforeStart}
+                      onRemove={(u) =>
+                        removeFromSignup(session.id, u.id, displayName(u))
+                      }
+                    />
+                  )}
+                  {queued.length > 0 && (
+                    <RsvpList
+                      title="Очередь"
+                      items={queued}
+                      canRemove={beforeStart}
+                      showQueueIndex
+                      onRemove={(u) =>
+                        removeFromSignup(session.id, u.id, displayName(u))
+                      }
+                    />
+                  )}
+                  {invited.length > 0 && (
+                    <RsvpList title="Ещё не ответили" items={invited} />
+                  )}
+                  {declined.length > 0 && (
+                    <RsvpList title="Отказы / сняты" items={declined} />
+                  )}
+                </div>
+              )}
+
               {isEditing ? (
                 <div className="space-y-4">
                   <p className="text-sm text-[var(--text-3)]">
                     Смена игрока в слоте — свап с тем, кто сейчас на этой позиции.
-                    {session.games.length > 0 && (
-                      <span className="text-[var(--danger)]">
-                        {" "}
-                        Уже есть сыгранные игры — правка влияет на следующие и off-role.
-                      </span>
-                    )}
                   </p>
                   <div className="grid gap-4 md:grid-cols-2">
                     <EditTeamBlock
@@ -285,18 +483,37 @@ export function AdminMatchesClient({
 
               {session.status === "TEAMS_SET" && !isEditing && (
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => recordResult(session.id, "RADIANT", session.games.length + 1)}>
+                  <Button onClick={() => startSession(session.id)}>
+                    Старт сессии (все за ПК)
+                  </Button>
+                  <Button variant="outline" onClick={() => completeSession(session.id)}>
+                    Отменить / завершить без игр
+                  </Button>
+                </div>
+              )}
+
+              {session.status === "IN_PROGRESS" && !isEditing && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() =>
+                      recordResult(session.id, "RADIANT", session.games.length + 1)
+                    }
+                  >
                     Победа Radiant (игра {session.games.length + 1})
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => recordResult(session.id, "DIRE", session.games.length + 1)}
+                    onClick={() =>
+                      recordResult(session.id, "DIRE", session.games.length + 1)
+                    }
                   >
                     Победа Dire (игра {session.games.length + 1})
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => recordResult(session.id, "DRAW", session.games.length + 1)}
+                    onClick={() =>
+                      recordResult(session.id, "DRAW", session.games.length + 1)
+                    }
                   >
                     Ничья (игра {session.games.length + 1})
                   </Button>
@@ -305,6 +522,7 @@ export function AdminMatchesClient({
                   </Button>
                 </div>
               )}
+
               {session.games.length > 0 && (
                 <div className="space-y-2 text-sm text-[var(--text-3)]">
                   <p>
@@ -316,7 +534,7 @@ export function AdminMatchesClient({
                     {session.games.filter((g) => g.winnerTeam === "RADIANT").length} — Dire{" "}
                     {session.games.filter((g) => g.winnerTeam === "DIRE").length}
                   </p>
-                  {session.status === "TEAMS_SET" && !isEditing && (
+                  {session.status === "IN_PROGRESS" && !isEditing && (
                     <Button
                       variant="destructive"
                       size="sm"
@@ -334,6 +552,49 @@ export function AdminMatchesClient({
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+function RsvpList({
+  title,
+  items,
+  canRemove,
+  showQueueIndex,
+  onRemove,
+}: {
+  title: string;
+  items: RsvpWithUser[];
+  canRemove?: boolean;
+  showQueueIndex?: boolean;
+  onRemove?: (user: User) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-xs uppercase tracking-wide text-[var(--text-4)]">{title}</p>
+      <ul className="space-y-1">
+        {items.map((r, idx) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-2">
+            {showQueueIndex && (
+              <span className="font-mono-num text-xs text-[var(--text-4)]">#{idx + 1}</span>
+            )}
+            <PlayerLink user={r.user} className="inline" />
+            <span className="text-xs text-[var(--text-4)]">
+              {MATCH_RSVP_LABELS[r.status]}
+            </span>
+            {canRemove && onRemove && (r.status === "JOINED" || r.status === "QUEUED") && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => onRemove(r.user)}
+              >
+                Убрать
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

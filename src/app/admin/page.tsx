@@ -12,7 +12,7 @@ export default async function AdminDashboardPage() {
     prisma.homeworkAssignment.count({ where: { status: "OVERDUE" } }),
     prisma.ratingSeason.findFirst({ where: { status: "OPEN" } }),
     prisma.matchSession.findFirst({
-      where: { status: { in: ["PLANNED", "TEAMS_SET"] } },
+      where: { status: { in: ["PLANNED", "TEAMS_SET", "IN_PROGRESS"] } },
       orderBy: { date: "asc" },
     }),
   ]);

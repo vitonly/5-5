@@ -15,6 +15,7 @@ import {
   validateLineups,
 } from "@/lib/match-lineup";
 import type { TeamAssignment } from "@/lib/match-lineup";
+import { startMatchSession } from "@/lib/match-signup";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -164,8 +165,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (body.action === "updateTeams") {
-    if (session.status === "COMPLETED") {
-      return NextResponse.json({ error: "Сессия завершена" }, { status: 400 });
+    if (session.status === "COMPLETED" || session.status === "IN_PROGRESS") {
+      return NextResponse.json(
+        { error: "Сессия начата или завершена — состав нельзя менять" },
+        { status: 400 }
+      );
     }
     const radiant = Array.isArray(body.radiant) ? body.radiant : [];
     const dire = Array.isArray(body.dire) ? body.dire : [];
@@ -198,13 +202,25 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ session: updated });
   }
 
+  if (body.action === "startSession") {
+    try {
+      const updated = await startMatchSession(sessionId);
+      return NextResponse.json({ session: updated });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось стартовать" },
+        { status: 400 }
+      );
+    }
+  }
+
   if (!winnerTeam) {
     return NextResponse.json({ error: "Укажите победителя" }, { status: 400 });
   }
 
-  if (session.status !== "TEAMS_SET") {
+  if (session.status !== "IN_PROGRESS") {
     return NextResponse.json(
-      { error: "Команды ещё не сформированы или сессия завершена" },
+      { error: "Сначала нажмите «Старт сессии» (все за ПК)" },
       { status: 400 }
     );
   }

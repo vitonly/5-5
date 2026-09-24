@@ -128,5 +128,19 @@ export const HOMEWORK_STATUS_LABELS = {
 export const MATCH_STATUS_LABELS = {
   PLANNED: "Запланировано",
   TEAMS_SET: "Команды сформированы",
+  IN_PROGRESS: "Идёт сессия",
   COMPLETED: "Завершено",
+} as const;
+
+export const MATCH_MODE_LABELS = {
+  MANUAL: "Свой состав",
+  OPEN_SIGNUP: "Открытая запись",
+} as const;
+
+export const MATCH_RSVP_LABELS = {
+  INVITED: "Приглашён",
+  JOINED: "В составе",
+  QUEUED: "В очереди",
+  DECLINED: "Отказ",
+  REMOVED: "Снят",
 } as const;

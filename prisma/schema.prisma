@@ -40,7 +40,21 @@ enum HomeworkStatus {
 enum MatchSessionStatus {
   PLANNED
   TEAMS_SET
+  IN_PROGRESS
   COMPLETED
+}
+
+enum MatchSessionMode {
+  MANUAL
+  OPEN_SIGNUP
+}
+
+enum MatchRsvpStatus {
+  INVITED
+  JOINED
+  QUEUED
+  DECLINED
+  REMOVED
 }
 
 enum DotaRole {
@@ -89,6 +103,7 @@ model User {
   vibeVotesGiven      VibeVote[]           @relation("VibeVoter")
   vibeVotesReceived   VibeVote[]           @relation("VibeTarget")
   matchParticipants   MatchParticipant[]
+  matchRsvps          MatchRsvp[]
   sentMessages        Message[]            @relation("MessageSender")
   receivedMessages    Message[]            @relation("MessageRecipient")
   loginTickets        LoginTicket[]
@@ -286,14 +301,34 @@ model Penalty {
 }
 
 model MatchSession {
-  id              String             @id @default(cuid())
-  date            DateTime
-  status          MatchSessionStatus @default(PLANNED)
-  radiantPlayerIds String            @default("[]")
-  direPlayerIds    String            @default("[]")
-  teamAssignments  String            @default("{}")
-  createdAt       DateTime           @default(now())
-  games           MatchGame[]
+  id               String             @id @default(cuid())
+  date             DateTime
+  status           MatchSessionStatus @default(PLANNED)
+  mode             MatchSessionMode   @default(MANUAL)
+  startedAt        DateTime?
+  radiantPlayerIds String             @default("[]")
+  direPlayerIds    String             @default("[]")
+  teamAssignments  String             @default("{}")
+  createdAt        DateTime           @default(now())
+  games            MatchGame[]
+  rsvps            MatchRsvp[]
+}
+
+model MatchRsvp {
+  id          String          @id @default(cuid())
+  sessionId   String
+  session     MatchSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      MatchRsvpStatus @default(INVITED)
+  respondedAt DateTime?
+  tgMessageId Int?
+  tgChatId    String?
+  createdAt   DateTime        @default(now())
+
+  @@unique([sessionId, userId])
+  @@index([sessionId, status])
+  @@index([userId, status])
 }
 
 model MatchGame {
