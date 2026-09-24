@@ -35,6 +35,138 @@ type ReviewInput = {
   excellent: boolean;
 };
 
+type PendingAssignment = Assignment & { homework: Homework };
+
+function ReviewAssignmentCard({
+  a,
+  materials,
+  input,
+  onUpdate,
+  onGrade,
+  onRevision,
+}: {
+  a: PendingAssignment;
+  materials: LearningMaterial[];
+  input: ReviewInput | undefined;
+  onUpdate: (patch: Partial<ReviewInput>) => void;
+  onGrade: () => void;
+  onRevision: () => void;
+}) {
+  const fileUrls = a.submission ? parseJsonArray(a.submission.fileUrls) : [];
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-[var(--border-soft)] pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>{a.homework.title}</CardTitle>
+          <Badge variant="warning">{HOMEWORK_STATUS_LABELS[a.status]}</Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-0 p-0">
+        <section className="border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-5 py-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--admin)]">Задание</p>
+          <p className="text-xs text-[var(--text-4)]">Дедлайн: {formatDate(a.deadline)}</p>
+          {a.homework.description && (
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text)]">
+              {a.homework.description}
+            </p>
+          )}
+          <div className="mt-3">
+            <HomeworkMaterials materialIds={a.homework.materialIds} materials={materials} />
+          </div>
+        </section>
+
+        {a.submission && (
+          <>
+            <section className="border-b border-[var(--border-soft)] bg-[var(--points-bg)] px-5 py-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--points)]">
+                  Ответ ученика
+                </p>
+                <p className="text-xs text-[var(--text-4)]">
+                  Сдано: {formatDate(a.submission.submittedAt)}
+                </p>
+              </div>
+              <div className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--surface)] p-4 text-sm">
+                <p className="whitespace-pre-wrap leading-relaxed text-[var(--text)]">
+                  {a.submission.textAnswer}
+                </p>
+                {fileUrls.length > 0 && (
+                  <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
+                    <p className="mb-2 text-xs font-medium text-[var(--text-3)]">Прикреплённые файлы</p>
+                    <div className="flex flex-wrap gap-2">
+                      {fileUrls.map((url) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--points-bg)] px-3 py-1.5 text-sm text-[var(--points)] underline-offset-2 hover:text-[var(--points-hover)] hover:underline"
+                        >
+                          {url.split("/").pop()}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-4 px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--admin)]">
+                Проверка
+              </p>
+              <div>
+                <Label>Комментарий</Label>
+                <Input
+                  placeholder="Комментарий ученику"
+                  value={input?.feedback ?? ""}
+                  onChange={(e) => onUpdate({ feedback: e.target.value })}
+                />
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border border-[var(--success-border)] bg-[var(--success-bg)] px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={input?.excellent ?? false}
+                  onChange={(e) => onUpdate({ excellent: e.target.checked })}
+                  className="h-4 w-4 rounded border-[var(--border)]"
+                />
+                <div>
+                  <p className="text-sm font-medium text-[var(--success)]">
+                    Очень хорошо выполнена
+                  </p>
+                  <p className="text-xs text-[var(--text-3)]">
+                    +1 очко вместо +0.5 за принятую домашку
+                  </p>
+                </div>
+              </label>
+
+              <Button onClick={onGrade}>Принять</Button>
+
+              <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--danger-border)] bg-[var(--danger-bg)] p-4">
+                <p className="text-sm font-medium text-[var(--danger)]">Отправить на доработку</p>
+                <div>
+                  <Label>Дедлайн доработки</Label>
+                  <Input
+                    type="datetime-local"
+                    value={input?.revisionDeadline ?? ""}
+                    onChange={(e) => onUpdate({ revisionDeadline: e.target.value })}
+                  />
+                </div>
+                <Button variant="secondary" onClick={onRevision}>
+                  Отправить на доработку
+                </Button>
+              </div>
+            </section>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AdminHomeworkClient({
   homeworks: initial,
   students,
@@ -193,124 +325,6 @@ export function AdminHomeworkClient({
     });
   }
 
-  function ReviewAssignmentCard({ a }: { a: (typeof pendingReview)[number] }) {
-    const fileUrls = a.submission ? parseJsonArray(a.submission.fileUrls) : [];
-    const input = gradeInputs[a.id];
-
-    return (
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-[var(--border-soft)] pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>{a.homework.title}</CardTitle>
-            <Badge variant="warning">{HOMEWORK_STATUS_LABELS[a.status]}</Badge>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-0 p-0">
-          <section className="border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-5 py-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--admin)]">Задание</p>
-            <p className="text-xs text-[var(--text-4)]">Дедлайн: {formatDate(a.deadline)}</p>
-            {a.homework.description && (
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text)]">
-                {a.homework.description}
-              </p>
-            )}
-            <div className="mt-3">
-              <HomeworkMaterials materialIds={a.homework.materialIds} materials={materials} />
-            </div>
-          </section>
-
-          {a.submission && (
-            <>
-              <section className="border-b border-[var(--border-soft)] bg-[var(--points-bg)] px-5 py-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--points)]">
-                    Ответ ученика
-                  </p>
-                  <p className="text-xs text-[var(--text-4)]">
-                    Сдано: {formatDate(a.submission.submittedAt)}
-                  </p>
-                </div>
-                <div className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--surface)] p-4 text-sm">
-                  <p className="whitespace-pre-wrap leading-relaxed text-[var(--text)]">
-                    {a.submission.textAnswer}
-                  </p>
-                  {fileUrls.length > 0 && (
-                    <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
-                      <p className="mb-2 text-xs font-medium text-[var(--text-3)]">Прикреплённые файлы</p>
-                      <div className="flex flex-wrap gap-2">
-                        {fileUrls.map((url) => (
-                          <a
-                            key={url}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--points-bg)] px-3 py-1.5 text-sm text-[var(--points)] underline-offset-2 hover:text-[var(--points-hover)] hover:underline"
-                          >
-                            {url.split("/").pop()}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="space-y-4 px-5 py-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--admin)]">
-                  Проверка
-                </p>
-                <div>
-                  <Label>Комментарий</Label>
-                  <Input
-                    placeholder="Комментарий ученику"
-                    value={input?.feedback ?? ""}
-                    onChange={(e) => updateReviewInput(a.id, { feedback: e.target.value })}
-                  />
-                </div>
-
-                <label className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border border-[var(--success-border)] bg-[var(--success-bg)] px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={input?.excellent ?? false}
-                    onChange={(e) => updateReviewInput(a.id, { excellent: e.target.checked })}
-                    className="h-4 w-4 rounded border-[var(--border)]"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-[var(--success)]">
-                      Очень хорошо выполнена
-                    </p>
-                    <p className="text-xs text-[var(--text-3)]">
-                      +1 очко вместо +0.5 за принятую домашку
-                    </p>
-                  </div>
-                </label>
-
-                <Button onClick={() => grade(a.id)}>Принять</Button>
-
-                <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--danger-border)] bg-[var(--danger-bg)] p-4">
-                  <p className="text-sm font-medium text-[var(--danger)]">Отправить на доработку</p>
-                  <div>
-                    <Label>Дедлайн доработки</Label>
-                    <Input
-                      type="datetime-local"
-                      onChange={(e) =>
-                        updateReviewInput(a.id, { revisionDeadline: e.target.value })
-                      }
-                    />
-                  </div>
-                  <Button variant="secondary" onClick={() => sendRevision(a.id)}>
-                    Отправить на доработку
-                  </Button>
-                </div>
-              </section>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex gap-2">
@@ -444,7 +458,17 @@ export function AdminHomeworkClient({
           {reviewStudentPending.length === 0 ? (
             <p className="text-[var(--text-3)]">Нет работ на проверке</p>
           ) : (
-            reviewStudentPending.map((a) => <ReviewAssignmentCard key={a.id} a={a} />)
+            reviewStudentPending.map((a) => (
+              <ReviewAssignmentCard
+                key={a.id}
+                a={a}
+                materials={materials}
+                input={gradeInputs[a.id]}
+                onUpdate={(patch) => updateReviewInput(a.id, patch)}
+                onGrade={() => grade(a.id)}
+                onRevision={() => sendRevision(a.id)}
+              />
+            ))
           )}
 
           {reviewStudentAssignments.length > 0 && (
