@@ -54,3 +54,14 @@ export function normalizeSecondaryRolesInput(
   }
   return unique;
 }
+
+/** Нет основной и/или нет доп. ролей — нужно дозаполнить профиль. */
+export function hasIncompleteRoles(profile: {
+  primaryRole?: DotaRole | null;
+  secondaryRole?: DotaRole | null;
+  secondaryRoles?: string | null;
+} | null | undefined): boolean {
+  if (!profile) return true;
+  if (!profile.primaryRole) return true;
+  return parseSecondaryRoles(profile.secondaryRoles, profile.secondaryRole).length === 0;
+}

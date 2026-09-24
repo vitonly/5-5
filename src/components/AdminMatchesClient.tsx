@@ -138,6 +138,27 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
+  async function deleteSession(sessionId: string, label: string) {
+    if (
+      !confirm(
+        `Удалить сессию «${label}» целиком?\nОчки и винрейт за сыгранные игры откатятся. Это нельзя отменить.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch("/api/matches", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Не удалось удалить");
+      return;
+    }
+    router.refresh();
+  }
+
   async function startSession(sessionId: string) {
     const res = await fetch("/api/matches", {
       method: "PATCH",
@@ -438,6 +459,13 @@ export function AdminMatchesClient({
                       Править состав
                     </Button>
                   )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => deleteSession(session.id, formatDate(session.date))}
+                  >
+                    Удалить
+                  </Button>
                 </div>
               </div>
             </CardHeader>

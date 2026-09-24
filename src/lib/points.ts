@@ -277,13 +277,16 @@ export async function applyPenalty(userId: string, amount: number, reason: strin
 }
 
 /** Откат очков и статистики за игру 5v5 */
-export async function undoMatchGame(gameId: string) {
+export async function undoMatchGame(
+  gameId: string,
+  opts?: { allowCompleted?: boolean }
+) {
   const game = await prisma.matchGame.findUnique({
     where: { id: gameId },
     include: { participants: true, session: true },
   });
   if (!game) throw new Error("Игра не найдена");
-  if (game.session.status === "COMPLETED") {
+  if (game.session.status === "COMPLETED" && !opts?.allowCompleted) {
     throw new Error("Сессия завершена — отмена недоступна");
   }
 
@@ -335,4 +338,20 @@ export async function undoMatchGame(gameId: string) {
 
   await prisma.matchGame.delete({ where: { id: gameId } });
   return game;
+}
+
+/** Удалить сессию 5v5 целиком: откат игр (если были) + cascade. */
+export async function deleteMatchSession(sessionId: string) {
+  const session = await prisma.matchSession.findUnique({
+    where: { id: sessionId },
+    include: { games: { orderBy: { gameNumber: "desc" } } },
+  });
+  if (!session) throw new Error("Сессия не найдена");
+
+  for (const game of session.games) {
+    await undoMatchGame(game.id, { allowCompleted: true });
+  }
+
+  await prisma.matchSession.delete({ where: { id: sessionId } });
+  return { id: sessionId };
 }

@@ -8,6 +8,7 @@ import {
   applyMatchWinPointsForPlayer,
   isOffRole,
   undoMatchGame,
+  deleteMatchSession,
 } from "@/lib/points";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import {
@@ -353,4 +354,23 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ game });
+}
+
+export async function DELETE(request: NextRequest) {
+  await requireAdmin();
+  const body = await request.json().catch(() => ({}));
+  const sessionId = body.sessionId as string | undefined;
+  if (!sessionId) {
+    return NextResponse.json({ error: "Укажите sessionId" }, { status: 400 });
+  }
+
+  try {
+    await deleteMatchSession(sessionId);
+    return NextResponse.json({ ok: true, id: sessionId });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Не удалось удалить" },
+      { status: 400 }
+    );
+  }
 }

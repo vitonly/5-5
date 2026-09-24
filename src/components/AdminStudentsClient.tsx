@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,12 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { RankMedalPicker } from "@/components/RankMedalPicker";
 import { DOTA_ROLE_LABELS } from "@/lib/labels";
 import { PlayerLink } from "@/components/PlayerLink";
+import { PlayerRolesDisplay } from "@/components/PlayerRolesDisplay";
+import {
+  hasIncompleteRoles,
+  parseSecondaryRoles,
+} from "@/lib/secondary-roles";
+import { displayName } from "@/lib/utils";
 import type { User, PlayerProfile } from "@prisma/client";
 
 type Student = User & { profile: PlayerProfile | null };
@@ -29,6 +35,12 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   const [newPassword, setNewPassword] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [reminding, setReminding] = useState(false);
+
+  const missingRoles = useMemo(
+    () => students.filter((s) => hasIncompleteRoles(s.profile)),
+    [students]
+  );
 
   function selectStudent(s: Student) {
     setSelected(s);
@@ -103,6 +115,40 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
     router.refresh();
   }
 
+  async function remindRoles(opts: { userId?: string; allIncomplete?: boolean }) {
+    setReminding(true);
+    try {
+      const res = await fetch("/api/students/remind-roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        return;
+      }
+      const failNote =
+        Array.isArray(data.failed) && data.failed.length
+          ? `\nБез TG / ошибка: ${data.failed.join(", ")}`
+          : "";
+      alert(`Отправлено: ${data.sent}. Пропущено: ${data.skipped}.${failNote}`);
+    } finally {
+      setReminding(false);
+    }
+  }
+
+  function rolesHint(s: Student) {
+    const missing: string[] = [];
+    if (!s.profile?.primaryRole) missing.push("основная");
+    const secondary = parseSecondaryRoles(
+      s.profile?.secondaryRoles,
+      s.profile?.secondaryRole
+    );
+    if (secondary.length === 0) missing.push("доп.");
+    return missing.join(" + ");
+  }
+
   return (
     <div className="space-y-8">
       <Card>
@@ -141,6 +187,66 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         </CardContent>
       </Card>
 
+      {missingRoles.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>Не заполнены роли ({missingRoles.length})</CardTitle>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={reminding}
+                onClick={() => remindRoles({ allIncomplete: true })}
+              >
+                {reminding ? "Отправка…" : "Напомнить всем в TG"}
+              </Button>
+            </div>
+            <p className="text-sm text-[var(--text-3)]">
+              Нет основной и/или дополнительных ролей. Можно отправить напоминание в Telegram.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {missingRoles.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PlayerLink user={s} className="font-medium" />
+                      <span className="text-xs text-[var(--danger)]">
+                        не хватает: {rolesHint(s)}
+                      </span>
+                      <span
+                        className={`text-xs ${
+                          s.telegramChatId ? "text-[var(--success)]" : "text-[var(--text-3)]"
+                        }`}
+                      >
+                        {s.telegramChatId ? "TG ✓" : "TG —"}
+                      </span>
+                    </div>
+                    <PlayerRolesDisplay profile={s.profile} />
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={reminding || !s.telegramChatId}
+                    onClick={() => remindRoles({ userId: s.id })}
+                    title={
+                      s.telegramChatId
+                        ? `Напомнить ${displayName(s)}`
+                        : "Нет привязанного Telegram"
+                    }
+                  >
+                    Напомнить в TG
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-8 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -169,6 +275,9 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                       >
                         {s.login && <span> · @{s.login}</span>}
                         <span> — {s.profile?.finalRating ?? "—"}</span>
+                        {hasIncompleteRoles(s.profile) && (
+                          <span className="ml-2 text-xs text-[var(--danger)]">роли!</span>
+                        )}
                         <span
                           className={`ml-2 text-xs ${
                             s.telegramChatId ? "text-[var(--success)]" : "text-[var(--text-3)]"
@@ -227,12 +336,15 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                     <RankMedalPicker rankTier={rankTier} onChange={setRankTier} />
                   </div>
                 </div>
-                <p className="text-sm text-[var(--text-3)]">
-                  Роль:{" "}
-                  {selected.profile.primaryRole
-                    ? DOTA_ROLE_LABELS[selected.profile.primaryRole]
-                    : "—"}
-                </p>
+                <div className="space-y-1 text-sm">
+                  <p className="text-[var(--text-3)]">
+                    Основная:{" "}
+                    {selected.profile.primaryRole
+                      ? DOTA_ROLE_LABELS[selected.profile.primaryRole]
+                      : "—"}
+                  </p>
+                  <PlayerRolesDisplay profile={selected.profile} />
+                </div>
                 <Button onClick={saveStudent} disabled={!firstName.trim()}>
                   Сохранить
                 </Button>
