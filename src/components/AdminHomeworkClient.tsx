@@ -188,6 +188,7 @@ export function AdminHomeworkClient({
   const [createError, setCreateError] = useState("");
 
   const [gradeInputs, setGradeInputs] = useState<Record<string, ReviewInput>>({});
+  const [expandedHomeworkIds, setExpandedHomeworkIds] = useState<Record<string, boolean>>({});
 
   const allStudentIds = students.map((s) => s.id);
   const allSelected =
@@ -477,26 +478,128 @@ export function AdminHomeworkClient({
                 <CardTitle className="text-base">Все домашки ученика</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2 text-sm text-[var(--text-3)]">
-                  {reviewStudentAssignments.map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] p-3"
-                    >
-                      <span className="font-medium text-[var(--text)]">{a.homework.title}</span>
-                      <Badge>{HOMEWORK_STATUS_LABELS[a.status]}</Badge>
-                      {a.status !== "GRADED" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => remind(a.id)}
-                        >
-                          Напомнить
-                        </Button>
-                      )}
-                    </li>
-                  ))}
+                <ul className="space-y-2 text-sm">
+                  {reviewStudentAssignments.map((a) => {
+                    const isOpen = Boolean(expandedHomeworkIds[a.id]);
+                    const badgeVariant =
+                      a.status === "GRADED"
+                        ? "success"
+                        : a.status === "OVERDUE"
+                          ? "danger"
+                          : a.status === "SUBMITTED" || a.status === "REVISION"
+                            ? "warning"
+                            : "default";
+                    const rowTone =
+                      a.status === "GRADED"
+                        ? "border-[var(--success-border)] bg-[var(--success-bg)]"
+                        : a.status === "OVERDUE"
+                          ? "border-[var(--danger-border)] bg-[var(--danger-bg)]"
+                          : "border-[var(--border)] bg-[var(--surface)]";
+
+                    return (
+                      <li
+                        key={a.id}
+                        className={`rounded-[var(--radius-control)] border ${rowTone}`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2 p-3">
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 text-left"
+                            onClick={() =>
+                              setExpandedHomeworkIds((prev) => ({
+                                ...prev,
+                                [a.id]: !prev[a.id],
+                              }))
+                            }
+                          >
+                            <span className="font-medium text-[var(--text)]">
+                              {a.homework.title}
+                            </span>
+                            <span className="ml-2 text-xs text-[var(--text-4)]">
+                              {isOpen ? "▾" : "▸"} подробнее
+                            </span>
+                          </button>
+                          <Badge variant={badgeVariant}>
+                            {HOMEWORK_STATUS_LABELS[a.status]}
+                          </Badge>
+                          {a.status !== "GRADED" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => remind(a.id)}
+                            >
+                              Напомнить
+                            </Button>
+                          )}
+                        </div>
+
+                        {isOpen && (
+                          <div className="space-y-3 border-t border-[var(--border-soft)] px-3 py-3 text-[var(--text-2)]">
+                            <p className="text-xs text-[var(--text-4)]">
+                              Дедлайн: {formatDate(a.deadline)}
+                              {a.revisionDeadline && (
+                                <>
+                                  {" · "}
+                                  Доработка до: {formatDate(a.revisionDeadline)}
+                                </>
+                              )}
+                            </p>
+                            {a.homework.description && (
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text)]">
+                                {a.homework.description}
+                              </p>
+                            )}
+                            <HomeworkMaterials
+                              materialIds={a.homework.materialIds}
+                              materials={materials}
+                            />
+                            {a.revisionNote && (
+                              <div className="rounded-[var(--radius-control)] border border-[var(--danger-border)] bg-[var(--danger-bg)] p-3 text-sm text-[var(--danger)]">
+                                <p className="font-medium">Комментарий на доработку</p>
+                                <p className="mt-1 whitespace-pre-wrap">{a.revisionNote}</p>
+                              </div>
+                            )}
+                            {a.submission && (
+                              <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-sm">
+                                <p className="mb-1 font-medium text-[var(--text)]">
+                                  Ответ ученика
+                                  {a.submission.submittedAt && (
+                                    <span className="ml-2 font-normal text-xs text-[var(--text-4)]">
+                                      {formatDate(a.submission.submittedAt)}
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="whitespace-pre-wrap text-[var(--text)]">
+                                  {a.submission.textAnswer}
+                                </p>
+                                {parseJsonArray(a.submission.fileUrls).length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {parseJsonArray(a.submission.fileUrls).map((url) => (
+                                      <a
+                                        key={url}
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-[var(--points)] underline"
+                                      >
+                                        {url.split("/").pop()}
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                                {a.submission.feedback && (
+                                  <p className="mt-2 text-[var(--text-3)]">
+                                    Комментарий: {a.submission.feedback}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </CardContent>
             </Card>
