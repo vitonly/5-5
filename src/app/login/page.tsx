@@ -30,26 +30,6 @@ function clearPendingLogin() {
   }
 }
 
-/** Открыть t.me надёжно на телефоне (window.open после await часто блокируется). */
-function openTelegramUrl(botUrl: string, preopened: Window | null) {
-  if (preopened && !preopened.closed) {
-    try {
-      preopened.location.href = botUrl;
-      return "popup";
-    } catch {
-      try {
-        preopened.close();
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  // Fallback: переход в той же вкладке — после возврата из TG polling восстановится из sessionStorage
-  window.location.href = botUrl;
-  return "navigate";
-}
-
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,7 +56,7 @@ function LoginForm() {
     setError(map[err] || "Ошибка входа через Telegram.");
   }, [searchParams]);
 
-  // Восстановить ожидание после возврата из Telegram (особенно на телефоне)
+  // Восстановить ожидание после возврата из Telegram
   useEffect(() => {
     try {
       const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
@@ -90,6 +70,30 @@ function LoginForm() {
       /* ignore */
     }
   }, []);
+
+  // Если пользователь вернулся на вкладку — продолжаем ждать
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
+        const savedUrl = sessionStorage.getItem(TG_LOGIN_URL_KEY);
+        if (savedToken && !botWaiting) {
+          setBotToken(savedToken);
+          setBotUrl(savedUrl);
+          setBotWaiting(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+    };
+  }, [botWaiting]);
 
   useEffect(() => {
     if (!botWaiting || !botToken) return;
@@ -175,23 +179,10 @@ function LoginForm() {
     setError("");
     setLoading(true);
 
-    // Важно: открыть окно СИНХРОННО по клику, до await — иначе на телефоне блокируется
-    let preopened: Window | null = null;
-    try {
-      preopened = window.open("about:blank", "_blank");
-    } catch {
-      preopened = null;
-    }
-
     try {
       const res = await fetch("/api/auth/telegram/ticket", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        try {
-          preopened?.close();
-        } catch {
-          /* ignore */
-        }
         setError(data.error || "Не удалось начать вход через Telegram");
         return;
       }
@@ -206,7 +197,11 @@ function LoginForm() {
       setBotToken(data.token);
       setBotUrl(data.botUrl);
       setBotWaiting(true);
-      openTelegramUrl(data.botUrl, preopened);
+
+      // Уходим на страницу нашего домена → она откроет Telegram.
+      // После возврата из TG Safari снова покажет наш сайт, а не about:blank.
+      const bridge = `/login/tg?token=${encodeURIComponent(data.token)}&to=${encodeURIComponent(data.botUrl)}`;
+      window.location.assign(bridge);
     } finally {
       setLoading(false);
     }
@@ -242,18 +237,20 @@ function LoginForm() {
         {botWaiting && (
           <div className="space-y-2 text-center text-[13px] text-[var(--text-2)]">
             <p>
-              В Telegram нажмите <b>Start</b> / <b>Запустить</b>. Эта страница обновится сама.
+              В Telegram нажмите <b>Start</b> / <b>Запустить</b>, затем вернитесь сюда — страница
+              обновится сама.
             </p>
             {botUrl && (
               <a
                 href={botUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center text-[var(--points)] underline"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[8px] border border-[var(--points-border)] bg-[var(--points-bg)] px-4 font-medium text-[var(--points)]"
               >
-                Не открылось? Открыть Telegram
+                Открыть Telegram
               </a>
             )}
+            <p className="text-[12px] text-[var(--text-3)]">
+              Если открылась пустая страница — закройте её и вернитесь на сайт входа.
+            </p>
           </div>
         )}
 
