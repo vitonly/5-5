@@ -32,6 +32,36 @@ function buildAssignments(teams: ReturnType<typeof balanceTeams>): string {
   return JSON.stringify(map);
 }
 
+/**
+ * Сколько побед подряд у игрока в ЭТОЙ сессии (этот день), без учёта текущей игры.
+ * Ничья или поражение обрывают серию.
+ */
+async function getSessionWinStreakBefore(sessionId: string, userId: string): Promise<number> {
+  const games = await prisma.matchGame.findMany({
+    where: { sessionId },
+    orderBy: { gameNumber: "asc" },
+    include: {
+      participants: { where: { userId }, take: 1 },
+    },
+  });
+
+  let streak = 0;
+  for (const game of games) {
+    if (game.winnerTeam === "DRAW") {
+      streak = 0;
+      continue;
+    }
+    const p = game.participants[0];
+    if (!p) {
+      streak = 0;
+      continue;
+    }
+    if (p.won) streak += 1;
+    else streak = 0;
+  }
+  return streak;
+}
+
 export async function GET() {
   const user = await requireUser();
   const sessions = await prisma.matchSession.findMany({
@@ -148,7 +178,15 @@ export async function PATCH(request: NextRequest) {
   const isDraw = winnerTeam === "DRAW";
   const assignments = parseAssignments(session.teamAssignments);
 
-  // Снимок стриков до начисления
+  // Стрик для +3 — только в рамках этой сессии (одного дня), не между субботами
+  const sessionStreakBefore: Record<string, number> = {};
+  await Promise.all(
+    allIds.map(async (userId) => {
+      sessionStreakBefore[userId] = await getSessionWinStreakBefore(sessionId, userId);
+    })
+  );
+
+  // Снимок профильного стрика до начисления (для отмены)
   const profilesBefore = await prisma.playerProfile.findMany({
     where: { userId: { in: allIds } },
   });
@@ -188,6 +226,11 @@ export async function PATCH(request: NextRequest) {
         where: { gameId: game.id, userId },
         data: { pointsAwarded: delta },
       });
+      // Ничья обрывает дневную/профильную серию
+      await prisma.playerProfile.update({
+        where: { userId },
+        data: { winStreak: 0 },
+      });
     }
     return NextResponse.json({ game });
   }
@@ -211,12 +254,13 @@ export async function PATCH(request: NextRequest) {
     if (!profile) continue;
 
     if (won) {
-      const winStreak = profile.winStreak + 1;
+      // +3 только если это 2-я (и далее) победа подряд В ЭТОЙ сессии/день
+      const dayWinStreak = (sessionStreakBefore[userId] ?? 0) + 1;
       const position = assignments[userId]?.position ?? 0;
       const offRole = isOffRole(profile.primaryRole, position);
       const delta = await applyMatchWinPointsForPlayer(
         userId,
-        winStreak,
+        dayWinStreak,
         winnerAvg,
         loserAvg,
         offRole,
@@ -224,7 +268,7 @@ export async function PATCH(request: NextRequest) {
       );
       await prisma.playerProfile.update({
         where: { userId },
-        data: { wins: { increment: 1 }, winStreak },
+        data: { wins: { increment: 1 }, winStreak: dayWinStreak },
       });
       await prisma.matchParticipant.updateMany({
         where: { gameId: game.id, userId },

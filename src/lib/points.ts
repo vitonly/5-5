@@ -188,7 +188,7 @@ export function calcMatchWinPoints(options: {
 
   if (winStreak >= 2) {
     let delta: number = POINT_VALUES.MATCH_WIN_STREAK;
-    const parts = ["Победа в 5v5 (2 победы подряд)"];
+    const parts = ["Победа в 5v5 (2 победы подряд за день)"];
     if (offRole) {
       delta = roundPoints(delta + POINT_VALUES.OFF_ROLE_BONUS);
       parts.push("не на своей роли");
