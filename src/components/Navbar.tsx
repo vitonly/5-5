@@ -36,7 +36,11 @@ export async function Navbar() {
   let pendingHomework = 0;
   let pendingVotes = 0;
 
-  if (!isAdmin) {
+  if (isAdmin) {
+    pendingHomework = await prisma.homeworkAssignment.count({
+      where: { status: "SUBMITTED" },
+    });
+  } else {
     const openSeason = await prisma.ratingSeason.findFirst({
       where: { status: "OPEN" },
       include: {
@@ -97,7 +101,12 @@ export async function Navbar() {
   const adminTabs = [
     { href: "/admin", label: "Дашборд", icon: "admin" as const, exact: true },
     { href: "/admin/students", label: "Ученики", icon: "students" as const },
-    { href: "/admin/homework", label: "Домашки", icon: "hw" as const },
+    {
+      href: "/admin/homework",
+      label: "Домашки",
+      icon: "hw" as const,
+      badge: pendingHomework,
+    },
     {
       href: "/admin/matches",
       label: "5v5",
@@ -129,7 +138,7 @@ export async function Navbar() {
           <nav className="hidden flex-wrap gap-1 min-[720px]:flex">
             {navLinks.map((link) => {
               const badge =
-                link.href === "/homework"
+                link.href === "/homework" || link.href === "/admin/homework"
                   ? pendingHomework
                   : link.href === "/match/vote"
                     ? pendingVotes
