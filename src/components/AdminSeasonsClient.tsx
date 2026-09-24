@@ -36,6 +36,16 @@ type VoteRow = {
   complete: boolean;
 };
 
+type ReceivedRow = {
+  from: Student;
+  mechanics?: number;
+  macro?: number;
+  vibe?: VibeValue;
+  complete: boolean;
+};
+
+type DetailTab = "given" | "received";
+
 export function AdminSeasonsClient({
   seasons,
   students,
@@ -49,6 +59,7 @@ export function AdminSeasonsClient({
   const [closesAt, setClosesAt] = useState("");
   const [deadlineInputs, setDeadlineInputs] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<Record<string, string | null>>({});
+  const [detailTab, setDetailTab] = useState<Record<string, DetailTab>>({});
   const [reminding, setReminding] = useState(false);
 
   async function handleCreateSeason() {
@@ -109,10 +120,27 @@ export function AdminSeasonsClient({
       });
   }
 
-  function receivedCount(season: Season, targetId: string) {
-    const skill = season.peerRatings.filter((r) => r.targetId === targetId).length;
-    const vibe = (season.vibeVotes ?? []).filter((v) => v.targetId === targetId).length;
-    return { skill, vibe };
+  function votesReceived(season: Season, targetId: string): ReceivedRow[] {
+    const vibes = season.vibeVotes ?? [];
+    return students
+      .filter((s) => s.id !== targetId)
+      .map((from) => {
+        const skill = season.peerRatings.find(
+          (r) => r.raterId === from.id && r.targetId === targetId
+        );
+        const vibe = vibes.find((v) => v.voterId === from.id && v.targetId === targetId);
+        return {
+          from,
+          mechanics: skill?.mechanics,
+          macro: skill?.macro,
+          vibe: vibe?.value,
+          complete: Boolean(skill && vibe),
+        };
+      });
+  }
+
+  function tabKey(seasonId: string, studentId: string) {
+    return `${seasonId}:${studentId}`;
   }
 
   function incompleteVoters(season: Season) {
@@ -246,11 +274,14 @@ export function AdminSeasonsClient({
               <div className="space-y-2">
                 {students.map((student) => {
                   const rows = votesFrom(season, student.id);
+                  const receivedRows = votesReceived(season, student.id);
                   const done = rows.filter((r) => r.complete).length;
                   const missing = rows.filter((r) => !r.complete);
-                  const got = receivedCount(season, student.id);
+                  const receivedDone = receivedRows.filter((r) => r.complete).length;
                   const pts = pointsMap[student.id] ?? 0;
                   const isOpen = expandKey === student.id;
+                  const dk = tabKey(season.id, student.id);
+                  const tab = detailTab[dk] ?? "given";
 
                   return (
                     <div
@@ -273,7 +304,7 @@ export function AdminSeasonsClient({
                             оценил {done}/{expectedPer}
                           </span>
                           <span className="ml-2 text-[var(--text-4)]">
-                            получил скилл {got.skill} · вайб {got.vibe}
+                            получил {receivedDone}/{expectedPer}
                           </span>
                           <span className="ml-2 font-mono-num text-[var(--points)]">
                             {formatPoints(pts)} очк.
@@ -309,38 +340,95 @@ export function AdminSeasonsClient({
                       </div>
 
                       {isOpen && (
-                        <div className="border-t border-[var(--border)] px-3 py-2">
-                          <p className="mb-2 text-xs uppercase tracking-wide text-[var(--text-4)]">
-                            Кого оценил {displayName(student)} (исходящие голоса)
-                          </p>
-                          <ul className="space-y-1.5 text-sm">
-                            {rows.map((row) => (
-                              <li
-                                key={row.target.id}
-                                className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
-                              >
-                                <PlayerLink user={row.target} className="inline" />
-                                {row.complete ? (
-                                  <span className="text-[var(--text-2)]">
-                                    мех {row.mechanics}/10 · макро {row.macro}/10 · вайб{" "}
-                                    {row.vibe ? VIBE_LABELS[row.vibe] : "—"}
-                                  </span>
-                                ) : (
-                                  <span className="text-[var(--danger)]">
-                                    ещё не оценил
-                                    {row.mechanics != null || row.macro != null
-                                      ? ` (скилл: ${row.mechanics ?? "—"}/${row.macro ?? "—"})`
-                                      : ""}
-                                    {row.vibe
-                                      ? ` · вайб: ${VIBE_LABELS[row.vibe]}`
-                                      : row.mechanics == null && row.macro == null
-                                        ? ""
-                                        : " · вайб нет"}
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                        <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
+                          <div className="flex gap-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-1">
+                            <button
+                              type="button"
+                              className={`flex-1 rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-medium transition-colors ${
+                                tab === "given"
+                                  ? "bg-[var(--admin-bg)] text-[var(--admin)]"
+                                  : "text-[var(--text-3)] hover:text-[var(--text)]"
+                              }`}
+                              onClick={() =>
+                                setDetailTab((prev) => ({ ...prev, [dk]: "given" }))
+                              }
+                            >
+                              Кого оценил ({done}/{expectedPer})
+                            </button>
+                            <button
+                              type="button"
+                              className={`flex-1 rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-medium transition-colors ${
+                                tab === "received"
+                                  ? "bg-[var(--admin-bg)] text-[var(--admin)]"
+                                  : "text-[var(--text-3)] hover:text-[var(--text)]"
+                              }`}
+                              onClick={() =>
+                                setDetailTab((prev) => ({ ...prev, [dk]: "received" }))
+                              }
+                            >
+                              Кто оценил его ({receivedDone}/{expectedPer})
+                            </button>
+                          </div>
+
+                          {tab === "given" ? (
+                            <ul className="space-y-1.5 text-sm">
+                              {rows.map((row) => (
+                                <li
+                                  key={row.target.id}
+                                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                                >
+                                  <PlayerLink user={row.target} className="inline" />
+                                  {row.complete ? (
+                                    <span className="text-[var(--text-2)]">
+                                      мех {row.mechanics}/10 · макро {row.macro}/10 · вайб{" "}
+                                      {row.vibe ? VIBE_LABELS[row.vibe] : "—"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[var(--danger)]">
+                                      ещё не оценил
+                                      {row.mechanics != null || row.macro != null
+                                        ? ` (скилл: ${row.mechanics ?? "—"}/${row.macro ?? "—"})`
+                                        : ""}
+                                      {row.vibe
+                                        ? ` · вайб: ${VIBE_LABELS[row.vibe]}`
+                                        : row.mechanics == null && row.macro == null
+                                          ? ""
+                                          : " · вайб нет"}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <ul className="space-y-1.5 text-sm">
+                              {receivedRows.map((row) => (
+                                <li
+                                  key={row.from.id}
+                                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                                >
+                                  <PlayerLink user={row.from} className="inline" />
+                                  {row.complete ? (
+                                    <span className="text-[var(--text-2)]">
+                                      мех {row.mechanics}/10 · макро {row.macro}/10 · вайб{" "}
+                                      {row.vibe ? VIBE_LABELS[row.vibe] : "—"}
+                                    </span>
+                                  ) : row.mechanics != null ||
+                                    row.macro != null ||
+                                    row.vibe ? (
+                                    <span className="text-[var(--points)]">
+                                      частично
+                                      {row.mechanics != null || row.macro != null
+                                        ? ` · скилл ${row.mechanics ?? "—"}/${row.macro ?? "—"}`
+                                        : ""}
+                                      {row.vibe ? ` · вайб ${VIBE_LABELS[row.vibe]}` : " · вайб нет"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[var(--text-4)]">не оценивал</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       )}
                     </div>
