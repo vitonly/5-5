@@ -39,6 +39,10 @@ export function RatingBreakdown({
   received,
   vibes = [],
   viewer,
+  seasonLabel,
+  givenSkill = 0,
+  givenVibe = 0,
+  expectedVotes = 0,
 }: {
   profile: {
     mmr?: number | null;
@@ -51,6 +55,10 @@ export function RatingBreakdown({
   received: ReceivedRating[];
   vibes?: ReceivedVibe[];
   viewer?: { id: string; role: string } | null;
+  seasonLabel?: string | null;
+  givenSkill?: number;
+  givenVibe?: number;
+  expectedVotes?: number;
 }) {
   const [open, setOpen] = useState(false);
   const rankBase = computeBaseRating(profile);
@@ -89,7 +97,28 @@ export function RatingBreakdown({
         <CardContent className="space-y-4 border-t border-[var(--border-soft)] pt-4 text-sm">
           <p className="text-[13px] text-[var(--text-3)]">
             Виден только тебе и тренеру. Итог = РангБаза + SkillMod + VibeMod.
+            {seasonLabel && (
+              <>
+                {" "}
+                Сезон оценок: <b className="text-[var(--text-2)]">{seasonLabel}</b>.
+              </>
+            )}
           </p>
+
+          {expectedVotes > 0 && (
+            <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] px-3 py-2 text-sm text-[var(--text-2)]">
+              <p>
+                <b className="text-[var(--text)]">Сам оценил других:</b> скилл {givenSkill}/
+                {expectedVotes}, вайб {givenVibe}/{expectedVotes}
+                {Math.min(givenSkill, givenVibe) < expectedVotes && (
+                  <span className="ml-2 text-[var(--danger)]">голосование не завершено</span>
+                )}
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-4)]">
+                Это не то же самое, что список ниже: ниже — кто оценил <b>этого</b> игрока.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--power-border)] bg-[var(--power-bg)] p-4">
             <Bar label="Ранг доты" value={rankBase} bar={rankBar} />
@@ -125,7 +154,7 @@ export function RatingBreakdown({
           </div>
 
           <div>
-            <p className="mb-2 font-semibold">Оценки скилла</p>
+            <p className="mb-2 font-semibold">Оценки скилла (кто оценил вас)</p>
             {received.length === 0 ? (
               <p className="text-[var(--text-3)]">Пока нет оценок.</p>
             ) : (
@@ -146,7 +175,7 @@ export function RatingBreakdown({
           </div>
 
           <div>
-            <p className="mb-2 font-semibold">Вайб</p>
+            <p className="mb-2 font-semibold">Вайб (кто оценил вас)</p>
             {vibes.length === 0 ? (
               <p className="text-[var(--text-3)]">Пока нет голосов.</p>
             ) : (

@@ -1,6 +1,32 @@
 import { prisma } from "@/lib/db";
 import { computeStrengthFromVotes, type VibeValue } from "@/lib/rating";
 
+/**
+ * Сезон для голосования и отображения оценок.
+ * Приоритет: открытый+активный → открытый → активный → последний.
+ */
+export async function getVotingSeason() {
+  const openActive = await prisma.ratingSeason.findFirst({
+    where: { status: "OPEN", isActive: true },
+  });
+  if (openActive) return openActive;
+
+  const open = await prisma.ratingSeason.findFirst({
+    where: { status: "OPEN" },
+    orderBy: [{ openedAt: "desc" }, { createdAt: "desc" }],
+  });
+  if (open) return open;
+
+  const active = await prisma.ratingSeason.findFirst({
+    where: { isActive: true },
+  });
+  if (active) return active;
+
+  return prisma.ratingSeason.findFirst({
+    orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+  });
+}
+
 /** Пересчитать силу игрока по оценкам сезона (или только база, если оценок нет) */
 export async function refreshPlayerStrength(userId: string, seasonId?: string | null) {
   const profile = await prisma.playerProfile.findUnique({ where: { userId } });
@@ -8,14 +34,8 @@ export async function refreshPlayerStrength(userId: string, seasonId?: string | 
 
   let sid = seasonId;
   if (!sid) {
-    const open = await prisma.ratingSeason.findFirst({ where: { status: "OPEN" } });
-    sid = open?.id;
-    if (!sid) {
-      const latest = await prisma.ratingSeason.findFirst({
-        orderBy: [{ year: "desc" }, { createdAt: "desc" }],
-      });
-      sid = latest?.id;
-    }
+    const season = await getVotingSeason();
+    sid = season?.id;
   }
 
   let mechanicsScores: number[] = [];

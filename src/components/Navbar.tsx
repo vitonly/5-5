@@ -5,6 +5,7 @@ import { displayName, playerProfilePath } from "@/lib/utils";
 import { LogoutButton } from "@/components/LogoutButton";
 import { StopImpersonationButton } from "@/components/StopImpersonationButton";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { getVotingSeason } from "@/lib/seasons";
 
 const studentLinks = [
   { href: "/", label: "Главная" },
@@ -41,13 +42,17 @@ export async function Navbar() {
       where: { status: "SUBMITTED" },
     });
   } else {
-    const openSeason = await prisma.ratingSeason.findFirst({
-      where: { status: "OPEN" },
-      include: {
-        peerRatings: { where: { raterId: user.id }, select: { targetId: true } },
-        vibeVotes: { where: { voterId: user.id }, select: { targetId: true } },
-      },
-    });
+    const votingSeason = await getVotingSeason();
+    const openSeason =
+      votingSeason?.status === "OPEN"
+        ? await prisma.ratingSeason.findUnique({
+            where: { id: votingSeason.id },
+            include: {
+              peerRatings: { where: { raterId: user.id }, select: { targetId: true } },
+              vibeVotes: { where: { voterId: user.id }, select: { targetId: true } },
+            },
+          })
+        : null;
 
     const [hwCount, students] = await Promise.all([
       prisma.homeworkAssignment.count({

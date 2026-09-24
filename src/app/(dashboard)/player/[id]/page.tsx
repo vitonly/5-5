@@ -8,10 +8,11 @@ import { PointHistory } from "@/components/PointHistory";
 import { WeeklyPointsChart, MetricTile } from "@/components/WeeklyPointsChart";
 import { PointsPill } from "@/components/StatPills";
 import { MatchHistory, buildMatchHistoryEntries } from "@/components/MatchHistory";
-import { DOTA_ROLE_LABELS, rankLabel } from "@/lib/labels";
+import { DOTA_ROLE_LABELS, SEASON_LABELS, rankLabel } from "@/lib/labels";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { displayName } from "@/lib/utils";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
+import { getVotingSeason } from "@/lib/seasons";
 import type { VibeValue } from "@/lib/rating";
 
 export const dynamic = "force-dynamic";
@@ -28,15 +29,13 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   if (!user?.profile) notFound();
 
   const seasonId = await getActiveSeasonId();
+  const ratingSeason = await getVotingSeason();
 
-  const [logs, latestSeason, homeworkDone, leaderboard, matchParts] = await Promise.all([
+  const [logs, homeworkDone, leaderboard, matchParts, studentsCount] = await Promise.all([
     prisma.pointLog.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 100,
-    }),
-    prisma.ratingSeason.findFirst({
-      orderBy: [{ year: "desc" }, { createdAt: "desc" }],
     }),
     prisma.homeworkAssignment.count({
       where: { studentId: user.id, status: "GRADED" },
@@ -51,23 +50,30 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       },
       take: 80,
     }),
+    prisma.user.count({ where: { role: "STUDENT" } }),
   ]);
 
   const matchHistory = buildMatchHistoryEntries(user.id, matchParts);
+  const expectedVotes = Math.max(studentsCount - 1, 0);
 
-  const received = latestSeason
-    ? await prisma.peerRating.findMany({
-        where: { seasonId: latestSeason.id, targetId: user.id },
-        include: { rater: true },
-      })
-    : [];
-
-  const vibes = latestSeason
-    ? await prisma.vibeVote.findMany({
-        where: { seasonId: latestSeason.id, targetId: user.id },
-        include: { voter: true },
-      })
-    : [];
+  const [received, vibes, givenSkill, givenVibe] = ratingSeason
+    ? await Promise.all([
+        prisma.peerRating.findMany({
+          where: { seasonId: ratingSeason.id, targetId: user.id },
+          include: { rater: true },
+        }),
+        prisma.vibeVote.findMany({
+          where: { seasonId: ratingSeason.id, targetId: user.id },
+          include: { voter: true },
+        }),
+        prisma.peerRating.count({
+          where: { seasonId: ratingSeason.id, raterId: user.id },
+        }),
+        prisma.vibeVote.count({
+          where: { seasonId: ratingSeason.id, voterId: user.id },
+        }),
+      ])
+    : [[], [], 0, 0];
 
   const profile = user.profile;
   const secondaryRoles = parseSecondaryRoles(profile.secondaryRoles, profile.secondaryRole);
@@ -82,6 +88,10 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     matchesPlayed > 0 ? Math.round((profile.wins / matchesPlayed) * 100) : null;
   const steamLink = profile.steamAccountId
     ? `https://www.opendota.com/players/${profile.steamAccountId}`
+    : null;
+
+  const seasonLabel = ratingSeason
+    ? `${SEASON_LABELS[ratingSeason.name]} ${ratingSeason.year}`
     : null;
 
   return (
@@ -157,6 +167,10 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
           received={received}
           vibes={vibes.map((v) => ({ voter: v.voter, value: v.value as VibeValue }))}
           viewer={viewer}
+          seasonLabel={seasonLabel}
+          givenSkill={givenSkill}
+          givenVibe={givenVibe}
+          expectedVotes={expectedVotes}
         />
       )}
 

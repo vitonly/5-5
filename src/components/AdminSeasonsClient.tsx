@@ -109,6 +109,12 @@ export function AdminSeasonsClient({
       });
   }
 
+  function receivedCount(season: Season, targetId: string) {
+    const skill = season.peerRatings.filter((r) => r.targetId === targetId).length;
+    const vibe = (season.vibeVotes ?? []).filter((v) => v.targetId === targetId).length;
+    return { skill, vibe };
+  }
+
   function incompleteVoters(season: Season) {
     return students.filter((s) => votesFrom(season, s.id).some((v) => !v.complete));
   }
@@ -216,6 +222,10 @@ export function AdminSeasonsClient({
                   </>
                 )}
               </p>
+              <p className="text-xs text-[var(--text-4)]">
+                В списке ниже «оценил» — сколько ученик сам поставил другим. «Получил» — сколько
+                оценок пришло ему (это видно в профиле как «кто оценил вас»).
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {season.status === "OPEN" && incomplete.length > 0 && (
@@ -238,6 +248,7 @@ export function AdminSeasonsClient({
                   const rows = votesFrom(season, student.id);
                   const done = rows.filter((r) => r.complete).length;
                   const missing = rows.filter((r) => !r.complete);
+                  const got = receivedCount(season, student.id);
                   const pts = pointsMap[student.id] ?? 0;
                   const isOpen = expandKey === student.id;
 
@@ -259,17 +270,20 @@ export function AdminSeasonsClient({
                         >
                           <PlayerLink user={student} className="inline" />
                           <span className="ml-2 text-[var(--text-3)]">
-                            скилл+вайб {done}/{expectedPer}
+                            оценил {done}/{expectedPer}
+                          </span>
+                          <span className="ml-2 text-[var(--text-4)]">
+                            получил скилл {got.skill} · вайб {got.vibe}
                           </span>
                           <span className="ml-2 font-mono-num text-[var(--points)]">
                             {formatPoints(pts)} очк.
                           </span>
                           {missing.length > 0 ? (
                             <span className="ml-2 text-xs text-[var(--danger)]">
-                              осталось {missing.length}
+                              осталось оценить {missing.length}
                             </span>
                           ) : (
-                            <span className="ml-2 text-xs text-[var(--success)]">готово</span>
+                            <span className="ml-2 text-xs text-[var(--success)]">всё оценил</span>
                           )}
                           <span className="ml-2 text-xs text-[var(--text-4)]">
                             {isOpen ? "▾" : "▸"} детали
@@ -297,7 +311,7 @@ export function AdminSeasonsClient({
                       {isOpen && (
                         <div className="border-t border-[var(--border)] px-3 py-2">
                           <p className="mb-2 text-xs uppercase tracking-wide text-[var(--text-4)]">
-                            Кого оценил {displayName(student)}
+                            Кого оценил {displayName(student)} (исходящие голоса)
                           </p>
                           <ul className="space-y-1.5 text-sm">
                             {rows.map((row) => (
@@ -313,7 +327,7 @@ export function AdminSeasonsClient({
                                   </span>
                                 ) : (
                                   <span className="text-[var(--danger)]">
-                                    не голосовал
+                                    ещё не оценил
                                     {row.mechanics != null || row.macro != null
                                       ? ` (скилл: ${row.mechanics ?? "—"}/${row.macro ?? "—"})`
                                       : ""}

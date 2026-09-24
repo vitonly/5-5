@@ -95,9 +95,14 @@ export async function PUT(request: NextRequest) {
 
   if (action === "open") {
     await requireAdmin();
+    // Только один OPEN: иначе голоса уезжают в «не тот» сезон
+    await prisma.ratingSeason.updateMany({
+      where: { status: "OPEN", id: { not: seasonId } },
+      data: { status: "CLOSED", closedAt: new Date(), isActive: false },
+    });
     const season = await prisma.ratingSeason.update({
       where: { id: seasonId },
-      data: { status: "OPEN" },
+      data: { status: "OPEN", isActive: true, openedAt: new Date() },
     });
     return NextResponse.json({ season });
   }
