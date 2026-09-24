@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SEASON_LABELS, RATING_CRITERIA, RATING_CRITERIA_HINTS, VIBE_LABELS } from "@/lib/labels";
 import { displayName } from "@/lib/utils";
@@ -17,6 +17,9 @@ const SKILL_CRITERIA = ["mechanics", "macro"] as const;
 type SkillCriterion = (typeof SKILL_CRITERIA)[number];
 const VIBE_OPTIONS: VibeValue[] = ["LIKE", "NEUTRAL", "DISLIKE"];
 
+type Draft = { mechanics?: number; macro?: number; vibe?: VibeValue };
+type SavedSkill = { mechanics: number; macro: number };
+
 export function VotingClient({
   openSeason,
   students,
@@ -29,9 +32,12 @@ export function VotingClient({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "err">("idle");
-  const [drafts, setDrafts] = useState<
-    Record<string, { mechanics?: number; macro?: number; vibe?: VibeValue }>
-  >({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  /** Успешно сохранённое — чтобы галочки не врали до refresh */
+  const [savedSkill, setSavedSkill] = useState<Record<string, SavedSkill>>({});
+  const [savedVibe, setSavedVibe] = useState<Record<string, VibeValue>>({});
   const [activeIndex, setActiveIndex] = useState(0);
 
   const others = useMemo(
@@ -40,24 +46,38 @@ export function VotingClient({
   );
   const vibeVotes = openSeason?.vibeVotes ?? [];
 
+  function dbSkill(targetId: string) {
+    return (
+      savedSkill[targetId] ??
+      openSeason?.peerRatings.find(
+        (r) => r.raterId === currentUserId && r.targetId === targetId
+      )
+    );
+  }
+
+  function dbVibe(targetId: string): VibeValue | undefined {
+    return (
+      savedVibe[targetId] ??
+      vibeVotes.find((v) => v.voterId === currentUserId && v.targetId === targetId)?.value
+    );
+  }
+
+  /** Значение на кнопках: черновик или то, что уже в БД */
   function getSkill(targetId: string, field: SkillCriterion): number | undefined {
-    if (drafts[targetId]?.[field] !== undefined) return drafts[targetId][field];
-    return openSeason?.peerRatings.find(
-      (r) => r.raterId === currentUserId && r.targetId === targetId
-    )?.[field];
+    const draft = drafts[targetId]?.[field];
+    if (draft !== undefined) return draft;
+    return dbSkill(targetId)?.[field];
   }
 
   function getVibe(targetId: string): VibeValue | undefined {
-    if (drafts[targetId]?.vibe) return drafts[targetId].vibe;
-    return vibeVotes.find((v) => v.voterId === currentUserId && v.targetId === targetId)?.value;
+    return drafts[targetId]?.vibe ?? dbVibe(targetId);
   }
 
+  /** Галочка только если реально сохранено (БД или успешный ответ API) */
   function isComplete(targetId: string) {
-    return (
-      getSkill(targetId, "mechanics") != null &&
-      getSkill(targetId, "macro") != null &&
-      getVibe(targetId) != null
-    );
+    const skill = dbSkill(targetId);
+    const vibe = dbVibe(targetId);
+    return skill != null && skill.mechanics != null && skill.macro != null && vibe != null;
   }
 
   const doneCount = others.filter((s) => isComplete(s.id)).length;
@@ -76,10 +96,20 @@ export function VotingClient({
         body: JSON.stringify({ seasonId: openSeason.id, targetId, mechanics, macro }),
       });
       if (!res.ok) throw new Error("fail");
+      setSavedSkill((s) => ({ ...s, [targetId]: { mechanics, macro } }));
       setSaveStatus("saved");
       startTransition(() => router.refresh());
     } catch {
       setSaveStatus("err");
+      setDrafts((d) => {
+        const next = { ...d };
+        if (next[targetId]) {
+          const { mechanics: _m, macro: _a, ...rest } = next[targetId];
+          next[targetId] = rest;
+        }
+        draftsRef.current = next;
+        return next;
+      });
     }
   }
 
@@ -93,26 +123,45 @@ export function VotingClient({
         body: JSON.stringify({ seasonId: openSeason.id, targetId, vibe }),
       });
       if (!res.ok) throw new Error("fail");
+      setSavedVibe((s) => ({ ...s, [targetId]: vibe }));
       setSaveStatus("saved");
       startTransition(() => router.refresh());
     } catch {
       setSaveStatus("err");
+      setDrafts((d) => {
+        const next = { ...d };
+        if (next[targetId]) {
+          const { vibe: _v, ...rest } = next[targetId];
+          next[targetId] = rest;
+        }
+        draftsRef.current = next;
+        return next;
+      });
     }
   }
 
   function setSkill(targetId: string, field: SkillCriterion, value: number) {
-    const next = {
-      mechanics: field === "mechanics" ? value : getSkill(targetId, "mechanics"),
-      macro: field === "macro" ? value : getSkill(targetId, "macro"),
-    };
-    setDrafts((d) => ({ ...d, [targetId]: { ...d[targetId], [field]: value } }));
-    if (next.mechanics != null && next.macro != null) {
-      void saveSkill(targetId, next.mechanics, next.macro);
+    const prev = draftsRef.current[targetId] ?? {};
+    const fromDb = dbSkill(targetId);
+    const mechanics =
+      field === "mechanics" ? value : (prev.mechanics ?? fromDb?.mechanics);
+    const macro = field === "macro" ? value : (prev.macro ?? fromDb?.macro);
+
+    const merged: Draft = { ...prev, [field]: value };
+    const nextDrafts = { ...draftsRef.current, [targetId]: merged };
+    draftsRef.current = nextDrafts;
+    setDrafts(nextDrafts);
+
+    if (mechanics != null && macro != null) {
+      void saveSkill(targetId, mechanics, macro);
     }
   }
 
   function setVibe(targetId: string, vibe: VibeValue) {
-    setDrafts((d) => ({ ...d, [targetId]: { ...d[targetId], vibe } }));
+    const prev = draftsRef.current[targetId] ?? {};
+    const nextDrafts = { ...draftsRef.current, [targetId]: { ...prev, vibe } };
+    draftsRef.current = nextDrafts;
+    setDrafts(nextDrafts);
     void saveVibe(targetId, vibe);
   }
 
@@ -136,7 +185,6 @@ export function VotingClient({
 
   return (
     <div className="space-y-4">
-      {/* progress */}
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="font-display text-lg font-semibold">
@@ -154,8 +202,8 @@ export function VotingClient({
             >
               {saveStatus === "saving" && "сохранение…"}
               {saveStatus === "saved" && "сохранено"}
-              {saveStatus === "err" && "не сохранилось, повторить"}
-              {saveStatus === "idle" && "автосохранение"}
+              {saveStatus === "err" && "не сохранилось — нажмите оценку ещё раз"}
+              {saveStatus === "idle" && "галочка = сохранено на сервере"}
             </span>
             <span className="rounded-full border border-[var(--border)] bg-[var(--control)] px-2.5 py-1 font-mono-num text-[12px] font-bold text-[var(--text-2)]">
               {doneCount} / {total}
@@ -168,10 +216,13 @@ export function VotingClient({
             style={{ width: `${pct}%` }}
           />
         </div>
+        <p className="mt-2 text-[12px] text-[var(--text-4)]">
+          Нужны механика, макро и вайб. Галочка ставится только после успешного сохранения — не
+          листайте дальше, пока не увидите «сохранено».
+        </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        {/* queue — horizontal chips on mobile */}
         <aside className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
           <p className="mb-2 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
             Очередь
@@ -180,6 +231,11 @@ export function VotingClient({
             {others.map((s, i) => {
               const done = isComplete(s.id);
               const isActive = i === activeIndex;
+              const partial =
+                !done &&
+                (getSkill(s.id, "mechanics") != null ||
+                  getSkill(s.id, "macro") != null ||
+                  getVibe(s.id) != null);
               return (
                 <li key={s.id} className="shrink-0 lg:w-full">
                   <button
@@ -195,12 +251,14 @@ export function VotingClient({
                       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
                         done
                           ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
-                          : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-4)]"
+                          : partial
+                            ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]"
+                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-4)]"
                       }`}
                     >
-                      {done ? "✓" : i + 1}
+                      {done ? "✓" : partial ? "…" : i + 1}
                     </span>
-                    <span className="truncate font-medium max-w-[7rem] lg:max-w-none">
+                    <span className="max-w-[7rem] truncate font-medium lg:max-w-none">
                       {displayName(s)}
                     </span>
                   </button>
@@ -210,7 +268,6 @@ export function VotingClient({
           </ul>
         </aside>
 
-        {/* active card */}
         <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="mb-5 flex items-center gap-4 border-b border-[var(--border-soft)] pb-4">
             <div className="h-14 w-14 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--control)]">
@@ -225,6 +282,11 @@ export function VotingClient({
               <h2 className="font-display text-2xl font-bold">{displayName(active)}</h2>
               <p className="text-[13px] text-[var(--text-3)]">
                 Игрок {activeIndex + 1} из {total}
+                {isComplete(active.id) ? (
+                  <span className="ml-2 text-[var(--success)]">· сохранено</span>
+                ) : (
+                  <span className="ml-2 text-[var(--danger)]">· не полностью</span>
+                )}
               </p>
             </div>
           </div>
@@ -298,10 +360,10 @@ export function VotingClient({
           <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 -mx-5 mt-2 border-t border-[var(--border-soft)] bg-[var(--surface)] px-5 py-3 min-[720px]:static min-[720px]:mx-0 min-[720px]:flex min-[720px]:justify-end min-[720px]:px-0 min-[720px]:pt-4">
             <Button
               onClick={goNext}
-              disabled={activeIndex >= others.length - 1}
+              disabled={activeIndex >= others.length - 1 || !isComplete(active.id)}
               className="h-[46px] w-full min-[720px]:h-11 min-[720px]:w-auto"
             >
-              Следующий игрок
+              {isComplete(active.id) ? "Следующий игрок" : "Сначала сохраните все оценки"}
             </Button>
           </div>
         </section>
