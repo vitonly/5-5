@@ -10,8 +10,11 @@ import {
   undoMatchGame,
 } from "@/lib/points";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
-
-type TeamAssignment = Record<string, { team: string; position: number }>;
+import {
+  buildAssignmentsFromLineups,
+  validateLineups,
+} from "@/lib/match-lineup";
+import type { TeamAssignment } from "@/lib/match-lineup";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -158,6 +161,41 @@ export async function PATCH(request: NextRequest) {
       data: { status: "COMPLETED" },
     });
     return NextResponse.json({ session: { id: sessionId, status: "COMPLETED" } });
+  }
+
+  if (body.action === "updateTeams") {
+    if (session.status === "COMPLETED") {
+      return NextResponse.json({ error: "Сессия завершена" }, { status: 400 });
+    }
+    const radiant = Array.isArray(body.radiant) ? body.radiant : [];
+    const dire = Array.isArray(body.dire) ? body.dire : [];
+    const normalizedRadiant = radiant.map(
+      (s: { userId: string; position: number }) => ({
+        userId: String(s.userId),
+        position: Number(s.position),
+      })
+    );
+    const normalizedDire = dire.map((s: { userId: string; position: number }) => ({
+      userId: String(s.userId),
+      position: Number(s.position),
+    }));
+
+    const err = validateLineups(normalizedRadiant, normalizedDire);
+    if (err) {
+      return NextResponse.json({ error: err }, { status: 400 });
+    }
+
+    const built = buildAssignmentsFromLineups(normalizedRadiant, normalizedDire);
+    const updated = await prisma.matchSession.update({
+      where: { id: sessionId },
+      data: {
+        status: "TEAMS_SET",
+        radiantPlayerIds: built.radiantPlayerIds,
+        direPlayerIds: built.direPlayerIds,
+        teamAssignments: built.assignmentsJson,
+      },
+    });
+    return NextResponse.json({ session: updated });
   }
 
   if (!winnerTeam) {

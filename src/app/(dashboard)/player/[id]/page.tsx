@@ -7,6 +7,7 @@ import { RatingBreakdown } from "@/components/RatingBreakdown";
 import { PointHistory } from "@/components/PointHistory";
 import { WeeklyPointsChart, MetricTile } from "@/components/WeeklyPointsChart";
 import { PointsPill } from "@/components/StatPills";
+import { MatchHistory, buildMatchHistoryEntries } from "@/components/MatchHistory";
 import { DOTA_ROLE_LABELS, rankLabel } from "@/lib/labels";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { displayName } from "@/lib/utils";
@@ -28,7 +29,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
 
   const seasonId = await getActiveSeasonId();
 
-  const [logs, latestSeason, homeworkDone, leaderboard] = await Promise.all([
+  const [logs, latestSeason, homeworkDone, leaderboard, matchParts] = await Promise.all([
     prisma.pointLog.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -41,7 +42,18 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       where: { studentId: user.id, status: "GRADED" },
     }),
     getSeasonLeaderboard(seasonId),
+    prisma.matchParticipant.findMany({
+      where: { userId: user.id },
+      include: {
+        game: {
+          include: { session: true },
+        },
+      },
+      take: 80,
+    }),
   ]);
+
+  const matchHistory = buildMatchHistoryEntries(user.id, matchParts);
 
   const received = latestSeason
     ? await prisma.peerRating.findMany({
@@ -147,6 +159,11 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
           viewer={viewer}
         />
       )}
+
+      <MatchHistory
+        entries={matchHistory}
+        title={isOwnProfile ? "Мои матчи 5v5" : "История матчей 5v5"}
+      />
 
       <PointHistory logs={logs} title={historyTitle} />
     </div>

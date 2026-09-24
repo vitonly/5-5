@@ -24,6 +24,15 @@ export const DOTA_ROLE_POSITION: Record<DotaRole, number> = {
   HARD_SUPPORT: 5,
 };
 
+/** Подписи позиций в 5v5 */
+export const POSITION_LABELS: Record<number, string> = {
+  1: "1 · Carry",
+  2: "2 · Mid",
+  3: "3 · Off",
+  4: "4 · Soft",
+  5: "5 · Hard",
+};
+
 export const SEASON_LABELS: Record<SeasonName, string> = {
   AUTUMN: "Осенний",
   WINTER: "Зимний",

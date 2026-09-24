@@ -1,11 +1,12 @@
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
-import { MATCH_STATUS_LABELS } from "@/lib/labels";
+import { MATCH_STATUS_LABELS, POSITION_LABELS } from "@/lib/labels";
 import { formatDate, parseJsonArray } from "@/lib/utils";
 import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { PowerPill, PointsPill } from "@/components/StatPills";
+import { lineupForTeam, parseTeamAssignments, type LineupSlot } from "@/lib/match-lineup";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,11 @@ export default async function MatchPage() {
                   <div className="grid gap-0 md:grid-cols-[1fr_auto_1fr]">
                     <TeamPanel
                       title="Radiant"
-                      ids={radiant}
+                      lineup={lineupForTeam(
+                        "RADIANT",
+                        radiant,
+                        parseTeamAssignments(session.teamAssignments)
+                      )}
                       userMap={userMap}
                       viewer={user}
                       power={radiantPower}
@@ -132,7 +137,11 @@ export default async function MatchPage() {
 
                     <TeamPanel
                       title="Dire"
-                      ids={dire}
+                      lineup={lineupForTeam(
+                        "DIRE",
+                        dire,
+                        parseTeamAssignments(session.teamAssignments)
+                      )}
                       userMap={userMap}
                       viewer={user}
                       power={direPower}
@@ -174,7 +183,7 @@ function sumPoints(
 
 function TeamPanel({
   title,
-  ids,
+  lineup,
   userMap,
   viewer,
   power,
@@ -183,7 +192,7 @@ function TeamPanel({
   accent,
 }: {
   title: string;
-  ids: string[];
+  lineup: LineupSlot[];
   userMap: Record<string, UserRow>;
   viewer: { id: string; role: string };
   power: number;
@@ -202,7 +211,7 @@ function TeamPanel({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="font-semibold text-[var(--text)]">{title}</p>
         <div className="flex flex-wrap items-center gap-2">
-          {ids.length > 0 && (
+          {lineup.length > 0 && (
             <span className="inline-flex items-center gap-1.5 text-xs text-[var(--text-3)]">
               сила
               <PowerPill value={power} />
@@ -216,19 +225,22 @@ function TeamPanel({
           )}
         </div>
       </div>
-      {ids.length === 0 ? (
+      {lineup.length === 0 ? (
         <p className="text-sm text-[var(--text-3)]">Состав не задан</p>
       ) : (
         <ul className="space-y-2">
-          {ids.map((id, i) => {
-            const u = userMap[id];
+          {lineup.map((slot) => {
+            const u = userMap[slot.userId];
             return (
-              <li key={id} className="flex items-center justify-between gap-2 text-sm">
+              <li key={slot.userId} className="flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--control)] font-mono-num text-[11px] text-[var(--text-2)]">
-                    {i + 1}
+                  <span className="inline-flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--control)] px-1 font-mono-num text-[11px] text-[var(--text-2)]">
+                    {slot.position}
                   </span>
-                  {u ? <PlayerLink user={u} viewer={viewer} /> : id}
+                  {u ? <PlayerLink user={u} viewer={viewer} /> : slot.userId}
+                  <span className="hidden text-[10px] text-[var(--text-4)] sm:inline">
+                    {POSITION_LABELS[slot.position]?.split("·")[1]?.trim() ?? ""}
+                  </span>
                 </span>
                 {showIndividualPower && u?.profile && (
                   <span className="font-mono-num text-[12px] text-[var(--power)]">
