@@ -40,6 +40,7 @@ enum HomeworkStatus {
 enum MatchSessionStatus {
   PLANNED
   TEAMS_SET
+  LINEUPS_CONFIRMED
   IN_PROGRESS
   COMPLETED
 }

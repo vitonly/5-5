@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { balanceTeams } from "@/lib/team-balance";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
-import { displayName, formatDate, toJsonArray } from "@/lib/utils";
+import { displayName, formatDate, parseJsonArray, toJsonArray } from "@/lib/utils";
 import { POSITION_LABELS } from "@/lib/labels";
 import {
   answerCallbackQuery,
@@ -38,16 +38,6 @@ function buildAssignmentsJson(
     map[p.id] = { team: "DIRE", position: p.position };
   }
   return JSON.stringify(map);
-}
-
-function teamLineText(
-  teams: ReturnType<typeof balanceTeams>,
-  side: "radiant" | "dire"
-): string {
-  const list = teams[side];
-  return list
-    .map((p) => `  ${POSITION_LABELS[p.position] ?? p.position}: ${p.name}`)
-    .join("\n");
 }
 
 async function loadBalancePlayers(userIds: string[]) {
@@ -103,28 +93,47 @@ export async function rebalanceOpenSession(sessionId: string) {
   return { session: updated, teams };
 }
 
-async function notifyTeamsFormed(
-  sessionId: string,
-  teams: ReturnType<typeof balanceTeams>
-) {
+async function notifyTeamsFormed(sessionId: string) {
   const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
   if (!session) return;
 
-  const joined = await prisma.matchRsvp.findMany({
-    where: { sessionId, status: "JOINED" },
-    include: { user: true },
-  });
+  const radiantIds = parseJsonArray(session.radiantPlayerIds);
+  const direIds = parseJsonArray(session.direPlayerIds);
+  const allIds = [...radiantIds, ...direIds];
+  if (allIds.length !== OPEN_SLOTS) return;
 
+  const [users, rsvps] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: allIds } } }),
+    prisma.matchRsvp.findMany({
+      where: { sessionId, userId: { in: allIds } },
+    }),
+  ]);
+
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+  const rsvpMap = Object.fromEntries(rsvps.map((r) => [r.userId, r]));
   const assignment: TeamAssignment = JSON.parse(session.teamAssignments || "{}");
-  const header = `⚔️ <b>Команды 5v5 собраны</b>\n${formatDate(session.date)}\n\n<b>Radiant</b>\n${teamLineText(teams, "radiant")}\n\n<b>Dire</b>\n${teamLineText(teams, "dire")}`;
 
-  for (const rsvp of joined) {
-    const a = assignment[rsvp.userId];
+  const lineFor = (ids: string[]) =>
+    ids
+      .map((id) => {
+        const pos = assignment[id]?.position;
+        const name = userMap[id] ? displayName(userMap[id]) : id;
+        return `  ${pos ? POSITION_LABELS[pos] ?? pos : "?"}: ${name}`;
+      })
+      .join("\n");
+
+  const header = `⚔️ <b>Составы 5v5 утверждены</b>\n${formatDate(session.date)}\n\n<b>Radiant</b>\n${lineFor(radiantIds)}\n\n<b>Dire</b>\n${lineFor(direIds)}`;
+
+  for (const userId of allIds) {
+    const user = userMap[userId];
+    if (!user) continue;
+    const rsvp = rsvpMap[userId];
+    const a = assignment[userId];
     const side = a?.team === "DIRE" ? "Dire" : "Radiant";
     const pos = a?.position ? POSITION_LABELS[a.position] ?? String(a.position) : "?";
     const text = `${header}\n\nВы: <b>${side}</b>, ${pos}`;
-    const chatId = rsvp.tgChatId || notifyChatId(rsvp.user);
-    if (rsvp.tgMessageId && chatId) {
+    const chatId = rsvp?.tgChatId || notifyChatId(user);
+    if (rsvp?.tgMessageId && chatId) {
       await editTelegramMessage(chatId, rsvp.tgMessageId, text, null);
     } else {
       await sendTelegramMessage(chatId, text);
@@ -134,9 +143,43 @@ async function notifyTeamsFormed(
   await refreshQueueMessages(sessionId);
 }
 
+/** Утвердить составы: TG всем игрокам, дальше можно стартовать. */
+export async function confirmLineups(sessionId: string) {
+  const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
+  if (!session) throw new Error("Сессия не найдена");
+  if (session.status === "LINEUPS_CONFIRMED") {
+    throw new Error("Составы уже утверждены");
+  }
+  if (session.status === "IN_PROGRESS" || session.status === "COMPLETED") {
+    throw new Error("Сессия уже начата или завершена");
+  }
+  if (session.status !== "TEAMS_SET") {
+    throw new Error("Сначала нужен полный состав (10 игроков)");
+  }
+
+  const radiantIds = parseJsonArray(session.radiantPlayerIds);
+  const direIds = parseJsonArray(session.direPlayerIds);
+  if (radiantIds.length !== 5 || direIds.length !== 5) {
+    throw new Error("В каждой команде должно быть 5 игроков");
+  }
+
+  const updated = await prisma.matchSession.update({
+    where: { id: sessionId },
+    data: { status: "LINEUPS_CONFIRMED" },
+  });
+
+  await notifyTeamsFormed(sessionId);
+  return updated;
+}
+
 async function refreshJoinedSlotMessages(sessionId: string) {
   const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
-  if (!session || session.status === "TEAMS_SET" || session.status === "IN_PROGRESS") {
+  if (
+    !session ||
+    session.status === "LINEUPS_CONFIRMED" ||
+    session.status === "IN_PROGRESS" ||
+    session.status === "COMPLETED"
+  ) {
     return;
   }
 
@@ -146,12 +189,21 @@ async function refreshJoinedSlotMessages(sessionId: string) {
     include: { user: true },
   });
 
+  const filled = joined.length >= OPEN_SLOTS || session.status === "TEAMS_SET";
+
   for (let i = 0; i < joined.length; i++) {
     const rsvp = joined[i];
     const chatId = rsvp.tgChatId || notifyChatId(rsvp.user);
-    const text = `✅ Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${i + 1}/${OPEN_SLOTS}</b>\nЖдём остальных…`;
+    const text = filled
+      ? `✅ Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${i + 1}/${OPEN_SLOTS}</b>\nСостав набран. Ждём утверждения составов админом.`
+      : `✅ Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${i + 1}/${OPEN_SLOTS}</b>\nЖдём остальных…`;
     if (chatId && rsvp.tgMessageId) {
-      await editTelegramMessage(chatId, rsvp.tgMessageId, text, signupKeyboard(sessionId));
+      await editTelegramMessage(
+        chatId,
+        rsvp.tgMessageId,
+        text,
+        filled ? null : signupKeyboard(sessionId)
+      );
     }
   }
 }
@@ -292,7 +344,7 @@ export async function rsvpJoin(userId: string, sessionId: string): Promise<Signu
             sessionId: { not: sessionId },
             session: {
               mode: "OPEN_SIGNUP",
-              status: { in: ["PLANNED", "TEAMS_SET"] },
+              status: { in: ["PLANNED", "TEAMS_SET", "LINEUPS_CONFIRMED"] },
             },
           },
         });
@@ -349,7 +401,9 @@ export async function rsvpJoin(userId: string, sessionId: string): Promise<Signu
 
     if (outcome.kind === "joined") {
       const text = `✅ Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${outcome.slot}/${OPEN_SLOTS}</b>${
-        outcome.filled ? "\n\nСостав набран — формируем команды…" : "\nЖдём остальных…"
+        outcome.filled
+          ? "\n\nСостав набран. Ждём утверждения составов админом."
+          : "\nЖдём остальных…"
       }`;
       if (chatId && rsvp?.tgMessageId) {
         await editTelegramMessage(
@@ -361,8 +415,8 @@ export async function rsvpJoin(userId: string, sessionId: string): Promise<Signu
       }
 
       if (outcome.filled) {
-        const result = await rebalanceOpenSession(sessionId);
-        if (result) await notifyTeamsFormed(sessionId, result.teams);
+        await rebalanceOpenSession(sessionId);
+        await refreshJoinedSlotMessages(sessionId);
       } else {
         await refreshJoinedSlotMessages(sessionId);
       }
@@ -417,21 +471,20 @@ async function afterRosterChange(sessionId: string, promotedUserId?: string) {
   if (!session) return;
 
   if (joinedCount === OPEN_SLOTS) {
-    const result = await rebalanceOpenSession(sessionId);
-    if (result) {
-      await notifyTeamsFormed(sessionId, result.teams);
-      if (promotedUserId) {
-        const promoted = await prisma.matchRsvp.findUnique({
-          where: { sessionId_userId: { sessionId, userId: promotedUserId } },
-          include: { user: true },
-        });
-        if (promoted) {
-          const chatId = promoted.tgChatId || notifyChatId(promoted.user);
-          await sendTelegramMessage(
-            chatId,
-            `🎉 Место освободилось! Вы вошли в состав 5v5 на ${formatDate(session.date)}. Команды пересобраны.`
-          );
-        }
+    await rebalanceOpenSession(sessionId);
+    await refreshJoinedSlotMessages(sessionId);
+    await refreshQueueMessages(sessionId);
+    if (promotedUserId) {
+      const promoted = await prisma.matchRsvp.findUnique({
+        where: { sessionId_userId: { sessionId, userId: promotedUserId } },
+        include: { user: true },
+      });
+      if (promoted) {
+        const chatId = promoted.tgChatId || notifyChatId(promoted.user);
+        await sendTelegramMessage(
+          chatId,
+          `🎉 Место освободилось! Вы вошли в состав 5v5 на ${formatDate(session.date)}.\nКоманды пересобраны — ждём утверждения админом.`
+        );
       }
     }
   } else {
@@ -623,8 +676,8 @@ export async function startMatchSession(sessionId: string) {
   if (session.status === "COMPLETED") {
     throw new Error("Сессия завершена");
   }
-  if (session.status !== "TEAMS_SET") {
-    throw new Error("Сначала нужен полный состав (10 игроков)");
+  if (session.status !== "LINEUPS_CONFIRMED") {
+    throw new Error("Сначала утвердите составы");
   }
 
   return prisma.matchSession.update({

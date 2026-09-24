@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/session";
 import {
   adminRemoveFromSignup,
   adminReinvitePlayer,
+  confirmLineups,
   createOpenSignupSession,
   listStudentsWithTelegram,
   startMatchSession,
@@ -89,6 +90,11 @@ export async function PATCH(request: NextRequest) {
       }
       await adminReinvitePlayer(sessionId, String(userId));
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === "confirmLineups") {
+      const session = await confirmLineups(sessionId);
+      return NextResponse.json({ session });
     }
 
     if (action === "startSession") {

@@ -13,7 +13,11 @@ export default async function AdminMatchesPage() {
       },
       orderBy: { date: "desc" },
     }),
-    prisma.user.findMany({ where: { role: "STUDENT" }, orderBy: { firstName: "asc" } }),
+    prisma.user.findMany({
+      where: { role: "STUDENT" },
+      include: { profile: true },
+      orderBy: { firstName: "asc" },
+    }),
   ]);
 
   return (

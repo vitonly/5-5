@@ -128,6 +128,7 @@ export const HOMEWORK_STATUS_LABELS = {
 export const MATCH_STATUS_LABELS = {
   PLANNED: "Запланировано",
   TEAMS_SET: "Команды сформированы",
+  LINEUPS_CONFIRMED: "Составы утверждены",
   IN_PROGRESS: "Идёт сессия",
   COMPLETED: "Завершено",
 } as const;

@@ -24,15 +24,18 @@ import type {
   MatchGame,
   MatchRsvp,
   MatchSession,
+  PlayerProfile,
   User,
 } from "@prisma/client";
+import { PlayerRolesDisplay } from "@/components/PlayerRolesDisplay";
+import { PowerPill } from "@/components/StatPills";
 
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
   games: MatchGame[];
   rsvps?: RsvpWithUser[];
 };
-type Student = User;
+type Student = User & { profile: PlayerProfile | null };
 type DraftSlot = { userId: string; position: number };
 type DraftTagged = DraftSlot & { team: "RADIANT" | "DIRE" };
 
@@ -144,6 +147,27 @@ export function AdminMatchesClient({
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       alert(typeof data.error === "string" ? data.error : "Не удалось стартовать");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function confirmLineups(sessionId: string) {
+    if (
+      !confirm(
+        "Утвердить составы? Игрокам уйдёт уведомление в Telegram. После этого можно стартовать сессию."
+      )
+    ) {
+      return;
+    }
+    const res = await fetch("/api/matches", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, action: "confirmLineups" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Не удалось утвердить");
       return;
     }
     router.refresh();
@@ -374,9 +398,13 @@ export function AdminMatchesClient({
         const direLineup = lineupForTeam("DIRE", direIds, assignments);
         const isEditing = editingId === session.id;
         const beforeStart =
-          session.status === "PLANNED" || session.status === "TEAMS_SET";
+          session.status === "PLANNED" ||
+          session.status === "TEAMS_SET" ||
+          session.status === "LINEUPS_CONFIRMED";
         const canEdit =
-          beforeStart && radiantIds.length === 5 && session.status !== "COMPLETED";
+          beforeStart &&
+          session.status !== "COMPLETED" &&
+          radiantIds.length === 5;
         const rsvps = session.rsvps ?? [];
         const joined = rsvps.filter((r) => r.status === "JOINED");
         const queued = rsvps
@@ -391,6 +419,9 @@ export function AdminMatchesClient({
         );
         const invited = rsvps.filter((r) => r.status === "INVITED");
         const isOpen = session.mode === "OPEN_SIGNUP";
+        const radiantPower = sumPower(radiantLineup, studentMap);
+        const direPower = sumPower(direLineup, studentMap);
+        const powerDiff = Math.abs(radiantPower - direPower);
 
         return (
           <Card key={session.id}>
@@ -496,14 +527,48 @@ export function AdminMatchesClient({
                 </div>
               ) : (
                 radiantLineup.length > 0 && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <TeamBlock title="Radiant" lineup={radiantLineup} map={studentMap} />
-                    <TeamBlock title="Dire" lineup={direLineup} map={studentMap} />
+                  <div className="space-y-3">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TeamBlock
+                        title="Radiant"
+                        lineup={radiantLineup}
+                        map={studentMap}
+                        teamPower={radiantPower}
+                      />
+                      <TeamBlock
+                        title="Dire"
+                        lineup={direLineup}
+                        map={studentMap}
+                        teamPower={direPower}
+                      />
+                    </div>
+                    <p className="font-mono-num text-sm text-[var(--text-2)]">
+                      Сумма силы: Radiant <b>{radiantPower}</b> · Dire <b>{direPower}</b>
+                      {" · "}
+                      Разница: <b>{powerDiff}</b>
+                      {radiantPower !== direPower && (
+                        <span className="text-[var(--text-4)]">
+                          {" "}
+                          ({radiantPower > direPower ? "Radiant" : "Dire"} сильнее)
+                        </span>
+                      )}
+                    </p>
                   </div>
                 )
               )}
 
               {session.status === "TEAMS_SET" && !isEditing && (
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => confirmLineups(session.id)}>
+                    Утвердить составы
+                  </Button>
+                  <Button variant="outline" onClick={() => completeSession(session.id)}>
+                    Отменить / завершить без игр
+                  </Button>
+                </div>
+              )}
+
+              {session.status === "LINEUPS_CONFIRMED" && !isEditing && (
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => startSession(session.id)}>
                     Старт сессии (все за ПК)
@@ -637,31 +702,53 @@ function RsvpList({
   );
 }
 
+function sumPower(lineup: LineupSlot[], map: Record<string, Student>) {
+  return lineup.reduce((sum, slot) => sum + (map[slot.userId]?.profile?.finalRating ?? 0), 0);
+}
+
 function TeamBlock({
   title,
   lineup,
   map,
+  teamPower,
 }: {
   title: string;
   lineup: LineupSlot[];
   map: Record<string, Student>;
+  teamPower: number;
 }) {
   return (
     <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3">
-      <p className="mb-2 font-semibold text-[var(--text)]">{title}</p>
-      <ul className="space-y-1.5 text-sm">
-        {lineup.map((slot) => (
-          <li key={`${slot.team}-${slot.position}`} className="flex items-center gap-2">
-            <span className="inline-flex h-6 min-w-[4.5rem] shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 font-mono-num text-[10px] text-[var(--text-2)]">
-              {POSITION_LABELS[slot.position] ?? `поз. ${slot.position}`}
-            </span>
-            {map[slot.userId] ? (
-              <PlayerLink user={map[slot.userId]} className="inline" />
-            ) : (
-              slot.userId
-            )}
-          </li>
-        ))}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="font-semibold text-[var(--text)]">{title}</p>
+        <span className="font-mono-num text-xs text-[var(--text-3)]">
+          Σ сила {teamPower}
+        </span>
+      </div>
+      <ul className="space-y-2 text-sm">
+        {lineup.map((slot) => {
+          const student = map[slot.userId];
+          const power = student?.profile?.finalRating ?? 0;
+          return (
+            <li
+              key={`${slot.team}-${slot.position}`}
+              className="flex flex-col gap-1 border-b border-[var(--border-soft)] pb-2 last:border-0 last:pb-0"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex h-6 min-w-[4.5rem] shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 font-mono-num text-[10px] text-[var(--text-2)]">
+                  {POSITION_LABELS[slot.position] ?? `поз. ${slot.position}`}
+                </span>
+                {student ? (
+                  <PlayerLink user={student} className="inline" />
+                ) : (
+                  slot.userId
+                )}
+                <PowerPill value={power} />
+              </div>
+              <PlayerRolesDisplay profile={student?.profile} className="pl-1" />
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

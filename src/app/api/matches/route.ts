@@ -15,7 +15,7 @@ import {
   validateLineups,
 } from "@/lib/match-lineup";
 import type { TeamAssignment } from "@/lib/match-lineup";
-import { startMatchSession } from "@/lib/match-signup";
+import { startMatchSession, confirmLineups } from "@/lib/match-signup";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -165,7 +165,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (body.action === "updateTeams") {
-    if (session.status === "COMPLETED" || session.status === "IN_PROGRESS") {
+    if (
+      session.status === "COMPLETED" ||
+      session.status === "IN_PROGRESS"
+    ) {
       return NextResponse.json(
         { error: "Сессия начата или завершена — состав нельзя менять" },
         { status: 400 }
@@ -190,6 +193,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const built = buildAssignmentsFromLineups(normalizedRadiant, normalizedDire);
+    // Любая правка сбрасывает утверждение — снова TEAMS_SET
     const updated = await prisma.matchSession.update({
       where: { id: sessionId },
       data: {
@@ -200,6 +204,18 @@ export async function PATCH(request: NextRequest) {
       },
     });
     return NextResponse.json({ session: updated });
+  }
+
+  if (body.action === "confirmLineups") {
+    try {
+      const updated = await confirmLineups(sessionId);
+      return NextResponse.json({ session: updated });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось утвердить" },
+        { status: 400 }
+      );
+    }
   }
 
   if (body.action === "startSession") {
