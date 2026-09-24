@@ -36,7 +36,7 @@ npm run dev
 | `ADMIN_TELEGRAM_IDS` | Telegram ID админов через запятую |
 | `NEXT_PUBLIC_APP_URL` | URL сайта |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob (обязателен на Vercel) |
-| `CRON_SECRET` | Секрет для bootstrap / setWebhook |
+| `CRON_SECRET` | Секрет для cron, bootstrap, setWebhook (≥16 символов). Vercel шлёт его как `Authorization: Bearer …` на `/api/cron/automation` раз в сутки (05:00 UTC). На Pro можно сменить schedule в `vercel.json` на `0 * * * *` |
 | `TWITCH_*` | Опционально |
 
 После первого деплоя один раз выставьте webhook бота:

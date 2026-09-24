@@ -57,13 +57,22 @@ export default async function AdminDashboardPage() {
 
       <OverdueCheckButton />
       <p className="text-sm text-[var(--text-4)]">
-        Автопроверка просрочек и автозакрытие сезонов: запустите{" "}
+        Автопроверка просрочек (−0.5) и автозакрытие сезона по{" "}
         <code className="rounded border border-[var(--border)] bg-[var(--control)] px-1 text-[var(--text-2)]">
-          npm run automation
-        </code>{" "}
-        по расписанию (Планировщик заданий Windows) или держите cron-запрос на{" "}
+          closesAt
+        </code>
+        : Vercel Cron раз в сутки (05:00 UTC / 08:00 МСК) бьёт в{" "}
         <code className="rounded border border-[var(--border)] bg-[var(--control)] px-1 text-[var(--text-2)]">
           /api/cron/automation
+        </code>
+        {" "}
+        (нужен{" "}
+        <code className="rounded border border-[var(--border)] bg-[var(--control)] px-1 text-[var(--text-2)]">
+          CRON_SECRET
+        </code>
+        ). Вручную: кнопка выше или{" "}
+        <code className="rounded border border-[var(--border)] bg-[var(--control)] px-1 text-[var(--text-2)]">
+          npm run automation
         </code>
         .
       </p>
