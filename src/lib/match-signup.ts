@@ -565,6 +565,52 @@ export async function adminRemoveFromSignup(sessionId: string, userId: string) {
   return { promotedUserId };
 }
 
+/** Повторно отправить приглашение отказавшемуся / снятому. */
+export async function adminReinvitePlayer(sessionId: string, userId: string) {
+  const gate = await assertEditableOpenSession(sessionId);
+  if ("error" in gate && gate.error) {
+    throw new Error(gate.error);
+  }
+
+  const rsvp = await prisma.matchRsvp.findUnique({
+    where: { sessionId_userId: { sessionId, userId } },
+    include: { user: true },
+  });
+  if (!rsvp) throw new Error("RSVP не найден");
+  if (rsvp.status !== "DECLINED" && rsvp.status !== "REMOVED") {
+    throw new Error("Повторный запрос только для отказа / снятых");
+  }
+
+  const session = gate.session!;
+  const chatId = rsvp.tgChatId || notifyChatId(rsvp.user);
+  if (!chatId) {
+    throw new Error("У ученика нет привязанного Telegram");
+  }
+
+  const inviteText = `🎮 <b>Повторный запрос на 5v5</b>\n\nДата: ${formatDate(session.date)}\n\nНажмите кнопку ниже. Первые 10 попадают в состав, остальные — в очередь.`;
+
+  const sent = await sendTelegramMessageDetailed(
+    chatId,
+    inviteText,
+    signupKeyboard(sessionId)
+  );
+  if (!sent.ok) {
+    throw new Error("Не удалось отправить сообщение в Telegram");
+  }
+
+  await prisma.matchRsvp.update({
+    where: { id: rsvp.id },
+    data: {
+      status: "INVITED",
+      respondedAt: null,
+      tgChatId: chatId,
+      tgMessageId: sent.messageId ?? null,
+    },
+  });
+
+  return { ok: true };
+}
+
 export async function startMatchSession(sessionId: string) {
   const session = await prisma.matchSession.findUnique({
     where: { id: sessionId },

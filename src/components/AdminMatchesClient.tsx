@@ -166,6 +166,21 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
+  async function reinvitePlayer(sessionId: string, userId: string, name: string) {
+    if (!confirm(`Отправить ${name} повторный запрос в Telegram?`)) return;
+    const res = await fetch("/api/matches/signup", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reinvite", sessionId, userId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+      return;
+    }
+    router.refresh();
+  }
+
   async function undoLastGame(sessionId: string, gameId: string) {
     if (!confirm("Отменить последнюю игру? Очки и стрик откатятся.")) return;
     await fetch("/api/matches", {
@@ -427,7 +442,14 @@ export function AdminMatchesClient({
                     <RsvpList title="Ещё не ответили" items={invited} />
                   )}
                   {declined.length > 0 && (
-                    <RsvpList title="Отказы / сняты" items={declined} />
+                    <RsvpList
+                      title="Отказы / сняты"
+                      items={declined}
+                      canReinvite={beforeStart}
+                      onReinvite={(u) =>
+                        reinvitePlayer(session.id, u.id, displayName(u))
+                      }
+                    />
                   )}
                 </div>
               )}
@@ -560,14 +582,18 @@ function RsvpList({
   title,
   items,
   canRemove,
+  canReinvite,
   showQueueIndex,
   onRemove,
+  onReinvite,
 }: {
   title: string;
   items: RsvpWithUser[];
   canRemove?: boolean;
+  canReinvite?: boolean;
   showQueueIndex?: boolean;
   onRemove?: (user: User) => void;
+  onReinvite?: (user: User) => void;
 }) {
   return (
     <div>
@@ -592,6 +618,18 @@ function RsvpList({
                 Убрать
               </Button>
             )}
+            {canReinvite &&
+              onReinvite &&
+              (r.status === "DECLINED" || r.status === "REMOVED") && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => onReinvite(r.user)}
+                >
+                  Отправить снова
+                </Button>
+              )}
           </li>
         ))}
       </ul>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import {
   adminRemoveFromSignup,
+  adminReinvitePlayer,
   createOpenSignupSession,
   listStudentsWithTelegram,
   startMatchSession,
@@ -80,6 +81,14 @@ export async function PATCH(request: NextRequest) {
       }
       const result = await adminRemoveFromSignup(sessionId, String(userId));
       return NextResponse.json({ ok: true, ...result });
+    }
+
+    if (action === "reinvite") {
+      if (!userId) {
+        return NextResponse.json({ error: "Укажите userId" }, { status: 400 });
+      }
+      await adminReinvitePlayer(sessionId, String(userId));
+      return NextResponse.json({ ok: true });
     }
 
     if (action === "startSession") {
