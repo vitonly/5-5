@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { balanceTeams } from "@/lib/team-balance";
-import { displayName, parseJsonArray, toJsonArray } from "@/lib/utils";
+import { displayName, parseAppDateTime, parseJsonArray, toJsonArray } from "@/lib/utils";
 import {
   applyMatchDrawPoints,
   applyMatchWinPointsForPlayer,
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
   const session = await prisma.matchSession.create({
     data: {
-      date: new Date(date),
+      date: parseAppDateTime(date),
       status: "PLANNED",
     },
   });

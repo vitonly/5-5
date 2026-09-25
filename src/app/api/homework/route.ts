@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { toJsonArray, formatDate } from "@/lib/utils";
+import { toJsonArray, formatDate, parseAppDateTime } from "@/lib/utils";
 import { applyHomeworkGradedPoints } from "@/lib/points";
 import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         assignments: {
           create: studentIds.map((studentId: string) => ({
             studentId,
-            deadline: new Date(deadline),
+            deadline: parseAppDateTime(deadline),
           })),
         },
       },
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       students.map((student) =>
         sendTelegramMessage(
           notifyChatId(student),
-          `📚 <b>Новая домашка!</b>\n\n<b>${title}</b>\nСрок сдачи: ${formatDate(new Date(deadline))}\n\nЗайдите на сайт, чтобы посмотреть задание.`
+          `📚 <b>Новая домашка!</b>\n\n<b>${title}</b>\nСрок сдачи: ${formatDate(parseAppDateTime(deadline))}\n\nЗайдите на сайт, чтобы посмотреть задание.`
         )
       )
     );
@@ -184,7 +184,7 @@ export async function PATCH(request: NextRequest) {
         where: { id: assignmentId },
         data: {
           status: "REVISION",
-          revisionDeadline: new Date(revisionDeadline),
+          revisionDeadline: parseAppDateTime(revisionDeadline),
           revisionNote: feedback ? String(feedback).trim() : null,
         },
       }),
@@ -194,7 +194,7 @@ export async function PATCH(request: NextRequest) {
       notifyChatId(assignment.student),
       `🔄 <b>Домашка на доработку</b>\n\n<b>${assignment.homework.title}</b>\n${
         feedback ? `Комментарий: ${feedback}\n` : ""
-      }Срок доработки: ${formatDate(new Date(revisionDeadline))}`
+      }Срок доработки: ${formatDate(parseAppDateTime(revisionDeadline))}`
     );
 
     return NextResponse.json({ success: true });

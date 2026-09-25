@@ -1,8 +1,39 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+/** Часовой пояс приложения (МСК, без перехода на летнее время). */
+export const APP_TIMEZONE = "Europe/Moscow";
+const APP_UTC_OFFSET = "+03:00";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+/**
+ * Парсит значение из `<input type="datetime-local">` (YYYY-MM-DDTHH:mm)
+ * как московское время. Без этого Node/Vercel читает строку как UTC → +3ч на экране.
+ */
+export function parseAppDateTime(value: string | Date): Date {
+  if (value instanceof Date) return value;
+  const raw = String(value).trim();
+  if (!raw) return new Date(NaN);
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) return new Date(raw);
+
+  // 2026-09-26T15:30 или 2026-09-26T15:30:00
+  const m = raw.match(
+    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?(?:\.\d+)?$/
+  );
+  if (m) {
+    const sec = m[3] ?? "00";
+    return new Date(`${m[1]}T${m[2]}:${sec}${APP_UTC_OFFSET}`);
+  }
+
+  // Только дата YYYY-MM-DD — полночь по Москве
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T00:00:00${APP_UTC_OFFSET}`);
+  }
+
+  return new Date(raw);
 }
 
 export function formatDate(date: Date | string) {
@@ -12,6 +43,7 @@ export function formatDate(date: Date | string) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: APP_TIMEZONE,
   }).format(new Date(date));
 }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { finalizeSeason, refreshPlayerStrength } from "@/lib/seasons";
+import { parseAppDateTime } from "@/lib/utils";
 import type { SeasonName, VibeValue } from "@prisma/client";
 
 function clampScore(n: unknown): number | null {
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       status: "OPEN",
       isActive: true,
       openedAt: new Date(),
-      closesAt: closesAt ? new Date(closesAt) : null,
+      closesAt: closesAt ? parseAppDateTime(closesAt) : null,
     },
   });
 

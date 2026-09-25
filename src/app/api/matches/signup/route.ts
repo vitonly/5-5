@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
+import { parseAppDateTime } from "@/lib/utils";
 import {
   adminRemoveFromSignup,
   adminReinvitePlayer,
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await createOpenSignupSession({
-      date: new Date(date),
+      date: parseAppDateTime(date),
       inviteUserIds: ids,
       inviteImageUrl:
         typeof body.inviteImageUrl === "string" ? body.inviteImageUrl : null,
