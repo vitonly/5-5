@@ -84,10 +84,10 @@ export const MEDAL_BASE_RATING: Record<number, number> = {
   1: 5,
   2: 10,
   3: 17,
-  4: 22,
-  5: 26,
-  6: 37,
-  7: 50,
+  4: 26,
+  5: 31,
+  6: 42,
+  7: 55,
   8: 75,
 };
 

@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db";
-import { computeStrengthFromVotes, type VibeValue } from "@/lib/rating";
+import {
+  calculateFinalRating,
+  computeStrengthFromVotes,
+  rankTierToBase,
+  type VibeValue,
+} from "@/lib/rating";
 
 /**
  * Сезон для голосования и отображения оценок.
@@ -94,4 +99,34 @@ export async function finalizeSeason(seasonId: string) {
       isActive: false,
     },
   });
+}
+
+/** После смены таблицы базы ранга — обновить finalRating у всех (skill/vibe моды без изменений). */
+export async function syncAllFinalRatingsFromRankBase() {
+  const profiles = await prisma.playerProfile.findMany({
+    select: { id: true, rankTier: true, skillMod: true, vibeMod: true, finalRating: true },
+  });
+
+  const stale = profiles
+    .map((p) => {
+      const next = calculateFinalRating(
+        rankTierToBase(p.rankTier),
+        p.skillMod,
+        p.vibeMod
+      );
+      return next !== p.finalRating ? { id: p.id, finalRating: next } : null;
+    })
+    .filter((x): x is { id: string; finalRating: number } => Boolean(x));
+
+  if (!stale.length) return 0;
+
+  await prisma.$transaction(
+    stale.map((p) =>
+      prisma.playerProfile.update({
+        where: { id: p.id },
+        data: { finalRating: p.finalRating },
+      })
+    )
+  );
+  return stale.length;
 }

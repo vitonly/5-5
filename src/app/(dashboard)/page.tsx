@@ -10,10 +10,14 @@ import { extractTwitchLogin } from "@/lib/twitch";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { SEASON_LABELS } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
+import { syncAllFinalRatingsFromRankBase } from "@/lib/seasons";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  // Если таблица базы ранга менялась — подтянуть finalRating у всех (no-op, если уже актуально)
+  await syncAllFinalRatingsFromRankBase();
+
   const viewer = await getSessionUser();
   const seasonId = await getActiveSeasonId();
   const [activeSeason, leaderboard, latestVideos, live, streamMaterials, openSeason] =
