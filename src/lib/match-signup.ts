@@ -6,15 +6,19 @@ import { displayName, formatDate, parseJsonArray, toJsonArray } from "@/lib/util
 import { POSITION_LABELS } from "@/lib/labels";
 import {
   answerCallbackQuery,
-  editTelegramMessage,
+  editTelegramInviteMessage,
   notifyChatId,
+  sendTelegramInviteDetailed,
   sendTelegramMessage,
-  sendTelegramMessageDetailed,
   type InlineKeyboard,
 } from "@/lib/telegram";
 import type { TeamAssignment } from "@/lib/match-lineup";
 
 const OPEN_SLOTS = 10;
+
+function hasInvitePhoto(session: { inviteImageUrl?: string | null }) {
+  return Boolean(session.inviteImageUrl);
+}
 
 function signupKeyboard(sessionId: string): InlineKeyboard {
   return {
@@ -134,7 +138,13 @@ async function notifyTeamsFormed(sessionId: string) {
     const text = `${header}\n\nВы: <b>${side}</b>, ${pos}`;
     const chatId = rsvp?.tgChatId || notifyChatId(user);
     if (rsvp?.tgMessageId && chatId) {
-      await editTelegramMessage(chatId, rsvp.tgMessageId, text, null);
+      await editTelegramInviteMessage(
+        chatId,
+        rsvp.tgMessageId,
+        text,
+        null,
+        hasInvitePhoto(session)
+      );
     } else {
       await sendTelegramMessage(chatId, text);
     }
@@ -198,11 +208,12 @@ async function refreshJoinedSlotMessages(sessionId: string) {
       ? `✅ Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${i + 1}/${OPEN_SLOTS}</b>\nСостав набран. Ждём утверждения составов админом.`
       : `✅ Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${i + 1}/${OPEN_SLOTS}</b>\nЖдём остальных…`;
     if (chatId && rsvp.tgMessageId) {
-      await editTelegramMessage(
+      await editTelegramInviteMessage(
         chatId,
         rsvp.tgMessageId,
         text,
-        filled ? null : signupKeyboard(sessionId)
+        filled ? null : signupKeyboard(sessionId),
+        hasInvitePhoto(session)
       );
     }
   }
@@ -223,7 +234,13 @@ async function refreshQueueMessages(sessionId: string) {
     const chatId = rsvp.tgChatId || notifyChatId(rsvp.user);
     const text = `⏳ Состав 5v5 на ${formatDate(session.date)} уже набран (10/10).\n\nВы в очереди: <b>#${i + 1}</b>\nЕсли кто-то выйдет — займёте место автоматически.`;
     if (chatId && rsvp.tgMessageId) {
-      await editTelegramMessage(chatId, rsvp.tgMessageId, text, signupKeyboard(sessionId));
+      await editTelegramInviteMessage(
+        chatId,
+        rsvp.tgMessageId,
+        text,
+        signupKeyboard(sessionId),
+        hasInvitePhoto(session)
+      );
     }
   }
 }
@@ -231,6 +248,7 @@ async function refreshQueueMessages(sessionId: string) {
 export async function createOpenSignupSession(opts: {
   date: Date;
   inviteUserIds: string[];
+  inviteImageUrl?: string | null;
 }) {
   const uniqueIds = [...new Set(opts.inviteUserIds)];
   if (!uniqueIds.length) {
@@ -244,11 +262,17 @@ export async function createOpenSignupSession(opts: {
     throw new Error("Нет подходящих учеников");
   }
 
+  const inviteImageUrl =
+    typeof opts.inviteImageUrl === "string" && opts.inviteImageUrl.trim()
+      ? opts.inviteImageUrl.trim()
+      : null;
+
   const session = await prisma.matchSession.create({
     data: {
       date: opts.date,
       status: "PLANNED",
       mode: "OPEN_SIGNUP",
+      inviteImageUrl,
       rsvps: {
         create: users.map((u) => ({
           userId: u.id,
@@ -265,10 +289,11 @@ export async function createOpenSignupSession(opts: {
   for (const rsvp of session.rsvps) {
     const chatId = notifyChatId(rsvp.user);
     if (!chatId) continue;
-    const sent = await sendTelegramMessageDetailed(
+    const sent = await sendTelegramInviteDetailed(
       chatId,
       inviteText,
-      signupKeyboard(session.id)
+      signupKeyboard(session.id),
+      inviteImageUrl
     );
     if (sent.ok && sent.messageId != null) {
       await prisma.matchRsvp.update({
@@ -406,11 +431,12 @@ export async function rsvpJoin(userId: string, sessionId: string): Promise<Signu
           : "\nЖдём остальных…"
       }`;
       if (chatId && rsvp?.tgMessageId) {
-        await editTelegramMessage(
+        await editTelegramInviteMessage(
           chatId,
           rsvp.tgMessageId,
           text,
-          outcome.filled ? null : signupKeyboard(sessionId)
+          outcome.filled ? null : signupKeyboard(sessionId),
+          hasInvitePhoto(session)
         );
       }
 
@@ -429,7 +455,13 @@ export async function rsvpJoin(userId: string, sessionId: string): Promise<Signu
 
     const text = `⏳ Состав 5v5 на ${formatDate(session.date)} уже набран (10/10).\n\nВы в очереди: <b>#${outcome.queuePos}</b>\nЕсли кто-то выйдет — займёте место автоматически.`;
     if (chatId && rsvp?.tgMessageId) {
-      await editTelegramMessage(chatId, rsvp.tgMessageId, text, signupKeyboard(sessionId));
+      await editTelegramInviteMessage(
+        chatId,
+        rsvp.tgMessageId,
+        text,
+        signupKeyboard(sessionId),
+        hasInvitePhoto(session)
+      );
     }
     await refreshQueueMessages(sessionId);
 
@@ -508,11 +540,12 @@ async function afterRosterChange(sessionId: string, promotedUserId?: string) {
         const chatId = promoted.tgChatId || notifyChatId(promoted.user);
         const text = `🎉 Место освободилось! Вы в составе 5v5 на ${formatDate(session.date)}\n\nМесто: <b>${slot}/${OPEN_SLOTS}</b>`;
         if (chatId && promoted.tgMessageId) {
-          await editTelegramMessage(
+          await editTelegramInviteMessage(
             chatId,
             promoted.tgMessageId,
             text,
-            signupKeyboard(sessionId)
+            signupKeyboard(sessionId),
+            hasInvitePhoto(session)
           );
         } else {
           await sendTelegramMessage(chatId, text);
@@ -556,7 +589,13 @@ export async function rsvpDecline(
   const chatId = rsvp.tgChatId || notifyChatId(rsvp.user);
   const text = `❌ Вы отказались от 5v5 на ${formatDate(session.date)}.`;
   if (chatId && rsvp.tgMessageId) {
-    await editTelegramMessage(chatId, rsvp.tgMessageId, text, null);
+    await editTelegramInviteMessage(
+      chatId,
+      rsvp.tgMessageId,
+      text,
+      null,
+      hasInvitePhoto(session)
+    );
   }
 
   let promotedUserId: string | undefined;
@@ -601,7 +640,13 @@ export async function adminRemoveFromSignup(sessionId: string, userId: string) {
   const chatId = rsvp.tgChatId || notifyChatId(rsvp.user);
   const text = `🚫 Вас сняли с 5v5 на ${formatDate(session.date)}.`;
   if (chatId && rsvp.tgMessageId) {
-    await editTelegramMessage(chatId, rsvp.tgMessageId, text, null);
+    await editTelegramInviteMessage(
+      chatId,
+      rsvp.tgMessageId,
+      text,
+      null,
+      hasInvitePhoto(session)
+    );
   } else {
     await sendTelegramMessage(chatId, text);
   }
@@ -642,10 +687,11 @@ export async function adminReinvitePlayer(sessionId: string, userId: string) {
 
   const inviteText = `🎮 <b>Повторный запрос на 5v5</b>\n\nДата: ${formatDate(session.date)}\n\nНажмите кнопку ниже. Первые 10 попадают в состав, остальные — в очередь.`;
 
-  const sent = await sendTelegramMessageDetailed(
+  const sent = await sendTelegramInviteDetailed(
     chatId,
     inviteText,
-    signupKeyboard(sessionId)
+    signupKeyboard(sessionId),
+    session.inviteImageUrl
   );
   if (!sent.ok) {
     throw new Error("Не удалось отправить сообщение в Telegram");

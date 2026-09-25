@@ -307,6 +307,8 @@ model MatchSession {
   status           MatchSessionStatus @default(PLANNED)
   mode             MatchSessionMode   @default(MANUAL)
   startedAt        DateTime?
+  /** Картинка к инвайту в Telegram (URL Blob / uploads) */
+  inviteImageUrl   String?
   radiantPlayerIds String             @default("[]")
   direPlayerIds    String             @default("[]")
   teamAssignments  String             @default("{}")

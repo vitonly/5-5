@@ -51,6 +51,8 @@ export function AdminMatchesClient({
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [openDate, setOpenDate] = useState("");
   const [inviteIds, setInviteIds] = useState<string[]>([]);
+  const [inviteImageUrl, setInviteImageUrl] = useState("");
+  const [uploadingInvite, setUploadingInvite] = useState(false);
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [openError, setOpenError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -103,8 +105,12 @@ export function AdminMatchesClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           allWithTg
-            ? { date: openDate, inviteAll: true }
-            : { date: openDate, inviteUserIds: inviteIds }
+            ? { date: openDate, inviteAll: true, inviteImageUrl: inviteImageUrl || null }
+            : {
+                date: openDate,
+                inviteUserIds: inviteIds,
+                inviteImageUrl: inviteImageUrl || null,
+              }
         ),
       });
       const data = await res.json().catch(() => ({}));
@@ -114,9 +120,25 @@ export function AdminMatchesClient({
       }
       setOpenDate("");
       setInviteIds([]);
+      setInviteImageUrl("");
       router.refresh();
     } finally {
       setCreatingOpen(false);
+    }
+  }
+
+  async function uploadInviteImage(file: File) {
+    setUploadingInvite(true);
+    setOpenError("");
+    try {
+      const { uploadAppFile } = await import("@/lib/upload-client");
+      const data = await uploadAppFile(file);
+      if (!data.url) throw new Error("Нет URL");
+      setInviteImageUrl(data.url);
+    } catch (e) {
+      setOpenError(e instanceof Error ? e.message : "Не удалось загрузить фото");
+    } finally {
+      setUploadingInvite(false);
     }
   }
 
@@ -364,6 +386,47 @@ export function AdminMatchesClient({
               value={openDate}
               onChange={(e) => setOpenDate(e.target.value)}
             />
+          </div>
+          <div>
+            <Label>Фото к опросу в Telegram (необязательно)</Label>
+            <p className="mt-1 text-xs text-[var(--text-4)]">
+              Придёт вместе с кнопками «Я играю» / «Не играю». JPG/PNG, до 10 МБ. Нужен публичный
+              URL (Vercel Blob).
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="max-w-xs cursor-pointer text-sm"
+                disabled={uploadingInvite || creatingOpen}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadInviteImage(file);
+                  e.target.value = "";
+                }}
+              />
+              {uploadingInvite && (
+                <span className="text-xs text-[var(--text-3)]">Загрузка…</span>
+              )}
+              {inviteImageUrl && !uploadingInvite && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setInviteImageUrl("")}
+                >
+                  Убрать фото
+                </Button>
+              )}
+            </div>
+            {inviteImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={inviteImageUrl}
+                alt="Превью инвайта"
+                className="mt-3 max-h-48 rounded-[var(--radius-control)] border border-[var(--border)] object-contain"
+              />
+            )}
           </div>
           <div>
             <Label>Кому отправить ({inviteIds.length})</Label>

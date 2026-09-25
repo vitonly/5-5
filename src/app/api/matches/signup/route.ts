@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
     const session = await createOpenSignupSession({
       date: new Date(date),
       inviteUserIds: ids,
+      inviteImageUrl:
+        typeof body.inviteImageUrl === "string" ? body.inviteImageUrl : null,
     });
     return NextResponse.json({
       session: {
