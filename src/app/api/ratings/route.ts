@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
     await requireAdmin();
     const season = await prisma.ratingSeason.update({
       where: { id: seasonId },
-      data: { closesAt: closesAt ? new Date(closesAt) : null },
+      data: { closesAt: closesAt ? parseAppDateTime(closesAt) : null },
     });
     return NextResponse.json({ season });
   }
