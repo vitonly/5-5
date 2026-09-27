@@ -67,7 +67,6 @@ export function RatingBreakdown({
 
   const rankBar = Math.min(100, (rankBase / 50) * 100);
   const skillBar = Math.min(100, (skillMod / 30) * 100);
-  const vibeBar = Math.min(100, ((vibeMod + 5) / 10) * 100);
 
   return (
     <Card>
@@ -119,11 +118,22 @@ export function RatingBreakdown({
           <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--power-border)] bg-[var(--power-bg)] p-4">
             <Bar label="Ранг доты" value={rankBase} bar={rankBar} />
             <Bar label="Скилл" value={`+${skillMod}`} bar={skillBar} />
-            <Bar
-              label="Стабильность"
-              value={vibeMod > 0 ? `+${vibeMod}` : String(vibeMod)}
-              bar={vibeBar}
-            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono-num text-[12px] uppercase tracking-wider text-[var(--text-3)]">
+                Эмоциональная устойчивость
+              </span>
+              <span
+                className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-[var(--radius-control)] border px-2.5 py-1 font-mono-num text-sm font-bold ${
+                  vibeMod > 0
+                    ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
+                    : vibeMod < 0
+                      ? "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]"
+                      : "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)]"
+                }`}
+              >
+                {vibeMod > 0 ? `+${vibeMod}` : String(vibeMod)}
+              </span>
+            </div>
             <p className="text-xs text-[var(--text-4)]">
               Не подвержен тильту даёт минус (до −5), подвержен — плюс (до +5).
             </p>
