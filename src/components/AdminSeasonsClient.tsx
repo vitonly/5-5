@@ -297,6 +297,29 @@ export function AdminSeasonsClient({
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    const res = await fetch("/api/ratings", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "recalcStrength",
+                        seasonId: season.id,
+                      }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      alert(data.error || "Ошибка");
+                      return;
+                    }
+                    alert(`Пересчитана сила у ${data.recalculated ?? 0} игроков`);
+                    router.refresh();
+                  }}
+                >
+                  Пересчитать силу по голосам
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={async () => {
                     if (

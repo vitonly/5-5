@@ -120,10 +120,13 @@ export function RatingBreakdown({
             <Bar label="Ранг доты" value={rankBase} bar={rankBar} />
             <Bar label="Скилл" value={`+${skillMod}`} bar={skillBar} />
             <Bar
-              label="Тильт"
+              label="Стабильность"
               value={vibeMod > 0 ? `+${vibeMod}` : String(vibeMod)}
               bar={vibeBar}
             />
+            <p className="text-xs text-[var(--text-4)]">
+              Не подвержен тильту даёт плюс (до +5), подвержен — минус (до −5).
+            </p>
             <p className="pt-1 font-display text-lg font-bold text-[var(--power)]">
               Итог: {profile.finalRating}
             </p>

@@ -103,15 +103,25 @@ export async function refreshPlayerStrength(userId: string, seasonId?: string | 
   });
 }
 
-export async function finalizeSeason(seasonId: string) {
+/** Пересчитать skillMod/vibeMod/finalRating у всех учеников по голосам сезона. */
+export async function recalculateAllPlayerStrengths(seasonId?: string | null) {
+  let sid = seasonId;
+  if (!sid) {
+    const season = await getVotingSeason();
+    sid = season?.id;
+  }
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
     select: { id: true },
   });
-
   for (const student of students) {
-    await refreshPlayerStrength(student.id, seasonId);
+    await refreshPlayerStrength(student.id, sid);
   }
+  return students.length;
+}
+
+export async function finalizeSeason(seasonId: string) {
+  await recalculateAllPlayerStrengths(seasonId);
 
   await prisma.playerProfile.updateMany({
     data: { totalPoints: 0 },

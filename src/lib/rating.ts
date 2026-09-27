@@ -94,15 +94,21 @@ export type TiltValue = "STABLE" | "UNSURE" | "TILT";
 /** @deprecated use TiltValue */
 export type VibeValue = TiltValue;
 
+/**
+ * Единица тильта для силы:
+ * «Не подвержен» → плюс к силе; «Подвержен» → минус.
+ * (Старая формула vibe делала наоборот — LIKE отнимал; так больше нельзя.)
+ */
 export function tiltToUnit(v: string): number {
   if (v === "STABLE" || v === "LIKE") return 1;
   if (v === "TILT" || v === "DISLIKE") return -1;
-  return 0;
+  return 0; // UNSURE / NEUTRAL
 }
 
 /**
  * TiltMod −5…+5 (целое).
  * trainer и среднее peers ∈ [−1,1], 50/50, ×5.
+ * STABLE → до +5, TILT → до −5.
  */
 export function calculateTiltMod(opts: {
   trainerTilt?: TiltValue | null;
