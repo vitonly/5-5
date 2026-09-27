@@ -120,6 +120,18 @@ export async function recalculateAllPlayerStrengths(seasonId?: string | null) {
   return students.length;
 }
 
+/** Закрыть голосование: ученики больше не меняют оценки. Очки платформы не трогаем. */
+export async function closeVoting(seasonId: string) {
+  await recalculateAllPlayerStrengths(seasonId);
+  return prisma.ratingSeason.update({
+    where: { id: seasonId },
+    data: {
+      status: "CLOSED",
+      closedAt: new Date(),
+    },
+  });
+}
+
 export async function finalizeSeason(seasonId: string) {
   await recalculateAllPlayerStrengths(seasonId);
 

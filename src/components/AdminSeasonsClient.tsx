@@ -76,7 +76,7 @@ export function AdminSeasonsClient({
 
   async function seasonAction(
     seasonId: string,
-    action: "close" | "open" | "activate" | "setDeadline" | "delete",
+    action: "close" | "closeVoting" | "open" | "activate" | "setDeadline" | "delete",
     deadline?: string
   ) {
     await fetch("/api/ratings", {
@@ -554,23 +554,39 @@ export function AdminSeasonsClient({
                   </Button>
                 )}
                 {season.status === "OPEN" ? (
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Закрыть сезон? Очки платформы у всех сбросятся до 0. История начислений сохранится."
-                        )
-                      ) {
-                        seasonAction(season.id, "close");
-                      }
-                    }}
-                  >
-                    Закрыть сезон (сброс очков)
-                  </Button>
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Закрыть голосование? Ученики больше не смогут ставить и менять оценки силы/тильта. Очки платформы не сбросятся."
+                          )
+                        ) {
+                          seasonAction(season.id, "closeVoting");
+                        }
+                      }}
+                    >
+                      Закрыть голосование
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Закрыть сезон полностью? Очки платформы у всех сбросятся до 0. История начислений сохранится. Голосование тоже закроется."
+                          )
+                        ) {
+                          seasonAction(season.id, "close");
+                        }
+                      }}
+                    >
+                      Закрыть сезон (сброс очков)
+                    </Button>
+                  </>
                 ) : (
                   <Button variant="secondary" onClick={() => seasonAction(season.id, "open")}>
-                    Открыть снова (без сброса)
+                    Открыть голосование снова
                   </Button>
                 )}
                 <Button

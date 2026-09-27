@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase, recalculateAllPlayerStrengths } from "@/lib/seasons";
+import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase, recalculateAllPlayerStrengths, closeVoting } from "@/lib/seasons";
 import { parseAppDateTime } from "@/lib/utils";
 import type { SeasonName, VibeValue } from "@prisma/client";
 
@@ -98,6 +98,15 @@ export async function PUT(request: NextRequest) {
     await requireAdmin();
     const n = await recalculateAllPlayerStrengths(seasonId ?? null);
     return NextResponse.json({ ok: true, recalculated: n });
+  }
+
+  if (action === "closeVoting") {
+    await requireAdmin();
+    if (!seasonId) {
+      return NextResponse.json({ error: "Не указан сезон" }, { status: 400 });
+    }
+    const season = await closeVoting(seasonId);
+    return NextResponse.json({ season });
   }
 
   if (action === "close") {
