@@ -48,9 +48,88 @@ const MAIN_KEYBOARD: ReplyKeyboard = {
   resize_keyboard: true,
   keyboard: [
     [{ text: "Мой профиль" }, { text: "Очки" }],
-    [{ text: "Команды 5x5" }, { text: "Голосование" }],
+    [{ text: "Запись 5x5" }, { text: "Команды 5x5" }],
+    [{ text: "Голосование" }],
   ],
 };
+
+const OPEN_SLOTS = 10;
+
+function listNames(users: { firstName: string; lastName?: string | null; username?: string | null }[]) {
+  if (!users.length) return "  —";
+  return users.map((u, i) => `  ${i + 1}. ${displayName(u)}`).join("\n");
+}
+
+async function replySignupStatus(chatId: string, userId: string) {
+  const session = await prisma.matchSession.findFirst({
+    where: {
+      mode: "OPEN_SIGNUP",
+      status: { in: ["PLANNED", "TEAMS_SET", "LINEUPS_CONFIRMED", "IN_PROGRESS"] },
+    },
+    orderBy: { date: "desc" },
+    include: {
+      rsvps: {
+        include: {
+          user: {
+            select: { firstName: true, lastName: true, username: true },
+          },
+        },
+        orderBy: { respondedAt: "asc" },
+      },
+    },
+  });
+
+  if (!session) {
+    await sendTelegramMessage(
+      chatId,
+      "Сейчас нет открытой записи на субботний 5v5.",
+      MAIN_KEYBOARD
+    );
+    return;
+  }
+
+  const joined = session.rsvps.filter((r) => r.status === "JOINED");
+  const queued = session.rsvps.filter((r) => r.status === "QUEUED");
+  const declined = session.rsvps.filter((r) => r.status === "DECLINED");
+  const invited = session.rsvps.filter((r) => r.status === "INVITED");
+  const mine = session.rsvps.find((r) => r.userId === userId);
+
+  let myLine = "Вы ещё не ответили.";
+  if (mine?.status === "JOINED") {
+    const place = joined.findIndex((r) => r.userId === userId) + 1;
+    myLine = `Вы в составе: место <b>${place}/${OPEN_SLOTS}</b>.`;
+  } else if (mine?.status === "QUEUED") {
+    const place = queued.findIndex((r) => r.userId === userId) + 1;
+    myLine = `Вы в очереди: <b>#${place}</b>.`;
+  } else if (mine?.status === "DECLINED") {
+    myLine = "Вы отказались.";
+  } else if (mine?.status === "REMOVED") {
+    myLine = "Вас сняли с записи.";
+  } else if (mine?.status === "INVITED") {
+    myLine = "Вас пригласили — нажмите кнопку в сообщении-приглашении.";
+  }
+
+  const filled = joined.length >= OPEN_SLOTS;
+  const text = [
+    `📅 <b>Запись на 5v5</b> · ${formatDate(session.date)}`,
+    `Статус: ${session.status}${filled ? " · состав набран" : ""}`,
+    "",
+    `✅ В составе: <b>${joined.length}/${OPEN_SLOTS}</b>`,
+    listNames(joined.map((r) => r.user)),
+    "",
+    ...(queued.length
+      ? [`⏳ Очередь: <b>${queued.length}</b>`, listNames(queued.map((r) => r.user)), ""]
+      : []),
+    ...(declined.length
+      ? [`❌ Отказ: <b>${declined.length}</b>`, listNames(declined.map((r) => r.user)), ""]
+      : []),
+    `✉️ Ещё не ответили: <b>${invited.length}</b>`,
+    "",
+    myLine,
+  ].join("\n");
+
+  await sendTelegramMessage(chatId, text, MAIN_KEYBOARD);
+}
 
 async function findUserByTelegram(from: TelegramUserMsg) {
   return prisma.user.findUnique({
@@ -171,6 +250,11 @@ async function replyLiveMenu(chatId: string, from: TelegramUserMsg, text: string
       `🏅 Очки платформы: <b>${formatPoints(user.profile?.totalPoints ?? 0)}</b>\nПобеды/поражения: ${user.profile?.wins ?? 0}/${user.profile?.losses ?? 0}`,
       MAIN_KEYBOARD
     );
+    return;
+  }
+
+  if (text === "Запись 5x5") {
+    await replySignupStatus(chatId, user.id);
     return;
   }
 
@@ -315,6 +399,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   if (
     text === "Мой профиль" ||
     text === "Очки" ||
+    text === "Запись 5x5" ||
     text === "Команды 5x5" ||
     text === "Голосование"
   ) {
