@@ -8,6 +8,7 @@ import { MatchNav } from "@/components/MatchNav";
 import { PowerPill, PointsPill } from "@/components/StatPills";
 import { lineupForTeam, parseTeamAssignments, type LineupSlot } from "@/lib/match-lineup";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
+import { teamDisplayName } from "@/lib/team-names";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,27 @@ export default async function MatchPage() {
             const radiantWins = session.games.filter((g) => g.winnerTeam === "RADIANT").length;
             const direWins = session.games.filter((g) => g.winnerTeam === "DIRE").length;
 
+            const radiantName = teamDisplayName(
+              radiant.map((id) => ({
+                id,
+                firstName: userMap[id]?.firstName,
+                lastName: userMap[id]?.lastName,
+                username: userMap[id]?.username,
+                finalRating: userMap[id]?.profile?.finalRating ?? 0,
+              })),
+              "Team A"
+            );
+            const direName = teamDisplayName(
+              dire.map((id) => ({
+                id,
+                firstName: userMap[id]?.firstName,
+                lastName: userMap[id]?.lastName,
+                username: userMap[id]?.username,
+                finalRating: userMap[id]?.profile?.finalRating ?? 0,
+              })),
+              "Team B"
+            );
+
             return (
               <article
                 key={session.id}
@@ -101,7 +123,7 @@ export default async function MatchPage() {
                     </h2>
                     {myTeam && (
                       <span className="text-sm text-[var(--points)]">
-                        Ваша команда: {myTeam === "RADIANT" ? "Radiant" : "Dire"}
+                        Ваша команда: {myTeam === "RADIANT" ? radiantName : direName}
                       </span>
                     )}
                   </div>
@@ -132,7 +154,7 @@ export default async function MatchPage() {
                 {(radiant.length > 0 || dire.length > 0) && (
                   <div className="grid gap-0 md:grid-cols-[1fr_auto_1fr]">
                     <TeamPanel
-                      title="Radiant"
+                      title={radiantName}
                       lineup={lineupForTeam(
                         "RADIANT",
                         radiant,
@@ -158,7 +180,7 @@ export default async function MatchPage() {
                     </div>
 
                     <TeamPanel
-                      title="Dire"
+                      title={direName}
                       lineup={lineupForTeam(
                         "DIRE",
                         dire,
@@ -177,7 +199,17 @@ export default async function MatchPage() {
                 {session.games.length > 0 && (
                   <div className="border-t border-[var(--border-soft)] px-5 py-3 text-sm text-[var(--text-3)]">
                     Игры:{" "}
-                    {session.games.map((g) => `Игра ${g.gameNumber}: ${g.winnerTeam}`).join(" · ")}
+                    {session.games
+                      .map((g) => {
+                        const w =
+                          g.winnerTeam === "RADIANT"
+                            ? radiantName
+                            : g.winnerTeam === "DIRE"
+                              ? direName
+                              : "Ничья";
+                        return `Игра ${g.gameNumber}: ${w}`;
+                      })
+                      .join(" · ")}
                   </div>
                 )}
               </article>
