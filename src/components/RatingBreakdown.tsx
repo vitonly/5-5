@@ -125,9 +125,9 @@ export function RatingBreakdown({
               <span
                 className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-[var(--radius-control)] border px-2.5 py-1 font-mono-num text-sm font-bold ${
                   vibeMod > 0
-                    ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
+                    ? "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]"
                     : vibeMod < 0
-                      ? "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]"
+                      ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
                       : "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)]"
                 }`}
               >
