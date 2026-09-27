@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase, recalculateAllPlayerStrengths, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
 import { parseAppDateTime } from "@/lib/utils";
+import { restoreSeasonPointsToProfiles } from "@/lib/points";
 import type { SeasonName, VibeValue } from "@prisma/client";
 
 function clampScore100(n: unknown): number | null {
@@ -162,6 +163,10 @@ export async function PUT(request: NextRequest) {
       where: { id: seasonId },
       data,
     });
+    // После ошибочного закрытия со сбросом — вернуть totalPoints из лога сезона
+    if (action === "continue") {
+      await restoreSeasonPointsToProfiles(seasonId);
+    }
     return NextResponse.json({ season });
   }
 
@@ -172,6 +177,7 @@ export async function PUT(request: NextRequest) {
       where: { id: seasonId },
       data: { isActive: true },
     });
+    await restoreSeasonPointsToProfiles(seasonId);
     return NextResponse.json({ season });
   }
 

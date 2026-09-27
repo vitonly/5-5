@@ -134,6 +134,35 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
     .sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
+/**
+ * Восстановить profile.totalPoints = сумма PointLog активного сезона.
+ * Нужно после ошибочного finalize / «продолжить сезон».
+ */
+export async function restoreSeasonPointsToProfiles(seasonId: string) {
+  const students = await prisma.user.findMany({
+    where: { role: "STUDENT" },
+    select: { id: true },
+  });
+  const grouped = await prisma.pointLog.groupBy({
+    by: ["userId"],
+    where: { seasonId },
+    _sum: { delta: true },
+  });
+  const byUser = Object.fromEntries(
+    grouped.map((g) => [g.userId, roundPoints(g._sum.delta ?? 0)])
+  );
+
+  await prisma.$transaction(
+    students.map((s) =>
+      prisma.playerProfile.update({
+        where: { userId: s.id },
+        data: { totalPoints: byUser[s.id] ?? 0 },
+      })
+    )
+  );
+  return students.length;
+}
+
 export async function applyHomeworkGradedPoints(
   userId: string,
   excellent: boolean,

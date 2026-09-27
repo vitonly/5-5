@@ -3,25 +3,32 @@ import { getSessionUser } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlayerLink } from "@/components/PlayerLink";
 import { OverdueCheckButton } from "@/components/OverdueCheckButton";
-import { formatPoints } from "@/lib/points";
+import { formatPoints, getActiveSeasonId, getSeasonLeaderboard, restoreSeasonPointsToProfiles } from "@/lib/points";
+import { SEASON_LABELS } from "@/lib/labels";
 
 export default async function AdminDashboardPage() {
   const viewer = await getSessionUser();
-  const [students, overdueCount, openSeason, upcomingMatch] = await Promise.all([
-    prisma.user.count({ where: { role: "STUDENT" } }),
-    prisma.homeworkAssignment.count({ where: { status: "OVERDUE" } }),
-    prisma.ratingSeason.findFirst({ where: { status: "OPEN" } }),
-    prisma.matchSession.findFirst({
-      where: { status: { in: ["PLANNED", "TEAMS_SET", "LINEUPS_CONFIRMED", "IN_PROGRESS"] } },
-      orderBy: { date: "asc" },
-    }),
-  ]);
+  const seasonId = await getActiveSeasonId();
+  if (seasonId) {
+    await restoreSeasonPointsToProfiles(seasonId);
+  }
+  const [students, overdueCount, openSeason, upcomingMatch, activeSeason, leaderboard] =
+    await Promise.all([
+      prisma.user.count({ where: { role: "STUDENT" } }),
+      prisma.homeworkAssignment.count({ where: { status: "OVERDUE" } }),
+      prisma.ratingSeason.findFirst({ where: { status: "OPEN" } }),
+      prisma.matchSession.findFirst({
+        where: { status: { in: ["PLANNED", "TEAMS_SET", "LINEUPS_CONFIRMED", "IN_PROGRESS"] } },
+        orderBy: { date: "asc" },
+      }),
+      seasonId ? prisma.ratingSeason.findUnique({ where: { id: seasonId } }) : null,
+      getSeasonLeaderboard(seasonId),
+    ]);
 
-  const topPlayers = await prisma.playerProfile.findMany({
-    include: { user: true },
-    orderBy: { totalPoints: "desc" },
-    take: 5,
-  });
+  const topPlayers = leaderboard.slice(0, 5);
+  const seasonTitle = activeSeason
+    ? `${SEASON_LABELS[activeSeason.name]} ${activeSeason.year}`
+    : "текущие очки";
 
   return (
     <div className="space-y-8">
@@ -39,18 +46,30 @@ export default async function AdminDashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Топ по очкам</CardTitle>
+          <CardTitle>Топ по очкам · {seasonTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
             {topPlayers.map((p, i) => (
               <li key={p.userId} className="flex justify-between">
                 <span>
-                  {i + 1}. <PlayerLink user={p.user} viewer={viewer} />
+                  {i + 1}.{" "}
+                  <PlayerLink
+                    user={{
+                      id: p.userId,
+                      firstName: p.firstName,
+                      lastName: p.lastName,
+                      username: p.username,
+                    }}
+                    viewer={viewer}
+                  />
                 </span>
                 <span className="text-[var(--points)]">{formatPoints(p.totalPoints)} очк.</span>
               </li>
             ))}
+            {topPlayers.length === 0 && (
+              <li className="text-[var(--text-3)]">Пока нет начислений</li>
+            )}
           </ul>
         </CardContent>
       </Card>
