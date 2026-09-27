@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { applyHomeworkOverduePenalty } from "@/lib/points";
-import { finalizeSeason } from "@/lib/seasons";
+import { finalizeSeason, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
 import { formatDate } from "@/lib/utils";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 
@@ -36,11 +36,29 @@ export async function processOverdueHomework() {
   return count;
 }
 
-export async function processExpiredSeasons() {
+export async function processExpiredVoting() {
   const now = new Date();
   const expired = await prisma.ratingSeason.findMany({
     where: {
       status: "OPEN",
+      votingClosesAt: { lte: now },
+    },
+  });
+
+  const closed: string[] = [];
+  for (const season of expired) {
+    await closeVoting(season.id);
+    closed.push(season.id);
+  }
+
+  return closed.length;
+}
+
+export async function processExpiredSeasons() {
+  const now = new Date();
+  const expired = await prisma.ratingSeason.findMany({
+    where: {
+      isActive: true,
       closesAt: { lte: now },
     },
   });
@@ -55,11 +73,14 @@ export async function processExpiredSeasons() {
 }
 
 export async function runAutomation() {
+  await migrateLegacySeasonDeadlines();
   const overdueProcessed = await processOverdueHomework();
+  const votingClosed = await processExpiredVoting();
   const seasonsClosed = await processExpiredSeasons();
 
   return {
     overdueProcessed,
+    votingClosed,
     seasonsClosed,
     ranAt: new Date().toISOString(),
   };

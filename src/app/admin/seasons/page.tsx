@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/db";
 import { AdminSeasonsClient } from "@/components/AdminSeasonsClient";
+import { migrateLegacySeasonDeadlines } from "@/lib/seasons";
 
 export default async function AdminSeasonsPage() {
+  await migrateLegacySeasonDeadlines();
+
   const [seasons, students] = await Promise.all([
     prisma.ratingSeason.findMany({
       include: {

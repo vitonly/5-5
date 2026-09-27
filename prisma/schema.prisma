@@ -201,7 +201,10 @@ model RatingSeason {
   isActive    Boolean      @default(false)
   openedAt    DateTime?
   closedAt    DateTime?
+  /** Дедлайн конца сезона → автосброс очков платформы */
   closesAt    DateTime?
+  /** Дедлайн только голосования → автозакрытие оценок без сброса очков */
+  votingClosesAt DateTime?
   createdAt   DateTime     @default(now())
   peerRatings PeerRating[]
   vibeVotes   VibeVote[]

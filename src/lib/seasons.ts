@@ -7,6 +7,27 @@ import {
 } from "@/lib/rating";
 
 /**
+ * Старое поле closesAt использовалось как дедлайн голосования, но закрывало весь сезон.
+ * Переносим в votingClosesAt, чтобы случайно не сбросить очки.
+ */
+export async function migrateLegacySeasonDeadlines() {
+  const rows = await prisma.ratingSeason.findMany({
+    where: { votingClosesAt: null, closesAt: { not: null } },
+    select: { id: true, closesAt: true },
+  });
+  if (!rows.length) return 0;
+  await prisma.$transaction(
+    rows.map((r) =>
+      prisma.ratingSeason.update({
+        where: { id: r.id },
+        data: { votingClosesAt: r.closesAt, closesAt: null },
+      })
+    )
+  );
+  return rows.length;
+}
+
+/**
  * Сезон для голосования и отображения оценок.
  * Приоритет: открытый+активный → открытый → активный → последний.
  */

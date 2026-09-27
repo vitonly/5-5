@@ -36,6 +36,23 @@ export function parseAppDateTime(value: string | Date): Date {
   return new Date(raw);
 }
 
+/** Значение для `<input type="datetime-local">` в МСК. */
+export function toAppDateTimeLocal(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(date));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
+}
+
 export function formatDate(date: Date | string) {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",

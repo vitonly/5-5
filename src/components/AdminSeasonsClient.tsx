@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SEASON_LABELS, VIBE_LABELS } from "@/lib/labels";
-import { displayName, formatDate } from "@/lib/utils";
+import { displayName, formatDate, toAppDateTimeLocal } from "@/lib/utils";
 import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
 import type {
@@ -59,7 +59,10 @@ export function AdminSeasonsClient({
   const [name, setName] = useState<"AUTUMN" | "WINTER" | "SPRING">("AUTUMN");
   const [year, setYear] = useState(new Date().getFullYear());
   const [closesAt, setClosesAt] = useState("");
-  const [deadlineInputs, setDeadlineInputs] = useState<Record<string, string>>({});
+  const [votingClosesAt, setVotingClosesAt] = useState("");
+  const [deadlineInputs, setDeadlineInputs] = useState<
+    Record<string, { voting?: string; season?: string }>
+  >({});
   const [expanded, setExpanded] = useState<Record<string, string | null>>({});
   const [detailTab, setDetailTab] = useState<Record<string, DetailTab>>({});
   const [reminding, setReminding] = useState(false);
@@ -68,23 +71,44 @@ export function AdminSeasonsClient({
     await fetch("/api/ratings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, year, closesAt: closesAt || undefined }),
+      body: JSON.stringify({
+        name,
+        year,
+        votingClosesAt: votingClosesAt || undefined,
+        closesAt: closesAt || undefined,
+      }),
     });
     setClosesAt("");
+    setVotingClosesAt("");
     router.refresh();
   }
 
   async function seasonAction(
     seasonId: string,
-    action: "close" | "closeVoting" | "open" | "activate" | "setDeadline" | "delete",
-    deadline?: string
+    action: "close" | "closeVoting" | "open" | "continue" | "activate" | "setDeadlines" | "delete",
+    deadlines?: { votingClosesAt?: string; closesAt?: string }
   ) {
     await fetch("/api/ratings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seasonId, action, closesAt: deadline }),
+      body: JSON.stringify({
+        seasonId,
+        action,
+        votingClosesAt: deadlines?.votingClosesAt,
+        closesAt: deadlines?.closesAt,
+      }),
     });
     router.refresh();
+  }
+
+  function deadlinesFor(season: Season) {
+    const local = deadlineInputs[season.id];
+    return {
+      voting:
+        local?.voting ??
+        toAppDateTimeLocal(season.votingClosesAt ?? season.closesAt),
+      season: local?.season ?? toAppDateTimeLocal(season.closesAt),
+    };
   }
 
   function progress(season: Season) {
@@ -214,12 +238,22 @@ export function AdminSeasonsClient({
             <Input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} />
           </div>
           <div>
-            <Label>Дедлайн голосования (автозакрытие)</Label>
+            <Label>Дедлайн голосования</Label>
+            <Input
+              type="datetime-local"
+              value={votingClosesAt}
+              onChange={(e) => setVotingClosesAt(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-[var(--text-4)]">Только оценки, без сброса очков</p>
+          </div>
+          <div>
+            <Label>Дедлайн сезона (сброс очков)</Label>
             <Input
               type="datetime-local"
               value={closesAt}
               onChange={(e) => setClosesAt(e.target.value)}
             />
+            <p className="mt-1 text-xs text-[var(--text-4)]">Необязательно · полная смена сезона</p>
           </div>
           <Button onClick={handleCreateSeason}>Открыть сезон</Button>
         </CardContent>
@@ -242,12 +276,24 @@ export function AdminSeasonsClient({
                 </CardTitle>
                 {season.isActive && <Badge variant="success">Активный</Badge>}
                 <Badge variant={season.status === "OPEN" ? "warning" : "default"}>
-                  {season.status === "OPEN" ? "Открыт" : "Закрыт"}
+                  {season.status === "OPEN" ? "Голосование открыто" : "Голосование закрыто"}
                 </Badge>
               </div>
               <p className="text-sm text-[var(--text-3)]">
                 Голоса — скилл: {skillDone}/{expected} · вайб: {vibeDone}/{expected}
-                {season.closesAt && <> · Дедлайн: {formatDate(season.closesAt)}</>}
+                {(season.votingClosesAt || season.closesAt) && (
+                  <>
+                    {" · "}
+                    Голосование до:{" "}
+                    {formatDate(season.votingClosesAt ?? season.closesAt!)}
+                  </>
+                )}
+                {season.closesAt && (
+                  <>
+                    {" · "}
+                    Сезон до: {formatDate(season.closesAt)}
+                  </>
+                )}
                 {" · "}
                 Очки платформы за сезон: {formatPoints(seasonTotal)}
                 {incomplete.length > 0 && (
@@ -527,30 +573,59 @@ export function AdminSeasonsClient({
                 })}
               </div>
 
+              <div className="flex flex-wrap items-end gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+                {(() => {
+                  const d = deadlinesFor(season);
+                  return (
+                    <>
+                      <div>
+                        <Label>Дедлайн голосования</Label>
+                        <Input
+                          type="datetime-local"
+                          className="max-w-xs"
+                          value={d.voting}
+                          onChange={(e) =>
+                            setDeadlineInputs((prev) => ({
+                              ...prev,
+                              [season.id]: { ...prev[season.id], voting: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Дедлайн сезона (сброс очков)</Label>
+                        <Input
+                          type="datetime-local"
+                          className="max-w-xs"
+                          value={d.season}
+                          onChange={(e) =>
+                            setDeadlineInputs((prev) => ({
+                              ...prev,
+                              [season.id]: { ...prev[season.id], season: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          seasonAction(season.id, "setDeadlines", {
+                            votingClosesAt: d.voting,
+                            closesAt: d.season,
+                          })
+                        }
+                      >
+                        Сохранить дедлайны
+                      </Button>
+                    </>
+                  );
+                })()}
+              </div>
+
               <div className="flex flex-wrap items-end gap-2 pt-2">
-                {season.status === "OPEN" && (
-                  <>
-                    <Input
-                      type="datetime-local"
-                      className="max-w-xs"
-                      value={deadlineInputs[season.id] ?? ""}
-                      onChange={(e) =>
-                        setDeadlineInputs((prev) => ({ ...prev, [season.id]: e.target.value }))
-                      }
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        seasonAction(season.id, "setDeadline", deadlineInputs[season.id])
-                      }
-                    >
-                      Установить дедлайн
-                    </Button>
-                  </>
-                )}
-                {!season.isActive && season.status === "OPEN" && (
+                {!season.isActive && (
                   <Button variant="secondary" onClick={() => seasonAction(season.id, "activate")}>
-                    Сделать активным
+                    Сделать активным (очки сюда)
                   </Button>
                 )}
                 {season.status === "OPEN" ? (
@@ -585,8 +660,23 @@ export function AdminSeasonsClient({
                     </Button>
                   </>
                 ) : (
-                  <Button variant="secondary" onClick={() => seasonAction(season.id, "open")}>
-                    Открыть голосование снова
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const d = deadlinesFor(season);
+                      if (
+                        confirm(
+                          "Продолжить сезон? Голосование откроется снова, текущие очки платформы сохранятся. Можно заранее поправить дедлайны выше и нажать «Сохранить дедлайны»."
+                        )
+                      ) {
+                        seasonAction(season.id, "continue", {
+                          votingClosesAt: d.voting || undefined,
+                          closesAt: d.season || undefined,
+                        });
+                      }
+                    }}
+                  >
+                    Продолжить сезон (без сброса очков)
                   </Button>
                 )}
                 <Button

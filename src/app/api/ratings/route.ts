@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase, recalculateAllPlayerStrengths, closeVoting } from "@/lib/seasons";
+import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase, recalculateAllPlayerStrengths, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
 import { parseAppDateTime } from "@/lib/utils";
 import type { SeasonName, VibeValue } from "@prisma/client";
 
@@ -17,6 +17,9 @@ const TILT_VALUES = new Set(["STABLE", "UNSURE", "TILT"]);
 
 export async function GET() {
   const user = await requireUser();
+  if (user.role === "ADMIN") {
+    await migrateLegacySeasonDeadlines();
+  }
 
   const seasons = await prisma.ratingSeason.findMany({
     include: {
@@ -52,7 +55,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
-  const { name, year, closesAt } = body as { name: SeasonName; year: number; closesAt?: string };
+  const { name, year, closesAt, votingClosesAt } = body as {
+    name: SeasonName;
+    year: number;
+    closesAt?: string;
+    votingClosesAt?: string;
+  };
 
   const existing = await prisma.ratingSeason.findUnique({
     where: { name_year: { name, year } },
@@ -77,6 +85,7 @@ export async function POST(request: NextRequest) {
       isActive: true,
       openedAt: new Date(),
       closesAt: closesAt ? parseAppDateTime(closesAt) : null,
+      votingClosesAt: votingClosesAt ? parseAppDateTime(votingClosesAt) : null,
     },
   });
 
@@ -86,7 +95,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
-  const { seasonId, targetId, score, mechanics, macro, vibe, action, closesAt } = body;
+  const { seasonId, targetId, score, mechanics, macro, vibe, action, closesAt, votingClosesAt } =
+    body;
 
   if (action === "resetPower") {
     await requireAdmin();
@@ -115,16 +125,42 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ season });
   }
 
-  if (action === "open") {
+  if (action === "open" || action === "continue") {
     await requireAdmin();
     // Только один OPEN: иначе голоса уезжают в «не тот» сезон
     await prisma.ratingSeason.updateMany({
       where: { status: "OPEN", id: { not: seasonId } },
-      data: { status: "CLOSED", closedAt: new Date(), isActive: false },
+      data: { status: "CLOSED", closedAt: new Date() },
+    });
+    // Не трогаем isActive у других и не сбрасываем очки — продолжение текущего сезона
+    const data: {
+      status: "OPEN";
+      isActive: boolean;
+      closedAt: null;
+      openedAt?: Date;
+      closesAt?: Date | null;
+      votingClosesAt?: Date | null;
+    } = {
+      status: "OPEN",
+      isActive: true,
+      closedAt: null,
+    };
+    if (action === "open") {
+      data.openedAt = new Date();
+    }
+    if (closesAt !== undefined) {
+      data.closesAt = closesAt ? parseAppDateTime(closesAt) : null;
+    }
+    if (votingClosesAt !== undefined) {
+      data.votingClosesAt = votingClosesAt ? parseAppDateTime(votingClosesAt) : null;
+    }
+    await prisma.ratingSeason.updateMany({
+      where: { id: { not: seasonId }, isActive: true },
+      data: { isActive: false },
     });
     const season = await prisma.ratingSeason.update({
       where: { id: seasonId },
-      data: { status: "OPEN", isActive: true, openedAt: new Date() },
+      data,
     });
     return NextResponse.json({ season });
   }
@@ -139,11 +175,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ season });
   }
 
-  if (action === "setDeadline") {
+  if (action === "setDeadline" || action === "setDeadlines") {
     await requireAdmin();
+    const data: { closesAt?: Date | null; votingClosesAt?: Date | null } = {};
+    if (closesAt !== undefined) {
+      data.closesAt = closesAt ? parseAppDateTime(closesAt) : null;
+    }
+    if (votingClosesAt !== undefined) {
+      data.votingClosesAt = votingClosesAt ? parseAppDateTime(votingClosesAt) : null;
+    }
     const season = await prisma.ratingSeason.update({
       where: { id: seasonId },
-      data: { closesAt: closesAt ? parseAppDateTime(closesAt) : null },
+      data,
     });
     return NextResponse.json({ season });
   }
