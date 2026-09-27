@@ -195,15 +195,37 @@ async function replyLiveMenu(chatId: string, from: TelegramUserMsg, text: string
       .sort((a, b) => a[1].position - b[1].position);
     const users = await prisma.user.findMany({
       where: { id: { in: [...radiant, ...dire].map(([id]) => id) } },
+      include: { profile: { select: { finalRating: true } } },
     });
     const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+    const { teamDisplayName } = await import("@/lib/team-names");
+    const radiantName = teamDisplayName(
+      radiant.map(([id]) => ({
+        id,
+        firstName: byId[id]?.firstName,
+        lastName: byId[id]?.lastName,
+        username: byId[id]?.username,
+        finalRating: byId[id]?.profile?.finalRating ?? 0,
+      })),
+      "Team A"
+    );
+    const direName = teamDisplayName(
+      dire.map(([id]) => ({
+        id,
+        firstName: byId[id]?.firstName,
+        lastName: byId[id]?.lastName,
+        username: byId[id]?.username,
+        finalRating: byId[id]?.profile?.finalRating ?? 0,
+      })),
+      "Team B"
+    );
     const line = (rows: [string, { position: number }][]) =>
       rows.map(([id, a]) => `  ${a.position}: ${displayName(byId[id])}`).join("\n");
     await sendTelegramMessage(
       chatId,
       `⚔️ <b>5v5</b> ${formatDate(session.date)}\nСтатус: ${session.status}\n${
-        me ? `Вы: ${me.team}, слот ${me.position}\n\n` : "\n"
-      }<b>Radiant</b>\n${line(radiant)}\n\n<b>Dire</b>\n${line(dire)}`,
+        me ? `Вы: ${me.team === "DIRE" ? direName : radiantName}, слот ${me.position}\n\n` : "\n"
+      }<b>${radiantName}</b>\n${line(radiant)}\n\n<b>${direName}</b>\n${line(dire)}`,
       MAIN_KEYBOARD
     );
     return;

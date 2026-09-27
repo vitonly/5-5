@@ -53,7 +53,38 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     prisma.user.count({ where: { role: "STUDENT" } }),
   ]);
 
-  const matchHistory = buildMatchHistoryEntries(user.id, matchParts);
+  const historyPlayerIds = new Set<string>();
+  for (const part of matchParts) {
+    try {
+      const assignments = JSON.parse(part.game.session.teamAssignments || "{}") as Record<
+        string,
+        unknown
+      >;
+      for (const id of Object.keys(assignments)) historyPlayerIds.add(id);
+    } catch {
+      /* ignore */
+    }
+  }
+  const historyPlayers =
+    historyPlayerIds.size > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: [...historyPlayerIds] } },
+          include: { profile: { select: { finalRating: true } } },
+        })
+      : [];
+  const historyPlayerMap = Object.fromEntries(
+    historyPlayers.map((u) => [
+      u.id,
+      {
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        username: u.username,
+        finalRating: u.profile?.finalRating ?? 0,
+      },
+    ])
+  );
+  const matchHistory = buildMatchHistoryEntries(user.id, matchParts, historyPlayerMap);
   const expectedVotes = Math.max(studentsCount - 1, 0);
 
   const [received, vibes, givenSkill, givenVibe] = ratingSeason

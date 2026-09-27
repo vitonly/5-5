@@ -106,16 +106,33 @@ async function notifyTeamsFormed(sessionId: string) {
   const allIds = [...radiantIds, ...direIds];
   if (allIds.length !== OPEN_SLOTS) return;
 
-  const [users, rsvps] = await Promise.all([
+  const [users, profiles, rsvps] = await Promise.all([
     prisma.user.findMany({ where: { id: { in: allIds } } }),
+    prisma.playerProfile.findMany({
+      where: { userId: { in: allIds } },
+      select: { userId: true, finalRating: true },
+    }),
     prisma.matchRsvp.findMany({
       where: { sessionId, userId: { in: allIds } },
     }),
   ]);
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+  const powerMap = Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating]));
   const rsvpMap = Object.fromEntries(rsvps.map((r) => [r.userId, r]));
   const assignment: TeamAssignment = JSON.parse(session.teamAssignments || "{}");
+
+  const { teamDisplayName } = await import("@/lib/team-names");
+  const named = (ids: string[]) =>
+    ids.map((id) => ({
+      id,
+      firstName: userMap[id]?.firstName,
+      lastName: userMap[id]?.lastName,
+      username: userMap[id]?.username,
+      finalRating: powerMap[id] ?? 0,
+    }));
+  const radiantName = teamDisplayName(named(radiantIds), "Team A");
+  const direName = teamDisplayName(named(direIds), "Team B");
 
   const lineFor = (ids: string[]) =>
     ids
@@ -126,14 +143,14 @@ async function notifyTeamsFormed(sessionId: string) {
       })
       .join("\n");
 
-  const header = `⚔️ <b>Составы 5v5 утверждены</b>\n${formatDate(session.date)}\n\n<b>Radiant</b>\n${lineFor(radiantIds)}\n\n<b>Dire</b>\n${lineFor(direIds)}`;
+  const header = `⚔️ <b>Составы 5v5 утверждены</b>\n${formatDate(session.date)}\n\n<b>${radiantName}</b>\n${lineFor(radiantIds)}\n\n<b>${direName}</b>\n${lineFor(direIds)}`;
 
   for (const userId of allIds) {
     const user = userMap[userId];
     if (!user) continue;
     const rsvp = rsvpMap[userId];
     const a = assignment[userId];
-    const side = a?.team === "DIRE" ? "Dire" : "Radiant";
+    const side = a?.team === "DIRE" ? direName : radiantName;
     const pos = a?.position ? POSITION_LABELS[a.position] ?? String(a.position) : "?";
     const text = `${header}\n\nВы: <b>${side}</b>, ${pos}`;
     const chatId = rsvp?.tgChatId || notifyChatId(user);

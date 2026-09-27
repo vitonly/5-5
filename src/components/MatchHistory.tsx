@@ -4,16 +4,26 @@ import { POSITION_LABELS } from "@/lib/labels";
 import { formatPoints } from "@/lib/points";
 import { formatDate } from "@/lib/utils";
 import { parseTeamAssignments } from "@/lib/match-lineup";
+import { sideFallback, teamDisplayName, type SideCode } from "@/lib/team-names";
 
 export type MatchHistoryEntry = {
   gameId: string;
   gameNumber: number;
   sessionDate: Date | string;
   team: string;
+  teamLabel: string;
   winnerTeam: string;
   won: boolean;
   pointsAwarded: number;
   position: number | null;
+};
+
+export type MatchHistoryPlayer = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  finalRating?: number | null;
 };
 
 export function MatchHistory({
@@ -57,7 +67,7 @@ export function MatchHistory({
                   {formatDate(e.sessionDate)} · игра {e.gameNumber}
                 </p>
                 <p className="text-xs text-[var(--text-3)]">
-                  {e.team === "RADIANT" ? "Radiant" : "Dire"}
+                  {e.teamLabel}
                   {e.position != null && (
                     <> · {POSITION_LABELS[e.position] ?? `поз. ${e.position}`}</>
                   )}
@@ -98,17 +108,29 @@ export function buildMatchHistoryEntries(
       winnerTeam: string;
       session: { date: Date; teamAssignments: string };
     };
-  }[]
+  }[],
+  playersById: Record<string, MatchHistoryPlayer> = {}
 ): MatchHistoryEntry[] {
   return participations
     .map((p) => {
       const assignments = parseTeamAssignments(p.game.session.teamAssignments);
       const position = assignments[userId]?.position ?? null;
+      const side = (p.team === "DIRE" ? "DIRE" : "RADIANT") as SideCode;
+      const teammates = Object.entries(assignments)
+        .filter(([, a]) => a.team === side)
+        .map(([id]) => ({
+          id,
+          firstName: playersById[id]?.firstName,
+          lastName: playersById[id]?.lastName,
+          username: playersById[id]?.username,
+          finalRating: playersById[id]?.finalRating ?? 0,
+        }));
       return {
         gameId: p.game.id,
         gameNumber: p.game.gameNumber,
         sessionDate: p.game.session.date,
         team: p.team,
+        teamLabel: teamDisplayName(teammates, sideFallback(side)),
         winnerTeam: p.game.winnerTeam,
         won: p.won,
         pointsAwarded: p.pointsAwarded,

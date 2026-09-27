@@ -29,6 +29,7 @@ import type {
 } from "@prisma/client";
 import { PlayerRolesDisplay } from "@/components/PlayerRolesDisplay";
 import { PowerPill } from "@/components/StatPills";
+import { teamDisplayName } from "@/lib/team-names";
 
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
@@ -511,6 +512,25 @@ export function AdminMatchesClient({
         const radiantLineup = lineupForTeam("RADIANT", radiantIds, assignments);
         const direLineup = lineupForTeam("DIRE", direIds, assignments);
         const isEditing = editingId === session.id;
+        const nameFromIds = (ids: string[], fallback: string) =>
+          teamDisplayName(
+            ids.map((id) => ({
+              id,
+              firstName: studentMap[id]?.firstName,
+              lastName: studentMap[id]?.lastName,
+              username: studentMap[id]?.username,
+              finalRating: studentMap[id]?.profile?.finalRating ?? 0,
+            })),
+            fallback
+          );
+        const radiantName = nameFromIds(
+          isEditing ? draftRadiant.map((s) => s.userId).filter(Boolean) : radiantIds,
+          "Team A"
+        );
+        const direName = nameFromIds(
+          isEditing ? draftDire.map((s) => s.userId).filter(Boolean) : direIds,
+          "Team B"
+        );
         const beforeStart =
           session.status === "PLANNED" ||
           session.status === "TEAMS_SET" ||
@@ -613,7 +633,7 @@ export function AdminMatchesClient({
                   </p>
                   <div className="grid gap-4 md:grid-cols-2">
                     <EditTeamBlock
-                      title="Radiant"
+                      title={radiantName}
                       team="RADIANT"
                       slots={draftRadiant}
                       pool={[...draftRadiant, ...draftDire]}
@@ -621,7 +641,7 @@ export function AdminMatchesClient({
                       onAssign={assignPlayer}
                     />
                     <EditTeamBlock
-                      title="Dire"
+                      title={direName}
                       team="DIRE"
                       slots={draftDire}
                       pool={[...draftRadiant, ...draftDire]}
@@ -651,26 +671,27 @@ export function AdminMatchesClient({
                   <div className="space-y-3">
                     <div className="grid gap-4 md:grid-cols-2">
                       <TeamBlock
-                        title="Radiant"
+                        title={radiantName}
                         lineup={radiantLineup}
                         map={studentMap}
                         teamPower={radiantPower}
                       />
                       <TeamBlock
-                        title="Dire"
+                        title={direName}
                         lineup={direLineup}
                         map={studentMap}
                         teamPower={direPower}
                       />
                     </div>
                     <p className="font-mono-num text-sm text-[var(--text-2)]">
-                      Сумма силы: Radiant <b>{radiantPower}</b> · Dire <b>{direPower}</b>
+                      Сумма силы: {radiantName} <b>{radiantPower}</b> · {direName}{" "}
+                      <b>{direPower}</b>
                       {" · "}
                       Разница: <b>{powerDiff}</b>
                       {radiantPower !== direPower && (
                         <span className="text-[var(--text-4)]">
                           {" "}
-                          ({radiantPower > direPower ? "Radiant" : "Dire"} сильнее)
+                          ({radiantPower > direPower ? radiantName : direName} сильнее)
                         </span>
                       )}
                     </p>
@@ -735,7 +756,7 @@ export function AdminMatchesClient({
                       recordResult(session.id, "RADIANT", session.games.length + 1)
                     }
                   >
-                    Победа Radiant (игра {session.games.length + 1})
+                    Победа {radiantName} (игра {session.games.length + 1})
                   </Button>
                   <Button
                     variant="secondary"
@@ -743,7 +764,7 @@ export function AdminMatchesClient({
                       recordResult(session.id, "DIRE", session.games.length + 1)
                     }
                   >
-                    Победа Dire (игра {session.games.length + 1})
+                    Победа {direName} (игра {session.games.length + 1})
                   </Button>
                   <Button
                     variant="outline"
@@ -773,11 +794,22 @@ export function AdminMatchesClient({
                 <div className="space-y-2 text-sm text-[var(--text-3)]">
                   <p>
                     Результаты:{" "}
-                    {session.games.map((g) => `Игра ${g.gameNumber}: ${g.winnerTeam}`).join(" · ")}
+                    {session.games
+                      .map((g) => {
+                        const w =
+                          g.winnerTeam === "RADIANT"
+                            ? radiantName
+                            : g.winnerTeam === "DIRE"
+                              ? direName
+                              : "Ничья";
+                        return `Игра ${g.gameNumber}: ${w}`;
+                      })
+                      .join(" · ")}
                   </p>
                   <p>
-                    Счёт: Radiant{" "}
-                    {session.games.filter((g) => g.winnerTeam === "RADIANT").length} — Dire{" "}
+                    Счёт: {radiantName}{" "}
+                    {session.games.filter((g) => g.winnerTeam === "RADIANT").length} —{" "}
+                    {direName}{" "}
                     {session.games.filter((g) => g.winnerTeam === "DIRE").length}
                   </p>
                   {session.status === "IN_PROGRESS" && !isEditing && (
