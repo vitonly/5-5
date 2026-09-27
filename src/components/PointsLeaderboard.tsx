@@ -1,6 +1,6 @@
 import { PlayerLink } from "@/components/PlayerLink";
 import { PointsPill } from "@/components/StatPills";
-import { SEASON_PRIZES } from "@/lib/points";
+import { SEASON_PRIZES, formatPoints } from "@/lib/points";
 
 interface LeaderboardEntry {
   userId: string;
@@ -15,10 +15,12 @@ export function PointsLeaderboard({
   entries,
   viewer,
   showLifetime = false,
+  seasonColumnLabel = "Очки",
 }: {
   entries: LeaderboardEntry[];
   viewer?: { id: string; role: string } | null;
   showLifetime?: boolean;
+  seasonColumnLabel?: string;
 }) {
   if (entries.length === 0) {
     return <p className="text-[var(--text-2)]">Пока нет данных</p>;
@@ -26,7 +28,6 @@ export function PointsLeaderboard({
 
   return (
     <>
-      {/* desktop table */}
       <div className="hidden overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] md:block">
         <table className="w-full text-sm">
           <thead>
@@ -38,7 +39,7 @@ export function PointsLeaderboard({
                 Игрок
               </th>
               <th className="px-4 py-3 text-right font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
-                Очки
+                {seasonColumnLabel}
               </th>
               {showLifetime && (
                 <th className="px-4 py-3 text-right font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
@@ -77,7 +78,7 @@ export function PointsLeaderboard({
                 </td>
                 {showLifetime && (
                   <td className="px-4 py-3 text-right font-mono-num text-[var(--text-3)]">
-                    {entry.lifetimePoints ?? entry.totalPoints}
+                    {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
                   </td>
                 )}
                 <td className="px-4 py-3 text-[var(--text-2)]">
@@ -89,7 +90,6 @@ export function PointsLeaderboard({
         </table>
       </div>
 
-      {/* mobile cards */}
       <div className="space-y-2 md:hidden">
         {entries.map((entry, index) => (
           <div
@@ -110,7 +110,14 @@ export function PointsLeaderboard({
                 viewer={viewer}
               />
             </div>
-            <PointsPill value={entry.totalPoints} />
+            <div className="text-right">
+              <PointsPill value={entry.totalPoints} />
+              {showLifetime && (
+                <p className="mt-0.5 font-mono-num text-[11px] text-[var(--text-4)]">
+                  всего {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
+                </p>
+              )}
+            </div>
           </div>
         ))}
       </div>

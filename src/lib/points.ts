@@ -95,7 +95,7 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
     _sum: { delta: true },
   });
   const lifetimeByUser = Object.fromEntries(
-    lifetimeGrouped.map((g) => [g.userId, g._sum.delta ?? 0])
+    lifetimeGrouped.map((g) => [g.userId, roundPoints(g._sum.delta ?? 0)])
   );
 
   if (!seasonId) {
@@ -106,8 +106,8 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
         firstName: u.firstName,
         lastName: u.lastName,
         username: u.username,
-        totalPoints: u.profile!.totalPoints,
-        lifetimePoints: lifetimeByUser[u.id] ?? u.profile!.totalPoints,
+        totalPoints: roundPoints(u.profile!.totalPoints),
+        lifetimePoints: lifetimeByUser[u.id] ?? roundPoints(u.profile!.totalPoints),
       }))
       .sort((a, b) => b.totalPoints - a.totalPoints);
   }
@@ -117,7 +117,9 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
     where: { seasonId },
     _sum: { delta: true },
   });
-  const byUser = Object.fromEntries(grouped.map((g) => [g.userId, g._sum.delta ?? 0]));
+  const byUser = Object.fromEntries(
+    grouped.map((g) => [g.userId, roundPoints(g._sum.delta ?? 0)])
+  );
 
   return students
     .filter((u) => u.profile)
