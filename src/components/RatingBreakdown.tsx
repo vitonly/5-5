@@ -125,7 +125,7 @@ export function RatingBreakdown({
               bar={vibeBar}
             />
             <p className="text-xs text-[var(--text-4)]">
-              Не подвержен тильту даёт плюс (до +5), подвержен — минус (до −5).
+              Не подвержен тильту даёт минус (до −5), подвержен — плюс (до +5).
             </p>
             <p className="pt-1 font-display text-lg font-bold text-[var(--power)]">
               Итог: {profile.finalRating}
