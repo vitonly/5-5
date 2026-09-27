@@ -73,9 +73,9 @@ enum SkillLevel {
 }
 
 enum VibeValue {
-  LIKE
-  NEUTRAL
-  DISLIKE
+  STABLE
+  UNSURE
+  TILT
 }
 
 model User {
@@ -105,8 +105,10 @@ model User {
   vibeVotesReceived   VibeVote[]           @relation("VibeTarget")
   matchParticipants   MatchParticipant[]
   matchRsvps          MatchRsvp[]
-  sentMessages        Message[]            @relation("MessageSender")
-  receivedMessages    Message[]            @relation("MessageRecipient")
+  mvpVotesCast        MatchDayMvpVote[]  @relation("MvpVoter")
+  mvpNominations      MatchDayMvpVote[]  @relation("MvpNominee")
+  sentMessages        Message[]          @relation("MessageSender")
+  receivedMessages    Message[]          @relation("MessageRecipient")
   loginTickets        LoginTicket[]
   materialViews       MaterialView[]
 }
@@ -172,8 +174,9 @@ model PlayerProfile {
   rankTier          Int?
   seasonCoefficient Float     @default(1.0)
   skillMod          Int       @default(0)
-  vibeMod           Float     @default(0)
-  finalRating       Int       @default(50)
+  /** TiltMod −5…+5 (целое) */
+  vibeMod           Int       @default(0)
+  finalRating       Int       @default(25)
   primaryRole       DotaRole?
   secondaryRole     DotaRole?
   /** JSON-массив до 3 ролей, порядок = приоритет (0 — высший) */
@@ -211,8 +214,11 @@ model PeerRating {
   rater     User         @relation("Rater", fields: [raterId], references: [id], onDelete: Cascade)
   targetId  String
   target    User         @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
-  mechanics Int
-  macro     Int
+  /** Оценка силы 0–100 */
+  score     Int          @default(50)
+  /** legacy — не используются в формуле */
+  mechanics Int          @default(5)
+  macro     Int          @default(5)
   teamplay  Int          @default(5)
   createdAt DateTime     @default(now())
 
@@ -302,19 +308,39 @@ model Penalty {
 }
 
 model MatchSession {
-  id               String             @id @default(cuid())
-  date             DateTime
-  status           MatchSessionStatus @default(PLANNED)
-  mode             MatchSessionMode   @default(MANUAL)
-  startedAt        DateTime?
+  id                    String             @id @default(cuid())
+  date                  DateTime
+  status                MatchSessionStatus @default(PLANNED)
+  mode                  MatchSessionMode   @default(MANUAL)
+  startedAt             DateTime?
   /** Картинка к инвайту в Telegram (URL Blob / uploads) */
-  inviteImageUrl   String?
-  radiantPlayerIds String             @default("[]")
-  direPlayerIds    String             @default("[]")
-  teamAssignments  String             @default("{}")
-  createdAt        DateTime           @default(now())
-  games            MatchGame[]
-  rsvps            MatchRsvp[]
+  inviteImageUrl        String?
+  radiantPlayerIds      String             @default("[]")
+  direPlayerIds         String             @default("[]")
+  /** Состав игры 1 (и fallback, если game2 пуст) */
+  teamAssignments       String             @default("{}")
+  /** Состав игры 2 (минимальный ребаланс) */
+  teamAssignmentsGame2  String             @default("{}")
+  mvpResolved           Boolean            @default(false)
+  mvpWinnerId           String?
+  createdAt             DateTime           @default(now())
+  games                 MatchGame[]
+  rsvps                 MatchRsvp[]
+  mvpVotes              MatchDayMvpVote[]
+}
+
+model MatchDayMvpVote {
+  id         String       @id @default(cuid())
+  sessionId  String
+  session    MatchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  voterId    String
+  voter      User         @relation("MvpVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  nomineeId  String
+  nominee    User         @relation("MvpNominee", fields: [nomineeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+
+  @@unique([sessionId, voterId])
+  @@index([sessionId])
 }
 
 model MatchRsvp {

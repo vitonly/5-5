@@ -32,6 +32,7 @@ type VoteRow = {
   target: Student;
   mechanics?: number;
   macro?: number;
+  score?: number;
   vibe?: VibeValue;
   complete: boolean;
 };
@@ -40,6 +41,7 @@ type ReceivedRow = {
   from: Student;
   mechanics?: number;
   macro?: number;
+  score?: number;
   vibe?: VibeValue;
   complete: boolean;
 };
@@ -114,6 +116,7 @@ export function AdminSeasonsClient({
           target,
           mechanics: skill?.mechanics,
           macro: skill?.macro,
+          score: skill?.score,
           vibe: vibe?.value,
           complete,
         };
@@ -133,6 +136,7 @@ export function AdminSeasonsClient({
           from,
           mechanics: skill?.mechanics,
           macro: skill?.macro,
+          score: skill?.score,
           vibe: vibe?.value,
           complete: Boolean(skill && vibe),
         };
@@ -151,6 +155,7 @@ export function AdminSeasonsClient({
     seasonId: string;
     voterId?: string;
     allIncomplete?: boolean;
+    testToAdmin?: boolean;
   }) {
     setReminding(true);
     try {
@@ -162,6 +167,10 @@ export function AdminSeasonsClient({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        return;
+      }
+      if (opts.testToAdmin) {
+        alert("Тест отправлен вам в Telegram");
         return;
       }
       const failNote =
@@ -268,8 +277,51 @@ export function AdminSeasonsClient({
                   >
                     {reminding ? "Отправка…" : `Напомнить всем недоголосовавшим (${incomplete.length})`}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reminding}
+                    onClick={() =>
+                      remindVote({
+                        seasonId: season.id,
+                        allIncomplete: true,
+                        testToAdmin: true,
+                      })
+                    }
+                    title="Отправить себе превью уведомления"
+                  >
+                    Тест мне
+                  </Button>
                 </div>
               )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    if (
+                      !confirm(
+                        "Сбросить все оценки силы/тильта и обнулить моды? Сила станет = только база ранга."
+                      )
+                    )
+                      return;
+                    const res = await fetch("/api/ratings", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "resetPower" }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      alert(data.error || "Ошибка");
+                      return;
+                    }
+                    alert(`Сброшено профилей: ${data.reset ?? 0}`);
+                    router.refresh();
+                  }}
+                >
+                  Сбросить силу (ранг только)
+                </Button>
+              </div>
 
               <div className="space-y-2">
                 {students.map((student) => {
@@ -321,21 +373,37 @@ export function AdminSeasonsClient({
                           </span>
                         </button>
                         {season.status === "OPEN" && missing.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={reminding || !student.telegramChatId}
-                            title={
-                              student.telegramChatId
-                                ? undefined
-                                : "Нет привязанного Telegram"
-                            }
-                            onClick={() =>
-                              remindVote({ seasonId: season.id, voterId: student.id })
-                            }
-                          >
-                            Напомнить в TG
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={reminding || !student.telegramChatId}
+                              title={
+                                student.telegramChatId
+                                  ? undefined
+                                  : "Нет привязанного Telegram"
+                              }
+                              onClick={() =>
+                                remindVote({ seasonId: season.id, voterId: student.id })
+                              }
+                            >
+                              Напомнить в TG
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={reminding}
+                              onClick={() =>
+                                remindVote({
+                                  seasonId: season.id,
+                                  voterId: student.id,
+                                  testToAdmin: true,
+                                })
+                              }
+                            >
+                              Тест мне
+                            </Button>
+                          </>
                         )}
                       </div>
 
@@ -380,7 +448,7 @@ export function AdminSeasonsClient({
                                   <PlayerLink user={row.target} className="inline" />
                                   {row.complete ? (
                                     <span className="text-[var(--text-2)]">
-                                      мех {row.mechanics}/10 · макро {row.macro}/10 · вайб{" "}
+                                      оценка {row.score ?? "—"}/100 · тильт{" "}
                                       {row.vibe ? VIBE_LABELS[row.vibe] : "—"}
                                     </span>
                                   ) : (
@@ -409,7 +477,7 @@ export function AdminSeasonsClient({
                                   <PlayerLink user={row.from} className="inline" />
                                   {row.complete ? (
                                     <span className="text-[var(--text-2)]">
-                                      мех {row.mechanics}/10 · макро {row.macro}/10 · вайб{" "}
+                                      оценка {row.score ?? "—"}/100 · тильт{" "}
                                       {row.vibe ? VIBE_LABELS[row.vibe] : "—"}
                                     </span>
                                   ) : row.mechanics != null ||

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { balanceTeams } from "@/lib/team-balance";
+import { balanceTeams, reshuffleForSecondGame } from "@/lib/team-balance";
 import { displayName, parseAppDateTime, parseJsonArray, toJsonArray } from "@/lib/utils";
 import {
   applyMatchDrawPoints,
@@ -207,6 +207,60 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ session: updated });
   }
 
+  if (body.action === "generateGame2") {
+    if (
+      session.status !== "TEAMS_SET" &&
+      session.status !== "LINEUPS_CONFIRMED" &&
+      session.status !== "IN_PROGRESS"
+    ) {
+      return NextResponse.json(
+        { error: "Сначала нужен состав на 1-ю игру" },
+        { status: 400 }
+      );
+    }
+    const assignments = parseAssignments(session.teamAssignments);
+    const allIds = [
+      ...parseJsonArray(session.radiantPlayerIds),
+      ...parseJsonArray(session.direPlayerIds),
+    ];
+    const profiles = await prisma.playerProfile.findMany({
+      where: { userId: { in: allIds } },
+      include: { user: true },
+    });
+    const players = profiles.map((p) => ({
+      id: p.userId,
+      name: displayName(p.user),
+      finalRating: p.finalRating,
+      primaryRole: p.primaryRole,
+      secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
+    }));
+    try {
+      const teams = reshuffleForSecondGame(players, assignments as Parameters<
+        typeof reshuffleForSecondGame
+      >[1]);
+      const map: TeamAssignment = {};
+      for (const p of teams.radiant) {
+        map[p.id] = { team: "RADIANT", position: p.position };
+      }
+      for (const p of teams.dire) {
+        map[p.id] = { team: "DIRE", position: p.position };
+      }
+      const updated = await prisma.matchSession.update({
+        where: { id: sessionId },
+        data: { teamAssignmentsGame2: JSON.stringify(map) },
+      });
+      return NextResponse.json({
+        session: updated,
+        difference: teams.difference,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось собрать 2-й состав" },
+        { status: 400 }
+      );
+    }
+  }
+
   if (body.action === "confirmLineups") {
     try {
       const updated = await confirmLineups(sessionId);
@@ -242,12 +296,28 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const radiantIds = parseJsonArray(session.radiantPlayerIds);
-  const direIds = parseJsonArray(session.direPlayerIds);
-  const allIds = [...radiantIds, ...direIds];
   const nextGameNumber = gameNumber || session.games.length + 1;
   const isDraw = winnerTeam === "DRAW";
-  const assignments = parseAssignments(session.teamAssignments);
+  const useGame2 =
+    nextGameNumber >= 2 &&
+    session.teamAssignmentsGame2 &&
+    session.teamAssignmentsGame2 !== "{}";
+  const assignments = parseAssignments(
+    useGame2 ? session.teamAssignmentsGame2! : session.teamAssignments
+  );
+  const radiantIds = Object.entries(assignments)
+    .filter(([, a]) => a.team === "RADIANT")
+    .map(([id]) => id);
+  const direIds = Object.entries(assignments)
+    .filter(([, a]) => a.team === "DIRE")
+    .map(([id]) => id);
+  const allIds =
+    radiantIds.length === 5 && direIds.length === 5
+      ? [...radiantIds, ...direIds]
+      : [
+          ...parseJsonArray(session.radiantPlayerIds),
+          ...parseJsonArray(session.direPlayerIds),
+        ];
 
   // Стрик для +3 — только в рамках этой сессии (одного дня), не между субботами
   const sessionStreakBefore: Record<string, number> = {};
@@ -328,14 +398,22 @@ export async function PATCH(request: NextRequest) {
       // +3 только если это 2-я (и далее) победа подряд В ЭТОЙ сессии/день
       const dayWinStreak = (sessionStreakBefore[userId] ?? 0) + 1;
       const position = assignments[userId]?.position ?? 0;
-      const offRole = isOffRole(profile.primaryRole, position);
+      const secondaryRoles = parseSecondaryRoles(
+        profile.secondaryRoles,
+        profile.secondaryRole
+      );
       const delta = await applyMatchWinPointsForPlayer(
         userId,
         dayWinStreak,
         winnerAvg,
         loserAvg,
-        offRole,
-        game.id
+        game.id,
+        {
+          primaryRole: profile.primaryRole,
+          secondaryRoles,
+          position,
+          offRole: isOffRole(profile.primaryRole, position),
+        }
       );
       await prisma.playerProfile.update({
         where: { userId },

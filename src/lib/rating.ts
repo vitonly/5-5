@@ -1,30 +1,32 @@
 /**
- * Система рейтинга игрока (1–100) по rating_system_spec.md
- * Итог = clamp( РангБаза + SkillMod + VibeMod , 1, 100 )
+ * Сила игрока (целое 1–100):
+ * finalRating = clamp(rankBase + skillMod + tiltMod, 1, 100)
+ *
+ * rankBase 1…50 по медали
+ * skillMod 0…+30 из оценок 0–100 (тренер 50% + ученики 50%)
+ * tiltMod −5…+5 из голосов тильта
  */
 
-/** База по медали OpenDota (1–8) и звезде (1–5). Титан — всегда 75.
- * Каждая медаль строго после предыдущей (без пересечений). */
+/** База по медали OpenDota (1–8). Титан = 50. */
 const RANK_BASE_TABLE: Record<number, number[]> = {
-  1: [5, 6, 7, 8, 9], // Рекрут
-  2: [10, 11, 13, 14, 16], // Страж
-  3: [17, 19, 21, 23, 25], // Рыцарь
-  4: [26, 27, 28, 29, 30], // Герой
-  5: [31, 33, 36, 38, 41], // Легенда
-  6: [42, 45, 48, 51, 54], // Властелин
-  7: [55, 58, 62, 65, 69], // Божество
-  8: [75], // Титан
+  1: [1, 2, 3, 4, 5], // Рекрут
+  2: [6, 7, 8, 9, 11], // Страж
+  3: [12, 14, 16, 18, 20], // Рыцарь
+  4: [21, 22, 24, 26, 27], // Герой
+  5: [28, 30, 32, 34, 36], // Легенда
+  6: [37, 39, 41, 43, 45], // Властелин
+  7: [46, 47, 48, 49, 49], // Божество (★5 = 49)
+  8: [50], // Титан
 };
 
 export function clampRating(value: number): number {
   return Math.max(1, Math.min(100, Math.round(value)));
 }
 
-/** РангБаза 5–75 из OpenDota rank_tier */
 export function rankTierToBase(rankTier?: number | null): number {
   if (!rankTier) return RANK_BASE_TABLE[1][0];
   const medal = Math.floor(rankTier / 10);
-  if (medal === 8) return 75;
+  if (medal === 8) return 50;
   let stars = rankTier % 10;
   if (stars <= 0) stars = 1;
   if (stars > 5) stars = 5;
@@ -39,74 +41,174 @@ export function computeBaseRating(profile: {
   return rankTierToBase(profile.rankTier);
 }
 
-/** SkillMod 0…+20 из средних механики и макро */
-export function calculateSkillMod(mechanicsScores: number[], macroScores: number[]): number {
-  if (mechanicsScores.length === 0 && macroScores.length === 0) return 0;
-  const mechAvg =
-    mechanicsScores.length > 0
-      ? mechanicsScores.reduce((a, b) => a + b, 0) / mechanicsScores.length
-      : 0;
-  const macroAvg =
-    macroScores.length > 0 ? macroScores.reduce((a, b) => a + b, 0) / macroScores.length : 0;
-  if (mechanicsScores.length === 0) {
-    return Math.round(((macroAvg - 1) / 9) * 20);
+function median(nums: number[]): number {
+  if (!nums.length) return 0;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
   }
-  if (macroScores.length === 0) {
-    return Math.round(((mechAvg - 1) / 9) * 20);
-  }
-  const skillAvg = (mechAvg + macroAvg) / 2;
-  return Math.round(((skillAvg - 1) / 9) * 20);
+  return sorted[mid];
 }
 
-export type VibeValue = "LIKE" | "NEUTRAL" | "DISLIKE";
+/** Медиана с отсечением min/max при ≥3 оценках. */
+export function trimmedMedian(scores: number[]): number | null {
+  if (!scores.length) return null;
+  let list = [...scores];
+  if (list.length >= 3) {
+    list.sort((a, b) => a - b);
+    list = list.slice(1, -1);
+  }
+  return median(list);
+}
 
 /**
- * VibeMod −5…+5.
- * Перевес «нравится» ОТНИМАЕТ очки (намеренно — для баланса команд).
+ * SkillMod 0…+30.
+ * combined = 50/50 trainer + peerMedian; skillMod = round(combined/100*30)
  */
-export function calculateVibeMod(votes: VibeValue[]): number {
-  if (votes.length === 0) return 0;
-  const like = votes.filter((v) => v === "LIKE").length;
-  const dislike = votes.filter((v) => v === "DISLIKE").length;
-  const total = votes.length;
-  const raw = -((like - dislike) / total) * 5;
-  return Math.round(raw * 10) / 10;
+export function calculateSkillModFromScores(opts: {
+  trainerScore?: number | null;
+  peerScores: number[];
+}): number {
+  const peerMed = trimmedMedian(opts.peerScores);
+  const trainer =
+    typeof opts.trainerScore === "number" && Number.isFinite(opts.trainerScore)
+      ? Math.max(0, Math.min(100, opts.trainerScore))
+      : null;
+
+  let combined: number;
+  if (trainer != null && peerMed != null) {
+    combined = (trainer + peerMed) / 2;
+  } else if (trainer != null) {
+    combined = trainer;
+  } else if (peerMed != null) {
+    combined = peerMed;
+  } else {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(30, Math.round((combined / 100) * 30)));
 }
 
-export function calculateFinalRating(rankBase: number, skillMod: number, vibeMod: number): number {
-  return clampRating(rankBase + skillMod + vibeMod);
+export type TiltValue = "STABLE" | "UNSURE" | "TILT";
+/** @deprecated use TiltValue */
+export type VibeValue = TiltValue;
+
+export function tiltToUnit(v: TiltValue): number {
+  if (v === "STABLE") return 1;
+  if (v === "TILT") return -1;
+  return 0;
+}
+
+/**
+ * TiltMod −5…+5 (целое).
+ * trainer и среднее peers ∈ [−1,1], 50/50, ×5.
+ */
+export function calculateTiltMod(opts: {
+  trainerTilt?: TiltValue | null;
+  peerTilts: TiltValue[];
+}): number {
+  const peerUnits = opts.peerTilts.map(tiltToUnit);
+  const peerAvg =
+    peerUnits.length > 0
+      ? peerUnits.reduce((a, b) => a + b, 0) / peerUnits.length
+      : null;
+  const trainerUnit =
+    opts.trainerTilt != null ? tiltToUnit(opts.trainerTilt) : null;
+
+  let combined: number;
+  if (trainerUnit != null && peerAvg != null) {
+    combined = (trainerUnit + peerAvg) / 2;
+  } else if (trainerUnit != null) {
+    combined = trainerUnit;
+  } else if (peerAvg != null) {
+    combined = peerAvg;
+  } else {
+    return 0;
+  }
+
+  return Math.max(-5, Math.min(5, Math.round(combined * 5)));
+}
+
+/** @deprecated имя vibe — фактически tiltMod */
+export function calculateVibeMod(votes: TiltValue[]): number {
+  return calculateTiltMod({ peerTilts: votes });
+}
+
+export function calculateFinalRating(
+  rankBase: number,
+  skillMod: number,
+  tiltMod: number
+): number {
+  return clampRating(rankBase + skillMod + tiltMod);
 }
 
 export function computeStrengthFromVotes(options: {
   rankTier?: number | null;
-  mechanicsScores: number[];
-  macroScores: number[];
-  vibeVotes: VibeValue[];
+  trainerScore?: number | null;
+  peerScores: number[];
+  trainerTilt?: TiltValue | null;
+  peerTilts: TiltValue[];
+  /** legacy */
+  mechanicsScores?: number[];
+  macroScores?: number[];
+  vibeVotes?: TiltValue[];
 }) {
   const rankBase = rankTierToBase(options.rankTier);
-  const skillMod = calculateSkillMod(options.mechanicsScores, options.macroScores);
-  const vibeMod = calculateVibeMod(options.vibeVotes);
+  const peerScores =
+    options.peerScores.length > 0
+      ? options.peerScores
+      : // legacy fallback: map 1–10 mech/macro → ~0–100
+        (() => {
+          const mech = options.mechanicsScores ?? [];
+          const mac = options.macroScores ?? [];
+          if (!mech.length && !mac.length) return [] as number[];
+          const n = Math.max(mech.length, mac.length);
+          const out: number[] = [];
+          for (let i = 0; i < n; i++) {
+            const a = mech[i] ?? mac[i] ?? 5;
+            const b = mac[i] ?? mech[i] ?? 5;
+            out.push(Math.round((((a + b) / 2 - 1) / 9) * 100));
+          }
+          return out;
+        })();
+
+  const peerTilts =
+    options.peerTilts.length > 0
+      ? options.peerTilts
+      : (options.vibeVotes ?? []);
+
+  const skillMod = calculateSkillModFromScores({
+    trainerScore: options.trainerScore,
+    peerScores,
+  });
+  const tiltMod = calculateTiltMod({
+    trainerTilt: options.trainerTilt,
+    peerTilts,
+  });
+
   return {
     rankBase,
     skillMod,
-    vibeMod,
-    finalRating: calculateFinalRating(rankBase, skillMod, vibeMod),
+    vibeMod: tiltMod,
+    tiltMod,
+    finalRating: calculateFinalRating(rankBase, skillMod, tiltMod),
   };
 }
 
-/** Совместимость: пересчёт при смене ранга с уже сохранёнными модами */
 export function recalculateFinalRating(
   profile: { rankTier?: number | null; mmr?: number | null },
   skillModOrLegacyCoef: number = 0,
   vibeMod: number = 0
 ) {
   const rankBase = computeBaseRating(profile);
-  // Старый API передавал seasonCoefficient (~1.0). Если похоже на коэффициент — игнорим.
   const skillMod =
-    skillModOrLegacyCoef > 0 && skillModOrLegacyCoef <= 3 && !Number.isInteger(skillModOrLegacyCoef)
+    skillModOrLegacyCoef > 0 &&
+    skillModOrLegacyCoef <= 3 &&
+    !Number.isInteger(skillModOrLegacyCoef)
       ? 0
       : Math.round(skillModOrLegacyCoef);
-  const vibe = typeof vibeMod === "number" ? vibeMod : 0;
+  const vibe = Math.round(typeof vibeMod === "number" ? vibeMod : 0);
   return {
     baseRating: rankBase,
     rankBase,
@@ -117,7 +219,14 @@ export function recalculateFinalRating(
   };
 }
 
-/** Экспорт таблицы для UI */
 export function getRankBaseTable(): Record<number, number[]> {
   return RANK_BASE_TABLE;
+}
+
+/** Сброс всех peer/tilt голосов и модов силы → только база ранга. */
+export async function resetAllPowerToRankBase(
+  run: (fn: () => Promise<unknown>) => Promise<unknown>
+) {
+  // implemented in seasons.ts with prisma
+  void run;
 }

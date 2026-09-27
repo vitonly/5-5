@@ -6,10 +6,20 @@ export const POINT_VALUES = {
   HOMEWORK_EXCELLENT: 1,
   HOMEWORK_OVERDUE: -0.5,
   MATCH_WIN: 1,
-  MATCH_WIN_STREAK: 3,
+  /** Вторая победа подряд в тот же игровой день (сумма с первой = 3) */
+  MATCH_WIN_STREAK: 2,
   MATCH_DRAW: 1,
-  OFF_ROLE_BONUS: 0.1,
+  MVP_DAY: 0.5,
 } as const;
+
+/** Множитель к базовым очкам победы по приоритету ролей профиля */
+export const ROLE_WIN_MULT = {
+  PRIMARY: 1.0,
+  SECOND: 1.1,
+  THIRD: 1.2,
+  OFF: 1.5,
+} as const satisfies Record<string, number>;
+
 
 export type PointCategory = "homework" | "match" | "penalty" | "bonus" | "other";
 
@@ -164,6 +174,40 @@ function naturalPositions(role: DotaRole): number[] {
   }
 }
 
+/** Приоритетный список ролей: основная + доп. (до 3 слотов для множителей). */
+export function rolePriorityList(
+  primaryRole: DotaRole | null | undefined,
+  secondaryRoles: DotaRole[] = []
+): DotaRole[] {
+  const list: DotaRole[] = [];
+  if (primaryRole) list.push(primaryRole);
+  for (const r of secondaryRoles) {
+    if (!list.includes(r)) list.push(r);
+    if (list.length >= 3) break;
+  }
+  return list;
+}
+
+/** Множитель 1.0 / 1.1 / 1.2 / 1.5 по позиции в lineup. */
+export function roleWinMultiplier(
+  primaryRole: DotaRole | null | undefined,
+  secondaryRoles: DotaRole[],
+  position: number
+): { mult: number; label: string } {
+  if (!position) {
+    return { mult: ROLE_WIN_MULT.PRIMARY, label: "основная роль" };
+  }
+  const list = rolePriorityList(primaryRole, secondaryRoles);
+  for (let i = 0; i < list.length; i++) {
+    if (naturalPositions(list[i]).includes(position)) {
+      if (i === 0) return { mult: ROLE_WIN_MULT.PRIMARY, label: "основная роль" };
+      if (i === 1) return { mult: ROLE_WIN_MULT.SECOND, label: "2-я роль" };
+      return { mult: ROLE_WIN_MULT.THIRD, label: "3-я роль" };
+    }
+  }
+  return { mult: ROLE_WIN_MULT.OFF, label: "не на своей роли" };
+}
+
 export function isOffRole(primaryRole: DotaRole | null | undefined, position: number): boolean {
   if (!primaryRole || !position) return false;
   return !naturalPositions(primaryRole).includes(position);
@@ -182,33 +226,54 @@ export function calcMatchWinPoints(options: {
   winStreak: number;
   winnerAvgRating: number;
   loserAvgRating: number;
-  offRole: boolean;
+  primaryRole?: DotaRole | null;
+  secondaryRoles?: DotaRole[];
+  position?: number;
+  /** @deprecated используй primaryRole/secondaryRoles/position */
+  offRole?: boolean;
 }): { delta: number; reason: string } {
-  const { winStreak, winnerAvgRating, loserAvgRating, offRole } = options;
+  const {
+    winStreak,
+    winnerAvgRating,
+    loserAvgRating,
+    primaryRole,
+    secondaryRoles = [],
+    position = 0,
+    offRole,
+  } = options;
 
-  if (winStreak >= 2) {
-    let delta: number = POINT_VALUES.MATCH_WIN_STREAK;
-    const parts = ["Победа в 5v5 (2 победы подряд за день)"];
-    if (offRole) {
-      delta = roundPoints(delta + POINT_VALUES.OFF_ROLE_BONUS);
-      parts.push("не на своей роли");
+  const streakBase =
+    winStreak >= 2 ? POINT_VALUES.MATCH_WIN_STREAK : POINT_VALUES.MATCH_WIN;
+  const parts =
+    winStreak >= 2
+      ? ["Победа в 5v5 (2 победы подряд за день)"]
+      : ["Победа в 5v5"];
+
+  let base: number = streakBase;
+  if (winStreak < 2) {
+    const upset = upsetMultiplier(winnerAvgRating, loserAvgRating);
+    if (upset > 1) {
+      base = roundPoints(base * upset);
+      parts.push("апсет");
     }
-    return { delta, reason: parts.join(", ") };
   }
 
-  let delta: number = POINT_VALUES.MATCH_WIN;
-  const parts = ["Победа в 5v5"];
-
-  const upset = upsetMultiplier(winnerAvgRating, loserAvgRating);
-  if (upset > 1) {
-    delta = roundPoints(delta * upset);
-    parts.push("апсет");
-  }
-  if (offRole) {
-    delta = roundPoints(delta + POINT_VALUES.OFF_ROLE_BONUS);
-    parts.push("не на своей роли");
+  let roleMult: number = ROLE_WIN_MULT.PRIMARY;
+  let roleLabel = "основная роль";
+  if (position || primaryRole || secondaryRoles.length) {
+    const r = roleWinMultiplier(primaryRole, secondaryRoles, position);
+    roleMult = r.mult;
+    roleLabel = r.label;
+  } else if (offRole) {
+    roleMult = ROLE_WIN_MULT.OFF;
+    roleLabel = "не на своей роли";
   }
 
+  if (roleMult !== ROLE_WIN_MULT.PRIMARY) {
+    parts.push(roleLabel);
+  }
+
+  const delta = roundPoints(base * roleMult);
   return { delta, reason: parts.join(", ") };
 }
 
@@ -224,18 +289,115 @@ export async function applyMatchWinPointsForPlayer(
   winStreak: number,
   winnerAvgRating: number,
   loserAvgRating: number,
-  offRole: boolean,
-  gameId: string
+  gameId: string,
+  opts?: {
+    primaryRole?: DotaRole | null;
+    secondaryRoles?: DotaRole[];
+    position?: number;
+    offRole?: boolean;
+  }
 ) {
   const { delta, reason } = calcMatchWinPoints({
     winStreak,
     winnerAvgRating,
     loserAvgRating,
-    offRole,
+    primaryRole: opts?.primaryRole,
+    secondaryRoles: opts?.secondaryRoles,
+    position: opts?.position,
+    offRole: opts?.offRole,
   });
   await addPoints(userId, delta, reason, { type: "MATCH_GAME", id: gameId });
   return delta;
 }
+
+/**
+ * Перерасчёт старых начислений за 2-ю победу дня: было +3 (+0.1 офф), стало +2 × roleMult.
+ * Корректирует PointLog + totalPoints + MatchParticipant.pointsAwarded.
+ */
+export async function recalculateStreakWinPoints() {
+  const logs = await prisma.pointLog.findMany({
+    where: {
+      sourceType: "MATCH_GAME",
+      reason: { contains: "2 победы подряд" },
+    },
+  });
+
+  let fixed = 0;
+  for (const log of logs) {
+    if (!log.sourceId) continue;
+    const participant = await prisma.matchParticipant.findFirst({
+      where: { gameId: log.sourceId, userId: log.userId, won: true },
+      include: {
+        game: { include: { session: true } },
+        user: { include: { profile: true } },
+      },
+    });
+    if (!participant?.user.profile) continue;
+
+    const session = participant.game.session;
+    const assignments = (() => {
+      try {
+        return JSON.parse(session.teamAssignments || "{}") as Record<
+          string,
+          { position?: number }
+        >;
+      } catch {
+        return {};
+      }
+    })();
+    const position = assignments[log.userId]?.position ?? 0;
+    const secondaryRoles = (() => {
+      try {
+        const raw = participant.user.profile!.secondaryRoles;
+        const parsed = JSON.parse(raw || "[]");
+        return Array.isArray(parsed) ? (parsed as DotaRole[]) : [];
+      } catch {
+        return [] as DotaRole[];
+      }
+    })();
+
+    const { delta: correct } = calcMatchWinPoints({
+      winStreak: 2,
+      winnerAvgRating: 50,
+      loserAvgRating: 50,
+      primaryRole: participant.user.profile.primaryRole,
+      secondaryRoles,
+      position,
+    });
+
+    const old = roundPoints(log.delta);
+    if (old === correct) continue;
+    const diff = roundPoints(correct - old);
+
+    await prisma.$transaction([
+      prisma.pointLog.update({
+        where: { id: log.id },
+        data: {
+          delta: correct,
+          reason: calcMatchWinPoints({
+            winStreak: 2,
+            winnerAvgRating: 50,
+            loserAvgRating: 50,
+            primaryRole: participant.user.profile.primaryRole,
+            secondaryRoles,
+            position,
+          }).reason,
+        },
+      }),
+      prisma.playerProfile.update({
+        where: { userId: log.userId },
+        data: { totalPoints: { increment: diff } },
+      }),
+      prisma.matchParticipant.update({
+        where: { id: participant.id },
+        data: { pointsAwarded: correct },
+      }),
+    ]);
+    fixed++;
+  }
+  return fixed;
+}
+
 
 /** Штраф (отрицательный) или бонус (положительный) от админа */
 export async function applyAdminAdjustment(

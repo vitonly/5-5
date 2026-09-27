@@ -7,6 +7,14 @@ export type InlineKeyboard = {
   inline_keyboard: InlineKeyboardButton[][];
 };
 
+export type ReplyKeyboard = {
+  keyboard: { text: string }[][];
+  resize_keyboard?: boolean;
+  one_time_keyboard?: boolean;
+};
+
+export type TelegramKeyboard = InlineKeyboard | ReplyKeyboard;
+
 export type TelegramSendResult = {
   ok: boolean;
   messageId?: number;
@@ -43,7 +51,7 @@ export function absolutePublicUrl(url: string | null | undefined): string | null
 export async function sendTelegramMessageDetailed(
   chatId: string | null | undefined,
   text: string,
-  replyMarkup?: InlineKeyboard
+  replyMarkup?: TelegramKeyboard
 ): Promise<TelegramSendResult> {
   if (!chatId) return { ok: false };
 
@@ -98,7 +106,7 @@ export async function sendTelegramInviteDetailed(
 export async function sendTelegramMessage(
   chatId: string | null | undefined,
   text: string,
-  replyMarkup?: InlineKeyboard
+  replyMarkup?: TelegramKeyboard
 ): Promise<boolean> {
   const result = await sendTelegramMessageDetailed(chatId, text, replyMarkup);
   return result.ok;

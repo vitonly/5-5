@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { SEASON_LABELS, RATING_CRITERIA, RATING_CRITERIA_HINTS, VIBE_LABELS } from "@/lib/labels";
+import { SEASON_LABELS, RATING_CRITERIA_HINTS, VIBE_LABELS } from "@/lib/labels";
 import { displayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { RatingSeason, User, PlayerProfile, PeerRating, VibeVote, VibeValue } from "@prisma/client";
@@ -13,12 +13,9 @@ type SeasonWithRatings = RatingSeason & {
   vibeVotes?: (VibeVote & { voter: User; target: User })[];
 };
 
-const SKILL_CRITERIA = ["mechanics", "macro"] as const;
-type SkillCriterion = (typeof SKILL_CRITERIA)[number];
-const VIBE_OPTIONS: VibeValue[] = ["LIKE", "NEUTRAL", "DISLIKE"];
+const TILT_OPTIONS: VibeValue[] = ["STABLE", "UNSURE", "TILT"];
 
-type Draft = { mechanics?: number; macro?: number; vibe?: VibeValue };
-type SavedSkill = { mechanics: number; macro: number };
+type Draft = { score?: number; vibe?: VibeValue };
 
 export function VotingClient({
   openSeason,
@@ -35,8 +32,7 @@ export function VotingClient({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
-  /** Успешно сохранённое — чтобы галочки не врали до refresh */
-  const [savedSkill, setSavedSkill] = useState<Record<string, SavedSkill>>({});
+  const [savedScore, setSavedScore] = useState<Record<string, number>>({});
   const [savedVibe, setSavedVibe] = useState<Record<string, VibeValue>>({});
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -46,13 +42,12 @@ export function VotingClient({
   );
   const vibeVotes = openSeason?.vibeVotes ?? [];
 
-  function dbSkill(targetId: string) {
-    return (
-      savedSkill[targetId] ??
-      openSeason?.peerRatings.find(
-        (r) => r.raterId === currentUserId && r.targetId === targetId
-      )
+  function dbScore(targetId: string): number | undefined {
+    if (savedScore[targetId] != null) return savedScore[targetId];
+    const row = openSeason?.peerRatings.find(
+      (r) => r.raterId === currentUserId && r.targetId === targetId
     );
+    return row?.score;
   }
 
   function dbVibe(targetId: string): VibeValue | undefined {
@@ -62,41 +57,34 @@ export function VotingClient({
     );
   }
 
-  /** Значение на кнопках: черновик или то, что уже в БД */
-  function getSkill(targetId: string, field: SkillCriterion): number | undefined {
-    const draft = drafts[targetId]?.[field];
-    if (draft !== undefined) return draft;
-    return dbSkill(targetId)?.[field];
+  function getScore(targetId: string): number | undefined {
+    return drafts[targetId]?.score ?? dbScore(targetId);
   }
 
   function getVibe(targetId: string): VibeValue | undefined {
     return drafts[targetId]?.vibe ?? dbVibe(targetId);
   }
 
-  /** Галочка только если реально сохранено (БД или успешный ответ API) */
   function isComplete(targetId: string) {
-    const skill = dbSkill(targetId);
-    const vibe = dbVibe(targetId);
-    return skill != null && skill.mechanics != null && skill.macro != null && vibe != null;
+    return dbScore(targetId) != null && dbVibe(targetId) != null;
   }
 
   const doneCount = others.filter((s) => isComplete(s.id)).length;
   const total = others.length;
   const pct = total ? (doneCount / total) * 100 : 0;
-
   const active = others[Math.min(activeIndex, Math.max(others.length - 1, 0))];
 
-  async function saveSkill(targetId: string, mechanics: number, macro: number) {
+  async function saveScore(targetId: string, score: number) {
     if (!openSeason) return;
     setSaveStatus("saving");
     try {
       const res = await fetch("/api/ratings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seasonId: openSeason.id, targetId, mechanics, macro }),
+        body: JSON.stringify({ seasonId: openSeason.id, targetId, score }),
       });
       if (!res.ok) throw new Error("fail");
-      setSavedSkill((s) => ({ ...s, [targetId]: { mechanics, macro } }));
+      setSavedScore((s) => ({ ...s, [targetId]: score }));
       setSaveStatus("saved");
       startTransition(() => router.refresh());
     } catch {
@@ -104,7 +92,7 @@ export function VotingClient({
       setDrafts((d) => {
         const next = { ...d };
         if (next[targetId]) {
-          const { mechanics: _m, macro: _a, ...rest } = next[targetId];
+          const { score: _s, ...rest } = next[targetId];
           next[targetId] = rest;
         }
         draftsRef.current = next;
@@ -140,21 +128,12 @@ export function VotingClient({
     }
   }
 
-  function setSkill(targetId: string, field: SkillCriterion, value: number) {
+  function setScore(targetId: string, score: number) {
     const prev = draftsRef.current[targetId] ?? {};
-    const fromDb = dbSkill(targetId);
-    const mechanics =
-      field === "mechanics" ? value : (prev.mechanics ?? fromDb?.mechanics);
-    const macro = field === "macro" ? value : (prev.macro ?? fromDb?.macro);
-
-    const merged: Draft = { ...prev, [field]: value };
-    const nextDrafts = { ...draftsRef.current, [targetId]: merged };
+    const nextDrafts = { ...draftsRef.current, [targetId]: { ...prev, score } };
     draftsRef.current = nextDrafts;
     setDrafts(nextDrafts);
-
-    if (mechanics != null && macro != null) {
-      void saveSkill(targetId, mechanics, macro);
-    }
+    void saveScore(targetId, score);
   }
 
   function setVibe(targetId: string, vibe: VibeValue) {
@@ -183,6 +162,8 @@ export function VotingClient({
     return <p className="text-[var(--text-2)]">Нет игроков для оценки.</p>;
   }
 
+  const currentScore = getScore(active.id) ?? 50;
+
   return (
     <div className="space-y-4">
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
@@ -202,7 +183,7 @@ export function VotingClient({
             >
               {saveStatus === "saving" && "сохранение…"}
               {saveStatus === "saved" && "сохранено"}
-              {saveStatus === "err" && "не сохранилось — нажмите оценку ещё раз"}
+              {saveStatus === "err" && "не сохранилось — повторите"}
               {saveStatus === "idle" && "галочка = сохранено на сервере"}
             </span>
             <span className="rounded-full border border-[var(--border)] bg-[var(--control)] px-2.5 py-1 font-mono-num text-[12px] font-bold text-[var(--text-2)]">
@@ -217,8 +198,7 @@ export function VotingClient({
           />
         </div>
         <p className="mt-2 text-[12px] text-[var(--text-4)]">
-          Нужны механика, макро и вайб. Галочка ставится только после успешного сохранения — не
-          листайте дальше, пока не увидите «сохранено».
+          Оценка 0–100 и тильт. Голос тренера и учеников вес 50/50. Галочка — после сохранения.
         </p>
       </div>
 
@@ -231,11 +211,7 @@ export function VotingClient({
             {others.map((s, i) => {
               const done = isComplete(s.id);
               const isActive = i === activeIndex;
-              const partial =
-                !done &&
-                (getSkill(s.id, "mechanics") != null ||
-                  getSkill(s.id, "macro") != null ||
-                  getVibe(s.id) != null);
+              const partial = !done && (getScore(s.id) != null || getVibe(s.id) != null);
               return (
                 <li key={s.id} className="shrink-0 lg:w-full">
                   <button
@@ -291,50 +267,60 @@ export function VotingClient({
             </div>
           </div>
 
-          {SKILL_CRITERIA.map((c) => {
-            const current = getSkill(active.id, c);
-            return (
-              <div key={c} className="border-t border-[var(--border-soft)] py-4 first:border-t-0 first:pt-0">
-                <p className="text-[15px] font-semibold text-[var(--text)]">{RATING_CRITERIA[c]}</p>
-                <p className="mb-3 text-[13px] text-[var(--text-3)]">{RATING_CRITERIA_HINTS[c]}</p>
-                <div className="grid grid-cols-5 gap-1.5 min-[720px]:grid-cols-10">
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => {
-                    const sel = current === v;
-                    const on = current != null && v < current;
-                    return (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setSkill(active.id, c, v)}
-                        className={`h-[46px] min-w-0 rounded-[var(--radius-control)] border font-mono-num text-sm font-bold transition-colors min-[720px]:h-11 ${
-                          sel
-                            ? "border-[var(--points)] bg-[var(--points)] text-white"
-                            : on
-                              ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]"
-                              : "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)] hover:bg-[var(--border-soft)]"
-                        }`}
-                      >
-                        {v}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          <div className="border-t border-[var(--border-soft)] py-4 first:border-t-0 first:pt-0">
+            <p className="text-[15px] font-semibold text-[var(--text)]">Оценка силы (0–100)</p>
+            <p className="mb-3 text-[13px] text-[var(--text-3)]">{RATING_CRITERIA_HINTS.score}</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={currentScore}
+                onChange={(e) => setScore(active.id, Number(e.target.value))}
+                className="h-2 w-full accent-[var(--points)]"
+              />
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={currentScore}
+                onChange={(e) => {
+                  const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                  setScore(active.id, v);
+                }}
+                className="w-16 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] px-2 py-2 text-center font-mono-num text-sm font-bold"
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[0, 25, 50, 75, 100].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setScore(active.id, v)}
+                  className={`rounded-[var(--radius-control)] border px-3 py-1.5 font-mono-num text-xs font-bold ${
+                    currentScore === v
+                      ? "border-[var(--points)] bg-[var(--points)] text-white"
+                      : "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)]"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="border-t border-[var(--border-soft)] py-4">
-            <p className="text-[15px] font-semibold text-[var(--text)]">Вайб</p>
-            <p className="mb-3 text-[13px] text-[var(--text-3)]">Как с ним играть в команде</p>
-            <div className="grid grid-cols-3 gap-2">
-              {VIBE_OPTIONS.map((opt) => {
+            <p className="text-[15px] font-semibold text-[var(--text)]">Тильт</p>
+            <p className="mb-3 text-[13px] text-[var(--text-3)]">
+              Подвержен ли игрок тильту в играх
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {TILT_OPTIONS.map((opt) => {
                 const sel = getVibe(active.id) === opt;
-                const short =
-                  opt === "LIKE" ? "Нравится" : opt === "NEUTRAL" ? "Нейтр." : "Не нравится";
                 const selectedClass =
-                  opt === "LIKE"
+                  opt === "STABLE"
                     ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
-                    : opt === "NEUTRAL"
+                    : opt === "UNSURE"
                       ? "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)]"
                       : "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]";
                 return (
@@ -342,15 +328,13 @@ export function VotingClient({
                     key={opt}
                     type="button"
                     onClick={() => setVibe(active.id, opt)}
-                    className={`h-[46px] rounded-[var(--radius-control)] border text-sm font-semibold transition-colors min-[720px]:h-11 ${
+                    className={`min-h-[46px] rounded-[var(--radius-control)] border px-2 text-sm font-semibold transition-colors ${
                       sel
                         ? selectedClass
                         : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]"
                     }`}
-                    title={VIBE_LABELS[opt]}
                   >
-                    <span className="min-[720px]:hidden">{short}</span>
-                    <span className="hidden min-[720px]:inline">{VIBE_LABELS[opt]}</span>
+                    {VIBE_LABELS[opt]}
                   </button>
                 );
               })}

@@ -52,19 +52,25 @@ export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
 };
 
 export const RATING_CRITERIA = {
+  score: "Оценка силы",
   mechanics: "Механика",
   macro: "Макро",
 } as const;
 
 export const RATING_CRITERIA_HINTS = {
+  score: "Насколько силён игрок в целом (0–100). Учитывается вместе с оценкой тренера 50/50.",
   mechanics: "Контроль героя, ластхит, скиллшоты, комбо",
   macro: "Карта, тайминги, фарм, ротации, объекты",
 } as const;
 
 export const VIBE_LABELS = {
-  LIKE: "Нравится",
-  NEUTRAL: "Нейтрально",
-  DISLIKE: "Не нравится",
+  STABLE: "Не подвержен тильту",
+  UNSURE: "Затрудняюсь ответить",
+  TILT: "Подвержен тильту",
+  // legacy aliases for old UI remnants
+  LIKE: "Не подвержен тильту",
+  NEUTRAL: "Затрудняюсь ответить",
+  DISLIKE: "Подвержен тильту",
 } as const;
 
 // OpenDota rank medals
@@ -81,14 +87,14 @@ export const RANK_MEDALS: Record<number, string> = {
 
 /** Ориентир базы ★1 (полная таблица со звёздами — в rating.ts) */
 export const MEDAL_BASE_RATING: Record<number, number> = {
-  1: 5,
-  2: 10,
-  3: 17,
-  4: 26,
-  5: 31,
-  6: 42,
-  7: 55,
-  8: 75,
+  1: 1,
+  2: 6,
+  3: 12,
+  4: 21,
+  5: 28,
+  6: 37,
+  7: 46,
+  8: 50,
 };
 
 export function decodeRankTier(rankTier?: number | null): {

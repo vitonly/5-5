@@ -21,12 +21,12 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dota 5x5 — Платформа обучения",
-  description: "Платформа для обучения Dota: домашки, рейтинги, 5v5",
+  title: "СТАРТ+ dota2 education",
+  description: "СТАРТ+ — платформа обучения Dota 2: домашки, рейтинги, 5v5. Сайт в разработке v1.01",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Dota 5x5",
+    title: "СТАРТ+",
   },
 };
 

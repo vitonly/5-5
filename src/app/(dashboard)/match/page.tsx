@@ -7,6 +7,7 @@ import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { PowerPill, PointsPill } from "@/components/StatPills";
 import { lineupForTeam, parseTeamAssignments, type LineupSlot } from "@/lib/match-lineup";
+import { MatchMvpClient } from "@/components/MatchMvpClient";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,27 @@ export default async function MatchPage() {
                   </div>
                   <Badge>{MATCH_STATUS_LABELS[session.status]}</Badge>
                 </div>
+
+                {(session.status === "IN_PROGRESS" ||
+                  session.status === "LINEUPS_CONFIRMED" ||
+                  session.status === "COMPLETED") &&
+                  (radiant.includes(user.id) || dire.includes(user.id)) && (
+                    <div className="border-b border-[var(--border-soft)] px-5 py-3">
+                      <MatchMvpClient
+                        sessionId={session.id}
+                        nominees={[...radiant, ...dire]
+                          .filter((id) => id !== user.id)
+                          .map((id) => userMap[id])
+                          .filter(Boolean)
+                          .map((u) => ({
+                            id: u.id,
+                            firstName: u.firstName,
+                            lastName: u.lastName,
+                            username: u.username,
+                          }))}
+                      />
+                    </div>
+                  )}
 
                 {(radiant.length > 0 || dire.length > 0) && (
                   <div className="grid gap-0 md:grid-cols-[1fr_auto_1fr]">

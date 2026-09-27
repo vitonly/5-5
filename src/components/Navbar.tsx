@@ -13,6 +13,7 @@ const studentLinks = [
   { href: "/materials", label: "Материалы" },
   { href: "/match", label: "5x5" },
   { href: "/match/vote", label: "Голосование" },
+  { href: "/rules", label: "Rule book" },
   { href: "/stats", label: "Статистика" },
 ];
 
@@ -135,8 +136,25 @@ export async function Navbar() {
           </div>
         )}
         <div className="page-shell flex items-center justify-between gap-3 py-2.5 min-[720px]:py-3">
-          <Link href={isAdmin ? "/admin" : "/"} className="font-display text-lg font-bold text-[var(--points)]">
-            Dota 5x5
+          <Link
+            href={isAdmin ? "/admin" : "/"}
+            className="flex min-w-0 items-center gap-2.5"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/start-plus.png"
+              alt="СТАРТ+"
+              className="h-9 w-9 shrink-0 object-contain min-[720px]:h-10 min-[720px]:w-10"
+            />
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate font-display text-[15px] font-bold text-[var(--points)] min-[720px]:text-lg">
+                СТАРТ+{" "}
+                <span className="font-medium text-[var(--text-2)]">dota2 education</span>
+              </span>
+              <span className="block truncate text-[10px] font-medium text-[var(--text-4)] min-[720px]:text-[11px]">
+                сайт в разработке v1.01
+              </span>
+            </span>
           </Link>
 
           {/* desktop nav */}
@@ -198,6 +216,12 @@ export async function Navbar() {
               {pendingVotes > 0 && (
                 <span className="ml-1 font-mono-num text-[var(--danger)]">{pendingVotes}</span>
               )}
+            </Link>
+            <Link
+              href="/rules"
+              className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
+            >
+              Rule book
             </Link>
             <Link
               href="/stats"

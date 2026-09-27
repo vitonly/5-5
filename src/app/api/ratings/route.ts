@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { finalizeSeason, refreshPlayerStrength } from "@/lib/seasons";
+import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase } from "@/lib/seasons";
 import { parseAppDateTime } from "@/lib/utils";
 import type { SeasonName, VibeValue } from "@prisma/client";
 
-function clampScore(n: unknown): number | null {
+function clampScore100(n: unknown): number | null {
   const v = Number(n);
   if (!Number.isFinite(v)) return null;
   const i = Math.round(v);
-  if (i < 1 || i > 10) return null;
+  if (i < 0 || i > 100) return null;
   return i;
 }
 
-const VIBE_VALUES = new Set(["LIKE", "NEUTRAL", "DISLIKE"]);
+const TILT_VALUES = new Set(["STABLE", "UNSURE", "TILT"]);
 
 export async function GET() {
   const user = await requireUser();
@@ -86,7 +86,13 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
-  const { seasonId, targetId, mechanics, macro, vibe, action, closesAt } = body;
+  const { seasonId, targetId, score, mechanics, macro, vibe, action, closesAt } = body;
+
+  if (action === "resetPower") {
+    await requireAdmin();
+    const n = await resetAllPowerToRankBase();
+    return NextResponse.json({ ok: true, reset: n });
+  }
 
   if (action === "close") {
     await requireAdmin();
@@ -150,10 +156,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Нельзя оценивать себя" }, { status: 400 });
   }
 
-  // Вайб-голос
+  // Тильт-голос
   if (vibe !== undefined) {
-    if (!VIBE_VALUES.has(vibe)) {
-      return NextResponse.json({ error: "Некорректный вайб" }, { status: 400 });
+    if (!TILT_VALUES.has(vibe)) {
+      return NextResponse.json({ error: "Некорректный тильт" }, { status: 400 });
     }
     const vote = await prisma.vibeVote.upsert({
       where: {
@@ -171,24 +177,32 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ vibeVote: vote });
   }
 
-  // Скилл: механика + макро
-  const mech = clampScore(mechanics);
-  const mac = clampScore(macro);
-  if (mech === null || mac === null) {
-    return NextResponse.json({ error: "Оценки должны быть от 1 до 10" }, { status: 400 });
+  // Оценка силы 0–100 (или legacy mechanics+macro → score)
+  let skillScore = clampScore100(score);
+  if (skillScore === null && mechanics != null && macro != null) {
+    const mech = Number(mechanics);
+    const mac = Number(macro);
+    if (Number.isFinite(mech) && Number.isFinite(mac)) {
+      skillScore = Math.round((((mech + mac) / 2 - 1) / 9) * 100);
+      skillScore = Math.max(0, Math.min(100, skillScore));
+    }
+  }
+  if (skillScore === null) {
+    return NextResponse.json({ error: "Оценка должна быть от 0 до 100" }, { status: 400 });
   }
 
   const rating = await prisma.peerRating.upsert({
     where: {
       seasonId_raterId_targetId: { seasonId, raterId: user.id, targetId },
     },
-    update: { mechanics: mech, macro: mac, teamplay: 5 },
+    update: { score: skillScore, mechanics: 5, macro: 5, teamplay: 5 },
     create: {
       seasonId,
       raterId: user.id,
       targetId,
-      mechanics: mech,
-      macro: mac,
+      score: skillScore,
+      mechanics: 5,
+      macro: 5,
       teamplay: 5,
     },
   });

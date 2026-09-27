@@ -69,8 +69,8 @@ export default async function ProfilePage() {
               <PowerPill value={profile.finalRating} />
               <span className="text-sm text-[var(--text-2)]">
                 SkillMod {profile.skillMod >= 0 ? "+" : ""}
-                {profile.skillMod} · VibeMod {profile.vibeMod >= 0 ? "+" : ""}
-                {Number(profile.vibeMod).toFixed(1)}
+                {profile.skillMod} · TiltMod {profile.vibeMod >= 0 ? "+" : ""}
+                {Math.round(Number(profile.vibeMod))}
               </span>
             </div>
             <p className="mt-3 text-[12px] text-[var(--text-3)]">

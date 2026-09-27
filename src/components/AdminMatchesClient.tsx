@@ -195,6 +195,36 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
+  async function generateGame2(sessionId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/matches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, action: "generateGame2" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Ошибка");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function sendMvpInvites(sessionId: string) {
+    const res = await fetch("/api/matches/mvp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, action: "sendInvites" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) alert(data.error || "Ошибка");
+    else alert("Опросы MVP отправлены в TG");
+  }
+
   async function confirmLineups(sessionId: string) {
     if (
       !confirm(
@@ -653,16 +683,44 @@ export function AdminMatchesClient({
                   <Button onClick={() => confirmLineups(session.id)}>
                     Утвердить составы
                   </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => generateGame2(session.id)}
+                  >
+                    Собрать состав на 2-ю игру
+                  </Button>
                   <Button variant="outline" onClick={() => completeSession(session.id)}>
                     Отменить / завершить без игр
                   </Button>
                 </div>
               )}
 
+              {(session.status === "LINEUPS_CONFIRMED" ||
+                session.status === "IN_PROGRESS" ||
+                session.status === "TEAMS_SET") &&
+                (session as { teamAssignmentsGame2?: string }).teamAssignmentsGame2 &&
+                (session as { teamAssignmentsGame2?: string }).teamAssignmentsGame2 !==
+                  "{}" && (
+                  <p className="text-xs text-[var(--success)]">
+                    Состав на 2-ю игру готов (минимальный свап команд).
+                  </p>
+                )}
+
               {session.status === "LINEUPS_CONFIRMED" && !isEditing && (
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => startSession(session.id)}>
                     Старт сессии (все за ПК)
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => generateGame2(session.id)}
+                  >
+                    Собрать состав на 2-ю игру
+                  </Button>
+                  <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
+                    MVP: опрос в TG
                   </Button>
                   <Button variant="outline" onClick={() => completeSession(session.id)}>
                     Отменить / завершить без игр
@@ -694,6 +752,16 @@ export function AdminMatchesClient({
                     }
                   >
                     Ничья (игра {session.games.length + 1})
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => generateGame2(session.id)}
+                  >
+                    Состав на 2-ю игру
+                  </Button>
+                  <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
+                    MVP: опрос в TG
                   </Button>
                   <Button variant="outline" onClick={() => completeSession(session.id)}>
                     Завершить сессию

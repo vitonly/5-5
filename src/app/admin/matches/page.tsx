@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/db";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
+import { recalculateStreakWinPoints } from "@/lib/points";
 
 export default async function AdminMatchesPage() {
+  await recalculateStreakWinPoints().catch(() => 0);
+
   const [sessions, students] = await Promise.all([
     prisma.matchSession.findMany({
       include: {
@@ -10,6 +13,7 @@ export default async function AdminMatchesPage() {
           include: { user: true },
           orderBy: [{ status: "asc" }, { respondedAt: "asc" }],
         },
+        mvpVotes: true,
       },
       orderBy: { date: "desc" },
     }),

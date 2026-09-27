@@ -282,13 +282,21 @@ export function AdminHomeworkClient({
     if (res.ok) router.refresh();
   }
 
-  async function remind(assignmentId: string) {
+  async function remind(assignmentId: string, testToAdmin = false) {
     const res = await fetch("/api/homework/remind", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignmentId }),
+      body: JSON.stringify({ assignmentId, testToAdmin }),
     });
     const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Ошибка");
+      return;
+    }
+    if (testToAdmin) {
+      alert("Тест отправлен вам в Telegram");
+      return;
+    }
     alert(
       data.delivered
         ? "Напоминание отправлено в Telegram!"
@@ -523,14 +531,24 @@ export function AdminHomeworkClient({
                             {HOMEWORK_STATUS_LABELS[a.status]}
                           </Badge>
                           {a.status !== "GRADED" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => remind(a.id)}
-                            >
-                              Напомнить
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => remind(a.id)}
+                              >
+                                Напомнить
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => remind(a.id, true)}
+                              >
+                                Тест мне
+                              </Button>
+                            </>
                           )}
                         </div>
 

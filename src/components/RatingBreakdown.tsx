@@ -5,12 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlayerLink } from "@/components/PlayerLink";
 import {
   computeBaseRating,
-  calculateSkillMod,
-  calculateVibeMod,
   getRankBaseTable,
   type VibeValue,
 } from "@/lib/rating";
-import { rankLabel, RATING_CRITERIA, MEDAL_BASE_RATING, RANK_MEDALS, VIBE_LABELS } from "@/lib/labels";
+import { rankLabel, MEDAL_BASE_RATING, RANK_MEDALS, VIBE_LABELS } from "@/lib/labels";
 import { PowerPill } from "@/components/StatPills";
 
 interface ReceivedRating {
@@ -20,8 +18,9 @@ interface ReceivedRating {
     lastName?: string | null;
     username?: string | null;
   };
-  mechanics: number;
-  macro: number;
+  score?: number;
+  mechanics?: number;
+  macro?: number;
 }
 
 interface ReceivedVibe {
@@ -62,15 +61,12 @@ export function RatingBreakdown({
 }) {
   const [open, setOpen] = useState(false);
   const rankBase = computeBaseRating(profile);
-  const mechScores = received.map((r) => r.mechanics);
-  const macroScores = received.map((r) => r.macro);
-  const skillMod = profile.skillMod ?? calculateSkillMod(mechScores, macroScores);
-  const vibeMod = profile.vibeMod ?? calculateVibeMod(vibes.map((v) => v.value));
+  const skillMod = profile.skillMod ?? 0;
+  const vibeMod = Math.round(profile.vibeMod ?? 0);
   const table = getRankBaseTable();
 
-  // Полосы 0–100 для визуализации вкладов (ранг/75*100, skill/20*100, vibe mapped)
-  const rankBar = Math.min(100, (rankBase / 75) * 100);
-  const skillBar = Math.min(100, (skillMod / 20) * 100);
+  const rankBar = Math.min(100, (rankBase / 50) * 100);
+  const skillBar = Math.min(100, (skillMod / 30) * 100);
   const vibeBar = Math.min(100, ((vibeMod + 5) / 10) * 100);
 
   return (
@@ -96,7 +92,7 @@ export function RatingBreakdown({
       {open && (
         <CardContent className="space-y-4 border-t border-[var(--border-soft)] pt-4 text-sm">
           <p className="text-[13px] text-[var(--text-3)]">
-            Виден только тебе и тренеру. Итог = РангБаза + SkillMod + VibeMod.
+            Виден только тебе и тренеру. Итог = РангБаза (1–50) + SkillMod (0…+30) + TiltMod (−5…+5).
             {seasonLabel && (
               <>
                 {" "}
@@ -124,7 +120,7 @@ export function RatingBreakdown({
             <Bar label="Ранг доты" value={rankBase} bar={rankBar} />
             <Bar label="Скилл" value={`+${skillMod}`} bar={skillBar} />
             <Bar
-              label="Вайб"
+              label="Тильт"
               value={vibeMod > 0 ? `+${vibeMod}` : String(vibeMod)}
               bar={vibeBar}
             />
@@ -166,7 +162,9 @@ export function RatingBreakdown({
                   >
                     <PlayerLink user={r.rater} viewer={viewer} />
                     <span className="font-mono-num text-xs text-[var(--text-3)]">
-                      {RATING_CRITERIA.mechanics} {r.mechanics} · {RATING_CRITERIA.macro} {r.macro}
+                      {typeof r.score === "number"
+                        ? `оценка ${r.score}/100`
+                        : `мех ${r.mechanics ?? "—"} · макро ${r.macro ?? "—"}`}
                     </span>
                   </div>
                 ))}
@@ -186,7 +184,9 @@ export function RatingBreakdown({
                     className="flex items-center justify-between rounded-[var(--radius-control)] bg-[var(--control)] px-3 py-2"
                   >
                     <PlayerLink user={v.voter} viewer={viewer} />
-                    <span className="text-xs text-[var(--text-2)]">{VIBE_LABELS[v.value]}</span>
+                    <span className="text-xs text-[var(--text-2)]">
+                      {VIBE_LABELS[v.value as keyof typeof VIBE_LABELS] ?? v.value}
+                    </span>
                   </div>
                 ))}
               </div>

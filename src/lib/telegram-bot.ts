@@ -1,8 +1,18 @@
 import { prisma } from "@/lib/db";
 import { isAdminTelegramId } from "@/lib/session";
-import { sendTelegramMessage } from "@/lib/telegram";
+import {
+  answerCallbackQuery,
+  sendTelegramMessage,
+  type ReplyKeyboard,
+} from "@/lib/telegram";
 import { upsertTelegramUser } from "@/lib/telegram-auth";
 import { handleMatchSignupCallback } from "@/lib/match-signup";
+import { castMvpVote } from "@/lib/match-mvp";
+import { getVotingSeason } from "@/lib/seasons";
+import { displayName, formatDate, parseJsonArray } from "@/lib/utils";
+import { formatPoints } from "@/lib/points";
+import { rankLabel } from "@/lib/labels";
+import { parseTeamAssignments } from "@/lib/match-lineup";
 
 type TelegramUserMsg = {
   id: number;
@@ -33,6 +43,21 @@ export type TelegramUpdate = {
   message?: TelegramMessage;
   callback_query?: TelegramCallbackQuery;
 };
+
+const MAIN_KEYBOARD: ReplyKeyboard = {
+  resize_keyboard: true,
+  keyboard: [
+    [{ text: "Мой профиль" }, { text: "Очки" }],
+    [{ text: "Команды 5x5" }, { text: "Голосование" }],
+  ],
+};
+
+async function findUserByTelegram(from: TelegramUserMsg) {
+  return prisma.user.findUnique({
+    where: { telegramId: String(from.id) },
+    include: { profile: true },
+  });
+}
 
 async function linkByTelegramId(from: TelegramUserMsg, chatId: string) {
   const telegramId = String(from.id);
@@ -119,10 +144,137 @@ async function completeWebLogin(token: string, from: TelegramUserMsg, chatId: st
   return true;
 }
 
+async function replyLiveMenu(chatId: string, from: TelegramUserMsg, text: string) {
+  const user = await findUserByTelegram(from);
+  if (!user) {
+    await sendTelegramMessage(
+      chatId,
+      "Сначала привяжите Telegram в профиле на сайте или /start.",
+      MAIN_KEYBOARD
+    );
+    return;
+  }
+
+  if (text === "Мой профиль") {
+    const p = user.profile;
+    await sendTelegramMessage(
+      chatId,
+      `👤 <b>${displayName(user)}</b>\n\nРанг: ${rankLabel(p?.rankTier) ?? "—"}\nСила: <b>${p?.finalRating ?? "—"}</b>\nSkillMod: +${p?.skillMod ?? 0}\nTiltMod: ${p?.vibeMod ?? 0}\nРоль: ${p?.primaryRole ?? "—"}`,
+      MAIN_KEYBOARD
+    );
+    return;
+  }
+
+  if (text === "Очки") {
+    await sendTelegramMessage(
+      chatId,
+      `🏅 Очки платформы: <b>${formatPoints(user.profile?.totalPoints ?? 0)}</b>\nПобеды/поражения: ${user.profile?.wins ?? 0}/${user.profile?.losses ?? 0}`,
+      MAIN_KEYBOARD
+    );
+    return;
+  }
+
+  if (text === "Команды 5x5") {
+    const session = await prisma.matchSession.findFirst({
+      where: {
+        status: { in: ["TEAMS_SET", "LINEUPS_CONFIRMED", "IN_PROGRESS"] },
+      },
+      orderBy: { date: "desc" },
+    });
+    if (!session) {
+      await sendTelegramMessage(chatId, "Сейчас нет активной сессии 5v5.", MAIN_KEYBOARD);
+      return;
+    }
+    const assignments = parseTeamAssignments(session.teamAssignments);
+    const me = assignments[user.id];
+    const radiant = Object.entries(assignments)
+      .filter(([, a]) => a.team === "RADIANT")
+      .sort((a, b) => a[1].position - b[1].position);
+    const dire = Object.entries(assignments)
+      .filter(([, a]) => a.team === "DIRE")
+      .sort((a, b) => a[1].position - b[1].position);
+    const users = await prisma.user.findMany({
+      where: { id: { in: [...radiant, ...dire].map(([id]) => id) } },
+    });
+    const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+    const line = (rows: [string, { position: number }][]) =>
+      rows.map(([id, a]) => `  ${a.position}: ${displayName(byId[id])}`).join("\n");
+    await sendTelegramMessage(
+      chatId,
+      `⚔️ <b>5v5</b> ${formatDate(session.date)}\nСтатус: ${session.status}\n${
+        me ? `Вы: ${me.team}, слот ${me.position}\n\n` : "\n"
+      }<b>Radiant</b>\n${line(radiant)}\n\n<b>Dire</b>\n${line(dire)}`,
+      MAIN_KEYBOARD
+    );
+    return;
+  }
+
+  if (text === "Голосование") {
+    const season = await getVotingSeason();
+    if (!season || season.status !== "OPEN") {
+      await sendTelegramMessage(chatId, "Сезон голосования сейчас закрыт.", MAIN_KEYBOARD);
+      return;
+    }
+    const students = await prisma.user.findMany({
+      where: { role: "STUDENT", id: { not: user.id } },
+      select: { id: true },
+    });
+    const [skills, vibes] = await Promise.all([
+      prisma.peerRating.count({
+        where: { seasonId: season.id, raterId: user.id },
+      }),
+      prisma.vibeVote.count({
+        where: { seasonId: season.id, voterId: user.id },
+      }),
+    ]);
+    const total = students.length;
+    await sendTelegramMessage(
+      chatId,
+      `🗳 Голосование (live)\n\nОценили силу: <b>${skills}/${total}</b>\nТильт: <b>${vibes}/${total}</b>\n\nОткройте сайт → Голосование.`,
+      MAIN_KEYBOARD
+    );
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    "Выберите кнопку меню ниже.",
+    MAIN_KEYBOARD
+  );
+}
+
 export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void> {
   const cq = update.callback_query;
   if (cq?.data && cq.from) {
     const chatId = String(cq.message?.chat.id ?? cq.from.id);
+
+    if (cq.data.startsWith("mvp:")) {
+      const parts = cq.data.split(":");
+      const sessionId = parts[1];
+      const nomineeId = parts[2];
+      const voter = await findUserByTelegram(cq.from);
+      if (!voter) {
+        await answerCallbackQuery(cq.id, "Сначала привяжите Telegram", true);
+        return;
+      }
+      try {
+        await castMvpVote({
+          sessionId,
+          voterId: voter.id,
+          nomineeId,
+        });
+        await answerCallbackQuery(cq.id, "Голос за MVP принят");
+        await sendTelegramMessage(chatId, "✅ Голос за MVP учтён. Спасибо!");
+      } catch (e) {
+        await answerCallbackQuery(
+          cq.id,
+          e instanceof Error ? e.message : "Ошибка",
+          true
+        );
+      }
+      return;
+    }
+
     await handleMatchSignupCallback({
       callbackQueryId: cq.id,
       data: cq.data,
@@ -138,7 +290,22 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   const chatId = String(message.chat.id);
   const text = message.text.trim();
 
-  if (!text.startsWith("/start")) return;
+  if (
+    text === "Мой профиль" ||
+    text === "Очки" ||
+    text === "Команды 5x5" ||
+    text === "Голосование"
+  ) {
+    await replyLiveMenu(chatId, message.from, text);
+    return;
+  }
+
+  if (!text.startsWith("/start") && !text.startsWith("/menu")) return;
+
+  if (text.startsWith("/menu")) {
+    await sendTelegramMessage(chatId, "Меню СТАРТ+:", MAIN_KEYBOARD);
+    return;
+  }
 
   const param = text.split(/\s+/)[1];
 
@@ -148,7 +315,8 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
     if (ok) {
       await sendTelegramMessage(
         chatId,
-        "✅ Вход подтверждён! Вернитесь на сайт — страница обновится сама."
+        "✅ Вход подтверждён! Вернитесь на сайт — страница обновится сама.",
+        MAIN_KEYBOARD
       );
     } else {
       await sendTelegramMessage(
@@ -174,7 +342,8 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
     if (result) {
       await sendTelegramMessage(
         chatId,
-        "✅ Telegram привязан! Теперь вы будете получать уведомления о домашках и сообщениях."
+        "✅ Telegram привязан! Меню ниже — профиль, очки, 5x5.",
+        MAIN_KEYBOARD
       );
       return;
     }
@@ -190,7 +359,8 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   if (linkedId) {
     await sendTelegramMessage(
       chatId,
-      "✅ Бот подключён! Вы будете получать уведомления о домашках и сообщениях."
+      "✅ Бот подключён! Кнопки меню ниже.",
+      MAIN_KEYBOARD
     );
     return;
   }

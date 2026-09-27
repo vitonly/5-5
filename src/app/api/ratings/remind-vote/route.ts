@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
+import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 
 function missingTargets(
   voterId: string,
@@ -21,12 +22,13 @@ function missingTargets(
 }
 
 export async function POST(request: NextRequest) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const body = await request.json().catch(() => ({}));
-  const { seasonId, voterId, allIncomplete } = body as {
+  const { seasonId, voterId, allIncomplete, testToAdmin } = body as {
     seasonId?: string;
     voterId?: string;
     allIncomplete?: boolean;
+    testToAdmin?: boolean;
   };
 
   if (!seasonId) {
@@ -62,6 +64,33 @@ export async function POST(request: NextRequest) {
     ? incompleteVoters
     : incompleteVoters.filter((s) => s.id === voterId);
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
+  const voteUrl = appUrl ? `${appUrl}/match/vote` : "/match/vote";
+
+  const sampleMissing = targets[0]
+    ? missingTargets(targets[0].id, studentIds, season.peerRatings, season.vibeVotes).length
+    : 1;
+
+  const sampleText = `📢 <b>Напоминание о голосовании</b>
+
+У вас не оценено одноклассников: <b>${sampleMissing}</b> из ${Math.max(studentIds.length - 1, 0)}.
+
+Нужно выставить оценку силы (0–100) и тильт каждому.
+
+Откройте: <a href="${voteUrl}">${voteUrl}</a>`;
+
+  if (testToAdmin) {
+    try {
+      await sendTelegramTestToAdmin(admin.id, sampleText);
+      return NextResponse.json({ success: true, test: true });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Ошибка теста" },
+        { status: 400 }
+      );
+    }
+  }
+
   if (!targets.length) {
     return NextResponse.json(
       {
@@ -72,9 +101,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
-  const voteUrl = appUrl ? `${appUrl}/match/vote` : "/match/vote";
 
   let sent = 0;
   let skipped = 0;
@@ -98,7 +124,7 @@ export async function POST(request: NextRequest) {
 
 У вас не оценено одноклассников: <b>${missing.length}</b> из ${studentIds.length - 1}.
 
-Нужно выставить скилл (механика + макро) и вайб каждому.
+Нужно выставить оценку силы (0–100) и тильт каждому.
 
 Откройте: <a href="${voteUrl}">${voteUrl}</a>`;
 

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { hasIncompleteRoles } from "@/lib/secondary-roles";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
+import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 
 const REMIND_TEXT = `⚠️ <b>Заполните роли в профиле</b>
 
@@ -12,12 +13,25 @@ const REMIND_TEXT = `⚠️ <b>Заполните роли в профиле</b>
 Откройте сайт → Профиль → выберите роли и сохраните.`;
 
 export async function POST(request: NextRequest) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const body = await request.json().catch(() => ({}));
-  const { userId, allIncomplete } = body as {
+  const { userId, allIncomplete, testToAdmin } = body as {
     userId?: string;
     allIncomplete?: boolean;
+    testToAdmin?: boolean;
   };
+
+  if (testToAdmin) {
+    try {
+      await sendTelegramTestToAdmin(admin.id, REMIND_TEXT);
+      return NextResponse.json({ success: true, test: true });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Ошибка теста" },
+        { status: 400 }
+      );
+    }
+  }
 
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },

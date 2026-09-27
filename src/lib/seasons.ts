@@ -3,7 +3,7 @@ import {
   calculateFinalRating,
   computeStrengthFromVotes,
   rankTierToBase,
-  type VibeValue,
+  type TiltValue,
 } from "@/lib/rating";
 
 /**
@@ -32,7 +32,7 @@ export async function getVotingSeason() {
   });
 }
 
-/** Пересчитать силу игрока по оценкам сезона (или только база, если оценок нет) */
+/** Пересчитать силу игрока по оценкам сезона */
 export async function refreshPlayerStrength(userId: string, seasonId?: string | null) {
   const profile = await prisma.playerProfile.findUnique({ where: { userId } });
   if (!profile) return null;
@@ -43,32 +43,60 @@ export async function refreshPlayerStrength(userId: string, seasonId?: string | 
     sid = season?.id;
   }
 
-  let mechanicsScores: number[] = [];
-  let macroScores: number[] = [];
-  let vibeVotes: VibeValue[] = [];
+  let peerScores: number[] = [];
+  let trainerScore: number | null = null;
+  let peerTilts: TiltValue[] = [];
+  let trainerTilt: TiltValue | null = null;
 
   if (sid) {
-    const [peer, vibes] = await Promise.all([
-      prisma.peerRating.findMany({ where: { seasonId: sid, targetId: userId } }),
-      prisma.vibeVote.findMany({ where: { seasonId: sid, targetId: userId } }),
+    const [peer, vibes, raters] = await Promise.all([
+      prisma.peerRating.findMany({
+        where: { seasonId: sid, targetId: userId },
+        include: { rater: { select: { id: true, role: true } } },
+      }),
+      prisma.vibeVote.findMany({
+        where: { seasonId: sid, targetId: userId },
+        include: { voter: { select: { id: true, role: true } } },
+      }),
+      prisma.user.findMany({
+        where: { role: "ADMIN" },
+        select: { id: true },
+      }),
     ]);
-    mechanicsScores = peer.map((r) => r.mechanics);
-    macroScores = peer.map((r) => r.macro);
-    vibeVotes = vibes.map((v) => v.value as VibeValue);
+    const adminIds = new Set(raters.map((a) => a.id));
+
+    for (const r of peer) {
+      const score = Math.max(0, Math.min(100, r.score ?? 50));
+      if (adminIds.has(r.raterId) || r.rater.role === "ADMIN") {
+        trainerScore = score;
+      } else {
+        peerScores.push(score);
+      }
+    }
+
+    for (const v of vibes) {
+      const val = v.value as TiltValue;
+      if (adminIds.has(v.voterId) || v.voter.role === "ADMIN") {
+        trainerTilt = val;
+      } else {
+        peerTilts.push(val);
+      }
+    }
   }
 
   const result = computeStrengthFromVotes({
     rankTier: profile.rankTier,
-    mechanicsScores,
-    macroScores,
-    vibeVotes,
+    trainerScore,
+    peerScores,
+    trainerTilt,
+    peerTilts,
   });
 
   return prisma.playerProfile.update({
     where: { userId },
     data: {
       skillMod: result.skillMod,
-      vibeMod: result.vibeMod,
+      vibeMod: result.tiltMod,
       finalRating: result.finalRating,
       seasonCoefficient: 1,
     },
@@ -85,8 +113,6 @@ export async function finalizeSeason(seasonId: string) {
     await refreshPlayerStrength(student.id, seasonId);
   }
 
-  // История очков остаётся в PointLog (привязка к seasonId).
-  // Текущий счётчик платформы обнуляем.
   await prisma.playerProfile.updateMany({
     data: { totalPoints: 0 },
   });
@@ -99,6 +125,34 @@ export async function finalizeSeason(seasonId: string) {
       isActive: false,
     },
   });
+}
+
+/** Сброс голосов и модов силы → только новая база ранга. */
+export async function resetAllPowerToRankBase() {
+  await prisma.$transaction([
+    prisma.peerRating.deleteMany({}),
+    prisma.vibeVote.deleteMany({}),
+  ]);
+
+  const profiles = await prisma.playerProfile.findMany({
+    select: { id: true, rankTier: true },
+  });
+
+  await prisma.$transaction(
+    profiles.map((p) => {
+      const base = rankTierToBase(p.rankTier);
+      return prisma.playerProfile.update({
+        where: { id: p.id },
+        data: {
+          skillMod: 0,
+          vibeMod: 0,
+          finalRating: calculateFinalRating(base, 0, 0),
+        },
+      });
+    })
+  );
+
+  return profiles.length;
 }
 
 /** После смены таблицы базы ранга — обновить finalRating у всех (skill/vibe моды без изменений). */

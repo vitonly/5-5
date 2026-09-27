@@ -164,3 +164,99 @@ export function balanceTeams(players: BalancePlayer[]): BalancedTeams {
     ...totals,
   };
 }
+
+type SideMap = Record<string, { team: "RADIANT" | "DIRE"; position: number }>;
+
+/**
+ * Состав на 2-ю игру: минимальный свап (2–4 игрока) между командами,
+ * по возможности на той же позиции, с близким балансом силы.
+ */
+export function reshuffleForSecondGame(
+  players: BalancePlayer[],
+  game1Assignments: SideMap
+): BalancedTeams {
+  if (players.length !== 10) {
+    throw new Error("Нужно 10 игроков");
+  }
+  const byId = Object.fromEntries(players.map((p) => [p.id, p]));
+
+  type Slot = { userId: string; position: number; rating: number };
+  const radiantSlots: Slot[] = [];
+  const direSlots: Slot[] = [];
+  for (const [userId, a] of Object.entries(game1Assignments)) {
+    const p = byId[userId];
+    if (!p) continue;
+    const slot = { userId, position: a.position, rating: p.finalRating };
+    if (a.team === "RADIANT") radiantSlots.push(slot);
+    else direSlots.push(slot);
+  }
+  if (radiantSlots.length !== 5 || direSlots.length !== 5) {
+    return balanceTeams(players);
+  }
+
+  const powerDiff = (r: Slot[], d: Slot[]) =>
+    Math.abs(
+      r.reduce((s, x) => s + x.rating, 0) - d.reduce((s, x) => s + x.rating, 0)
+    );
+
+  const baseDiff = powerDiff(radiantSlots, direSlots);
+  type Cand = { r: Slot[]; d: Slot[]; swapped: number; diff: number };
+  let best: Cand | null = null;
+
+  // Один свап на одной позиции (2 игрока)
+  for (const pos of [1, 2, 3, 4, 5]) {
+    const ri = radiantSlots.findIndex((s) => s.position === pos);
+    const di = direSlots.findIndex((s) => s.position === pos);
+    if (ri < 0 || di < 0) continue;
+    const r = radiantSlots.map((s) => ({ ...s }));
+    const d = direSlots.map((s) => ({ ...s }));
+    const tmp = r[ri];
+    r[ri] = { ...d[di], position: pos };
+    d[di] = { ...tmp, position: pos };
+    const cand: Cand = { r, d, swapped: 2, diff: powerDiff(r, d) };
+    if (
+      !best ||
+      cand.diff < best.diff ||
+      (cand.diff === best.diff && cand.swapped < best.swapped)
+    ) {
+      best = cand;
+    }
+  }
+
+  // Два свапа на разных позициях (4 игрока) — если один свап ухудшил баланс сильнее +8
+  if (!best || best.diff > baseDiff + 8) {
+    for (let p1 = 1; p1 <= 5; p1++) {
+      for (let p2 = p1 + 1; p2 <= 5; p2++) {
+        const r = radiantSlots.map((s) => ({ ...s }));
+        const d = direSlots.map((s) => ({ ...s }));
+        for (const pos of [p1, p2]) {
+          const ri = r.findIndex((s) => s.position === pos);
+          const di = d.findIndex((s) => s.position === pos);
+          if (ri < 0 || di < 0) continue;
+          const tmp = r[ri];
+          r[ri] = { ...d[di], position: pos };
+          d[di] = { ...tmp, position: pos };
+        }
+        const cand: Cand = { r, d, swapped: 4, diff: powerDiff(r, d) };
+        if (
+          !best ||
+          cand.diff < best.diff ||
+          (cand.diff === best.diff && cand.swapped < best.swapped)
+        ) {
+          best = cand;
+        }
+      }
+    }
+  }
+
+  if (!best) return balanceTeams(players);
+
+  const radiant = best.r
+    .map((s) => ({ ...byId[s.userId], position: s.position }))
+    .sort((a, b) => a.position - b.position);
+  const dire = best.d
+    .map((s) => ({ ...byId[s.userId], position: s.position }))
+    .sort((a, b) => a.position - b.position);
+  const totals = teamTotals(radiant, dire);
+  return { radiant, dire, ...totals };
+}

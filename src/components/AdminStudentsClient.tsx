@@ -115,7 +115,11 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
     router.refresh();
   }
 
-  async function remindRoles(opts: { userId?: string; allIncomplete?: boolean }) {
+  async function remindRoles(opts: {
+    userId?: string;
+    allIncomplete?: boolean;
+    testToAdmin?: boolean;
+  }) {
     setReminding(true);
     try {
       const res = await fetch("/api/students/remind-roles", {
@@ -126,6 +130,10 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        return;
+      }
+      if (opts.testToAdmin) {
+        alert("Тест отправлен вам в Telegram");
         return;
       }
       const failNote =
@@ -200,6 +208,15 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
               >
                 {reminding ? "Отправка…" : "Напомнить всем в TG"}
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={reminding}
+                onClick={() => remindRoles({ allIncomplete: true, testToAdmin: true })}
+              >
+                Тест мне
+              </Button>
             </div>
             <p className="text-sm text-[var(--text-3)]">
               Нет основной и/или дополнительных ролей. Можно отправить напоминание в Telegram.
@@ -239,6 +256,17 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                     }
                   >
                     Напомнить в TG
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={reminding}
+                    onClick={() =>
+                      remindRoles({ userId: s.id, testToAdmin: true })
+                    }
+                  >
+                    Тест
                   </Button>
                 </li>
               ))}
