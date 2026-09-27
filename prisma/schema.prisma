@@ -76,6 +76,10 @@ enum VibeValue {
   STABLE
   UNSURE
   TILT
+  /** legacy — старые голоса до миграции на тильт */
+  LIKE
+  NEUTRAL
+  DISLIKE
 }
 
 model User {
@@ -174,8 +178,8 @@ model PlayerProfile {
   rankTier          Int?
   seasonCoefficient Float     @default(1.0)
   skillMod          Int       @default(0)
-  /** TiltMod −5…+5 (целое) */
-  vibeMod           Int       @default(0)
+  /** TiltMod −5…+5 (в коде целое; в БД Float для совместимости) */
+  vibeMod           Float     @default(0)
   finalRating       Int       @default(25)
   primaryRole       DotaRole?
   secondaryRole     DotaRole?

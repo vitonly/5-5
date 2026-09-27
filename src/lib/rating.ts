@@ -94,9 +94,9 @@ export type TiltValue = "STABLE" | "UNSURE" | "TILT";
 /** @deprecated use TiltValue */
 export type VibeValue = TiltValue;
 
-export function tiltToUnit(v: TiltValue): number {
-  if (v === "STABLE") return 1;
-  if (v === "TILT") return -1;
+export function tiltToUnit(v: string): number {
+  if (v === "STABLE" || v === "LIKE") return 1;
+  if (v === "TILT" || v === "DISLIKE") return -1;
   return 0;
 }
 
