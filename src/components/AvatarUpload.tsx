@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 
@@ -76,9 +76,37 @@ export function AvatarUpload({
     setError(null);
   }
 
+  const openCropFromFile = useCallback((file: File) => {
+    setError(null);
+    const mime = file.type || guessMimeFromName(file.name);
+    setCropSourceMime(mime || "image/jpeg");
+    const url = URL.createObjectURL(file);
+    setCropSrc(url);
+  }, []);
+
+  async function handlePaste(e: React.ClipboardEvent) {
+    if (uploading || cropSrc) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (!item.type.startsWith("image/")) continue;
+      e.preventDefault();
+      const blob = item.getAsFile();
+      if (!blob) return;
+      const ext = item.type.split("/")[1] || "png";
+      openCropFromFile(new File([blob], `paste-${Date.now()}.${ext}`, { type: item.type }));
+      return;
+    }
+  }
+
   return (
     <>
-      <div className="mt-2 flex items-center gap-4">
+      <div
+        className="mt-2 flex items-center gap-4"
+        onPaste={handlePaste}
+        tabIndex={0}
+        title="Можно вставить фото из буфера (Ctrl+V)"
+      >
         {photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photoUrl} alt="Аватар" className={previewClassName} />
@@ -105,7 +133,9 @@ export function AvatarUpload({
           >
             {uploading ? "Загрузка..." : photoUrl ? "Сменить фото" : "Загрузить фото"}
           </Button>
-          <p className="text-xs text-[var(--text-3)]">PNG, JPG, WEBP, GIF и другие изображения</p>
+          <p className="text-xs text-[var(--text-3)]">
+            PNG, JPG, WEBP… или вставьте из буфера (Ctrl+V)
+          </p>
           {showDelete && photoUrl && (
             <Button
               type="button"

@@ -8,6 +8,7 @@ import { PointHistory } from "@/components/PointHistory";
 import { WeeklyPointsChart, MetricTile } from "@/components/WeeklyPointsChart";
 import { PointsPill } from "@/components/StatPills";
 import { MatchHistory, buildMatchHistoryEntries } from "@/components/MatchHistory";
+import { ProgressClient } from "@/components/ProgressClient";
 import { DOTA_ROLE_LABELS, SEASON_LABELS, rankLabel } from "@/lib/labels";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { displayName } from "@/lib/utils";
@@ -203,6 +204,15 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
           givenVibe={givenVibe}
           expectedVotes={expectedVotes}
         />
+      )}
+
+      {(isOwnProfile || viewer?.role === "ADMIN") && user.role === "STUDENT" && (
+        <div className="space-y-3">
+          <h2 className="font-display text-xl font-bold text-[var(--text)]">
+            {isOwnProfile ? "Мой прогресс" : "Дневник прогресса"}
+          </h2>
+          <ProgressClient userId={user.id} readOnly={!isOwnProfile} />
+        </div>
       )}
 
       <MatchHistory

@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { displayName } from "@/lib/utils";
-import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
+import {
+  notifyChatId,
+  sendTelegramInviteDetailed,
+  sendTelegramMessage,
+} from "@/lib/telegram";
 
 async function getCoach() {
   const ids = (process.env.ADMIN_TELEGRAM_IDS || "")
@@ -24,7 +28,6 @@ async function resolvePeer(meRole: string, peerId?: string | null) {
     if (!peerId) return null;
     return prisma.user.findUnique({ where: { id: peerId } });
   }
-  // Student: peer is always the coach (configured admin)
   return getCoach();
 }
 
@@ -60,9 +63,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const me = await requireUser();
-  const { recipientId, body } = await request.json();
+  const { recipientId, body, imageUrl } = await request.json();
 
-  if (!body?.trim()) {
+  const text = typeof body === "string" ? body.trim() : "";
+  const image = typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null;
+
+  if (!text && !image) {
     return NextResponse.json({ error: "Пустое сообщение" }, { status: 400 });
   }
 
@@ -72,13 +78,26 @@ export async function POST(request: NextRequest) {
   }
 
   const message = await prisma.message.create({
-    data: { senderId: me.id, recipientId: peer.id, body: body.trim() },
+    data: {
+      senderId: me.id,
+      recipientId: peer.id,
+      body: text || (image ? "📷 Фото" : ""),
+      imageUrl: image,
+    },
   });
 
-  await sendTelegramMessage(
-    notifyChatId(peer),
-    `💬 <b>Новое сообщение от ${displayName(me)}</b>\n\n${body.trim()}\n\nОтветить можно на сайте.`
-  );
+  const notifyText = `💬 <b>Новое сообщение от ${displayName(me)}</b>\n\n${
+    text || "📷 Фото"
+  }\n\nОтветить можно на сайте.`;
+
+  if (image) {
+    const sent = await sendTelegramInviteDetailed(notifyChatId(peer), notifyText, undefined, image);
+    if (!sent.ok) {
+      await sendTelegramMessage(notifyChatId(peer), `${notifyText}\n${image}`);
+    }
+  } else {
+    await sendTelegramMessage(notifyChatId(peer), notifyText);
+  }
 
   return NextResponse.json({ message });
 }

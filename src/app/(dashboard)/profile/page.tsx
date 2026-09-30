@@ -4,6 +4,7 @@ import { ProfileForm } from "@/components/ProfileForm";
 import { RatingBreakdown } from "@/components/RatingBreakdown";
 import { PointHistory } from "@/components/PointHistory";
 import { SchoolPointsTile } from "@/components/SchoolPointsTile";
+import { ProgressClient } from "@/components/ProgressClient";
 import { TelegramConnect } from "@/components/TelegramConnect";
 import { PowerPill } from "@/components/StatPills";
 import { ensureTelegramLinkToken, isTelegramLinked } from "@/lib/telegram-links";
@@ -79,6 +80,15 @@ export default async function ProfilePage() {
           </div>
 
           <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
+
+          {user.role === "STUDENT" && (
+            <div className="space-y-2">
+              <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                Прогресс
+              </p>
+              <ProgressClient compact />
+            </div>
+          )}
 
           {vibes.length > 0 && (
             <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">

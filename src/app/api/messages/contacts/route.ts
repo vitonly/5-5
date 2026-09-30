@@ -38,7 +38,11 @@ export async function GET() {
         id: student.id,
         name: displayName(student),
         photoUrl: student.photoUrl,
-        lastMessage: lastMessage?.body ?? null,
+        lastMessage: lastMessage
+          ? lastMessage.imageUrl && (!lastMessage.body || lastMessage.body === "📷 Фото")
+            ? "📷 Фото"
+            : lastMessage.body
+          : null,
         lastAt: lastMessage?.createdAt ?? null,
         unread,
       };

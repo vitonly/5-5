@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,7 @@ import { HomeworkMaterials } from "@/components/HomeworkMaterials";
 import { HOMEWORK_STATUS_LABELS } from "@/lib/labels";
 import { POINT_VALUES, formatPoints } from "@/lib/points";
 import { formatDate, parseJsonArray } from "@/lib/utils";
+import { usePasteImage } from "@/lib/use-paste-image";
 import type { Homework, HomeworkAssignment, HomeworkSubmission, LearningMaterial } from "@prisma/client";
 
 type AssignmentWithRelations = HomeworkAssignment & {
@@ -137,7 +138,8 @@ function HomeworkCard({
     setError(null);
     const name = file.name.toLowerCase();
     const okExt = /\.(dem|mp4|png|jpg|jpeg|webp|pdf|txt|doc|docx)$/i.test(name);
-    if (!okExt) {
+    const isImage = file.type.startsWith("image/");
+    if (!okExt && !isImage) {
       setError("Допустимы: dem, mp4, png, jpg, pdf и документы");
       return;
     }
@@ -156,6 +158,17 @@ function HomeworkCard({
       setUploading(false);
     }
   }
+
+  const onPasteUploaded = useCallback(async (url: string) => {
+    setFiles((prev) => [...prev, url]);
+    setError(null);
+  }, []);
+
+  const { onPaste, uploading: pasteUploading } = usePasteImage({
+    onUploaded: onPasteUploaded,
+    onError: (msg) => setError(msg),
+    enabled: canSubmit && !uploading,
+  });
 
   async function onDrop(e: DragEvent) {
     e.preventDefault();
@@ -253,9 +266,10 @@ function HomeworkCard({
               {isRevision ? "Сдать доработку" : "Сдать работу"}
             </p>
             <Textarea
-              placeholder="Ваш ответ..."
+              placeholder="Ваш ответ... (фото можно вставить Ctrl+V)"
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={onPaste}
             />
 
             <div
@@ -265,6 +279,7 @@ function HomeworkCard({
               }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
+              onPaste={onPaste}
               className={`flex cursor-pointer flex-col items-center justify-center rounded-[var(--radius-control)] border border-dashed px-4 py-6 text-center transition-colors ${
                 dragOver
                   ? "border-[var(--points)] bg-[var(--points-bg)]"
@@ -285,7 +300,9 @@ function HomeworkCard({
                 onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
               />
               <p className="text-sm text-[var(--text)]">
-                {uploading ? "Загрузка..." : "Перетащите файл сюда или нажмите"}
+                {uploading || pasteUploading
+                  ? "Загрузка..."
+                  : "Перетащите файл, нажмите или Ctrl+V"}
               </p>
               <p className="mt-1 font-mono-num text-[11px] text-[var(--text-4)]">
                 dem, mp4, png · до 10 МБ
@@ -311,7 +328,7 @@ function HomeworkCard({
 
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-            <Button onClick={submit} disabled={loading || !text.trim() || uploading}>
+            <Button onClick={submit} disabled={loading || !text.trim() || uploading || pasteUploading}>
               {loading
                 ? "Отправка..."
                 : isRevision

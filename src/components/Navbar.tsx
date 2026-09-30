@@ -13,6 +13,7 @@ const studentLinks = [
   { href: "/materials", label: "Материалы" },
   { href: "/match", label: "5x5" },
   { href: "/match/vote", label: "Голосование" },
+  { href: "/progress", label: "Мой прогресс" },
   { href: "/rules", label: "Rule book" },
   { href: "/stats", label: "Статистика" },
 ];
@@ -23,6 +24,7 @@ const adminLinks = [
   { href: "/admin/homework", label: "Домашки" },
   { href: "/admin/materials", label: "Материалы" },
   { href: "/admin/matches", label: "5v5" },
+  { href: "/admin/attendance", label: "Посещаемость" },
   { href: "/admin/seasons", label: "Сезоны" },
   { href: "/admin/penalties", label: "Очки" },
 ];
@@ -152,7 +154,7 @@ export async function Navbar() {
                 <span className="font-medium text-[var(--text-2)]">dota2 education</span>
               </span>
               <span className="block truncate text-[10px] font-medium text-[var(--text-4)] min-[720px]:text-[11px]">
-                сайт в разработке v1.01
+                сайт в разработке v1.02
               </span>
             </span>
           </Link>
@@ -216,6 +218,12 @@ export async function Navbar() {
               {pendingVotes > 0 && (
                 <span className="ml-1 font-mono-num text-[var(--danger)]">{pendingVotes}</span>
               )}
+            </Link>
+            <Link
+              href="/progress"
+              className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
+            >
+              Мой прогресс
             </Link>
             <Link
               href="/rules"

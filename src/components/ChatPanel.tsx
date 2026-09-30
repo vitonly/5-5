@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate } from "@/lib/utils";
+import { usePasteImage } from "@/lib/use-paste-image";
+import { uploadAppFile } from "@/lib/upload-client";
 
 interface Message {
   id: string;
   senderId: string;
   recipientId: string;
   body: string;
+  imageUrl?: string | null;
   createdAt: string;
 }
 
@@ -28,7 +31,10 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
   const [peerName, setPeerName] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = role === "ADMIN";
   const conversationActive = isAdmin ? peerId !== null : true;
@@ -70,18 +76,50 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  const onPasteUploaded = useCallback(async (url: string) => {
+    setPendingImage(url);
+  }, []);
+
+  const { onPaste, uploading: pasteUploading } = usePasteImage({
+    onUploaded: onPasteUploaded,
+    enabled: open && conversationActive && !sending,
+  });
+
+  async function attachFile(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    setSending(true);
+    try {
+      const { url } = await uploadAppFile(file);
+      setPendingImage(url);
+    } catch {
+      /* ignore */
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function send() {
-    if (!draft.trim()) return;
+    if ((!draft.trim() && !pendingImage) || sending) return;
     const recipientId = isAdmin ? peerId : undefined;
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipientId, body: draft }),
-    });
-    if (res.ok) {
-      setDraft("");
-      loadMessages();
-      loadContacts();
+    setSending(true);
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientId,
+          body: draft,
+          imageUrl: pendingImage,
+        }),
+      });
+      if (res.ok) {
+        setDraft("");
+        setPendingImage(null);
+        loadMessages();
+        loadContacts();
+      }
+    } finally {
+      setSending(false);
     }
   }
 
@@ -89,6 +127,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
     setPeerId(id);
     setPeerName(name);
     setMessages([]);
+    setPendingImage(null);
   }
 
   return (
@@ -188,7 +227,19 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
                             : "bg-[var(--control)] text-[var(--text)]"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                        {m.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <a href={m.imageUrl} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={m.imageUrl}
+                              alt=""
+                              className="mb-2 max-h-48 w-full rounded-lg object-cover"
+                            />
+                          </a>
+                        )}
+                        {m.body && m.body !== "📷 Фото" && (
+                          <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                        )}
                         <p className="mt-1 font-mono-num text-[10px] opacity-60">
                           {formatDate(m.createdAt)}
                         </p>
@@ -198,28 +249,70 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
                 })
               )}
             </div>
-            <div className="flex gap-2 border-t border-[var(--border)] p-3">
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
+            <div className="space-y-2 border-t border-[var(--border)] p-3" onPaste={onPaste}>
+              {pendingImage && (
+                <div className="relative inline-block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pendingImage}
+                    alt=""
+                    className="h-20 rounded-[var(--radius-control)] border border-[var(--border)] object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPendingImage(null)}
+                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--danger)] text-xs text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void attachFile(f);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={sending || pasteUploading}
+                  className="rounded-[var(--radius-control)] border border-[var(--border)] px-3 text-sm text-[var(--text-2)] hover:bg-[var(--control)] disabled:opacity-50"
+                  title="Прикрепить фото"
+                >
+                  📎
+                </button>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onPaste={onPaste}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void send();
+                    }
+                  }}
+                  placeholder={
+                    pasteUploading ? "Загрузка фото…" : "Сообщение или Ctrl+V фото…"
                   }
-                }}
-                placeholder="Написать сообщение..."
-                rows={1}
-                className="flex-1 resize-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-4)] focus:border-[var(--points)] focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={send}
-                disabled={!draft.trim()}
-                className="rounded-[var(--radius-control)] bg-[var(--points)] px-4 text-sm font-medium text-white hover:bg-[var(--points-hover)] disabled:opacity-50"
-              >
-                →
-              </button>
+                  rows={1}
+                  className="flex-1 resize-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-4)] focus:border-[var(--points)] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void send()}
+                  disabled={sending || pasteUploading || (!draft.trim() && !pendingImage)}
+                  className="rounded-[var(--radius-control)] bg-[var(--points)] px-4 text-sm font-medium text-white hover:bg-[var(--points-hover)] disabled:opacity-50"
+                >
+                  →
+                </button>
+              </div>
             </div>
           </>
         )}

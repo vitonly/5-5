@@ -22,6 +22,14 @@ export default function RulesPage() {
         <h2 className="font-display text-lg font-semibold">Очки платформы</h2>
         <p className="text-sm text-[var(--text-3)]">Раздел готовится.</p>
       </section>
+
+      <section className="space-y-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
+        <h2 className="font-display text-lg font-semibold">Домен, хостинг РФ и ПД</h2>
+        <p className="text-sm text-[var(--text-3)]">
+          Для тренера: гайд по покупке домена, переносу на серверы в РФ и чеклисту 152-ФЗ лежит в
+          репозитории — <code className="text-[var(--text-2)]">docs/HOSTING-RF-AND-PD.md</code>.
+        </p>
+      </section>
     </div>
   );
 }

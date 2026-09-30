@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import type {
 import { PlayerRolesDisplay } from "@/components/PlayerRolesDisplay";
 import { PowerPill } from "@/components/StatPills";
 import { teamDisplayName } from "@/lib/team-names";
+import { usePasteImage } from "@/lib/use-paste-image";
 
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
@@ -142,6 +143,17 @@ export function AdminMatchesClient({
       setUploadingInvite(false);
     }
   }
+
+  const onInvitePaste = useCallback(async (url: string) => {
+    setInviteImageUrl(url);
+    setOpenError("");
+  }, []);
+
+  const { onPaste: pasteInviteImage, uploading: pasteInviteUploading } = usePasteImage({
+    onUploaded: onInvitePaste,
+    onError: (msg) => setOpenError(msg),
+    enabled: !uploadingInvite && !creatingOpen,
+  });
 
   async function recordResult(sessionId: string, winnerTeam: string, gameNumber: number) {
     await fetch("/api/matches", {
@@ -418,28 +430,27 @@ export function AdminMatchesClient({
               onChange={(e) => setOpenDate(e.target.value)}
             />
           </div>
-          <div>
+          <div onPaste={pasteInviteImage} tabIndex={0}>
             <Label>Фото к опросу в Telegram (необязательно)</Label>
             <p className="mt-1 text-xs text-[var(--text-4)]">
-              Придёт вместе с кнопками «Я играю» / «Не играю». JPG/PNG, до 10 МБ. Нужен публичный
-              URL (Vercel Blob).
+              Придёт вместе с кнопками «Я играю» / «Не играю». JPG/PNG, до 10 МБ. Можно Ctrl+V.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <Input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 className="max-w-xs cursor-pointer text-sm"
-                disabled={uploadingInvite || creatingOpen}
+                disabled={uploadingInvite || pasteInviteUploading || creatingOpen}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void uploadInviteImage(file);
                   e.target.value = "";
                 }}
               />
-              {uploadingInvite && (
+              {(uploadingInvite || pasteInviteUploading) && (
                 <span className="text-xs text-[var(--text-3)]">Загрузка…</span>
               )}
-              {inviteImageUrl && !uploadingInvite && (
+              {inviteImageUrl && !uploadingInvite && !pasteInviteUploading && (
                 <Button
                   type="button"
                   size="sm"

@@ -10,6 +10,8 @@ export const POINT_VALUES = {
   MATCH_WIN_STREAK: 2,
   MATCH_DRAW: 1,
   MVP_DAY: 0.5,
+  /** Посещение занятия (среда) */
+  LESSON_ATTEND: 0.5,
 } as const;
 
 /** Множитель к базовым очкам победы по приоритету ролей профиля */
@@ -29,6 +31,7 @@ export function categorizePointReason(reason: string): PointCategory {
   if (r.startsWith("бонус:")) return "bonus";
   if (r.includes("домашка")) return "homework";
   if (r.includes("5v5") || r.includes("отмена игры")) return "match";
+  if (r.includes("посещение")) return "bonus";
   return "other";
 }
 
@@ -81,6 +84,27 @@ export async function addPoints(
     }),
   ]);
   return rounded;
+}
+
+/** Удалить начисления по source и откатить totalPoints (для снятия посещаемости и т.п.). */
+export async function removePointsBySource(
+  userId: string,
+  sourceType: string,
+  sourceId: string
+) {
+  const logs = await prisma.pointLog.findMany({
+    where: { userId, sourceType, sourceId },
+  });
+  if (!logs.length) return 0;
+  const sum = roundPoints(logs.reduce((s, l) => s + l.delta, 0));
+  await prisma.$transaction([
+    prisma.pointLog.deleteMany({ where: { userId, sourceType, sourceId } }),
+    prisma.playerProfile.update({
+      where: { userId },
+      data: { totalPoints: { increment: -sum } },
+    }),
+  ]);
+  return sum;
 }
 
 /** Сезонные очки учеников (сумма PointLog за сезон). Без сезона — текущий totalPoints. */
