@@ -24,10 +24,14 @@ export default function RulesPage() {
       </section>
 
       <section className="space-y-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h2 className="font-display text-lg font-semibold">Домен, хостинг РФ и ПД</h2>
+        <h2 className="font-display text-lg font-semibold">Конфиденциальность и ПД</h2>
         <p className="text-sm text-[var(--text-3)]">
-          Для тренера: гайд по покупке домена, переносу на серверы в РФ и чеклисту 152-ФЗ лежит в
-          репозитории — <code className="text-[var(--text-2)]">docs/HOSTING-RF-AND-PD.md</code>.
+          <a href="/privacy" className="text-[var(--points)] underline">
+            Политика конфиденциальности
+          </a>
+          {" · "}
+          согласие на обработку ПД запрашивается при входе. Для тренера: гайд по домену, хостингу РФ
+          и 152-ФЗ — <code className="text-[var(--text-2)]">docs/HOSTING-RF-AND-PD.md</code>.
         </p>
       </section>
     </div>

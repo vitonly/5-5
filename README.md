@@ -68,6 +68,12 @@ Invoke-RestMethod -Method POST -Uri "https://ВАШ_ДОМЕН/api/telegram/setu
 
 Прод-БД сначала пустая — ученики и админ появляются после первого Telegram-логина (`ADMIN_TELEGRAM_IDS` делает админом).
 
+## Конфиденциальность и хостинг РФ
+
+- Публичная политика: `/privacy`
+- Согласие на ПД — чекбокс на `/login`; старые сессии — `/consent`
+- Гайд по домену, переносу на серверы в РФ и 152-ФЗ: [`docs/HOSTING-RF-AND-PD.md`](docs/HOSTING-RF-AND-PD.md)
+
 ## Скрипты
 
 ```bash

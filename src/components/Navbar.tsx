@@ -203,6 +203,12 @@ export async function Navbar() {
             >
               {displayName(user)}
             </Link>
+            <Link
+              href="/privacy"
+              className="hidden text-xs text-[var(--text-4)] hover:text-[var(--points)] min-[720px]:inline"
+            >
+              ПД
+            </Link>
             <LogoutButton />
           </div>
         </div>

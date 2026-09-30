@@ -10,6 +10,7 @@ export default async function DashboardLayout({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (!user.pdConsentAt) redirect("/consent");
 
   return (
     <>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSession } from "@/lib/session";
+import { recordPdConsent } from "@/lib/pd-consent";
 
 export async function POST() {
   if (process.env.NODE_ENV === "production") {
@@ -35,6 +36,7 @@ export async function POST() {
     });
   }
 
+  await recordPdConsent(user.id);
   await createSession(user.id);
   return NextResponse.json({ success: true });
 }

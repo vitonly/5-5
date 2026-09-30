@@ -10,6 +10,7 @@ export default async function AdminLayout({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (!user.pdConsentAt) redirect("/consent");
   if (user.role !== "ADMIN") redirect("/profile");
 
   return (

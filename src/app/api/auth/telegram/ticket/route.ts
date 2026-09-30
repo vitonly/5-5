@@ -3,13 +3,23 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { setSessionCookieOnResponse } from "@/lib/session";
 import { normalizeBotUsername } from "@/lib/telegram-auth";
+import { recordPdConsent } from "@/lib/pd-consent";
 
 /** Создать тикет входа через бота / завершить вход */
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({} as { action?: string; token?: string }));
+  const body = await request.json().catch(
+    () => ({} as { action?: string; token?: string; pdConsent?: boolean })
+  );
 
   if (body.action === "complete" && body.token) {
     return completeTicket(String(body.token));
+  }
+
+  if (!body.pdConsent) {
+    return NextResponse.json(
+      { error: "Нужно согласие на обработку персональных данных" },
+      { status: 400 }
+    );
   }
 
   const bot = normalizeBotUsername(process.env.NEXT_PUBLIC_BOT_USERNAME);
@@ -21,7 +31,7 @@ export async function POST(request: NextRequest) {
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
   await prisma.loginTicket.create({
-    data: { token, expiresAt, status: "PENDING" },
+    data: { token, expiresAt, status: "PENDING", pdConsent: true },
   });
 
   return NextResponse.json({
@@ -54,7 +64,6 @@ export async function GET(request: NextRequest) {
   }
 
   if (ticket.status === "USED") {
-    // Клиент может повторить complete — отдаём READY-подобный сигнал
     return NextResponse.json({ status: "READY", role: "STUDENT", reused: true });
   }
 
@@ -101,6 +110,10 @@ async function completeTicket(token: string) {
         { error: "Ещё не подтверждено в Telegram. Нажмите Start в боте.", status: ticket.status },
         { status: 400 }
       );
+    }
+
+    if (ticket.pdConsent) {
+      await recordPdConsent(ticket.userId);
     }
 
     const user = await prisma.user.findUnique({

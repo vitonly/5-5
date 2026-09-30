@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ function LoginForm() {
 
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [pdConsent, setPdConsent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [botWaiting, setBotWaiting] = useState(false);
@@ -158,12 +160,16 @@ function LoginForm() {
   }, [botWaiting, botToken]);
 
   const handlePasswordLogin = useCallback(async () => {
+    if (!pdConsent) {
+      setError("Отметьте согласие на обработку персональных данных");
+      return;
+    }
     setLoading(true);
     setError("");
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, password }),
+      body: JSON.stringify({ login, password, pdConsent: true }),
     });
     setLoading(false);
     if (res.ok) {
@@ -173,14 +179,22 @@ function LoginForm() {
       const data = await res.json().catch(() => ({}));
       setError(data.error || "Неверный логин или пароль");
     }
-  }, [login, password, router]);
+  }, [login, password, pdConsent, router]);
 
   const handleBotLogin = useCallback(async () => {
+    if (!pdConsent) {
+      setError("Отметьте согласие на обработку персональных данных");
+      return;
+    }
     setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/telegram/ticket", { method: "POST" });
+      const res = await fetch("/api/auth/telegram/ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdConsent: true }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Не удалось начать вход через Telegram");
@@ -205,7 +219,7 @@ function LoginForm() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pdConsent]);
 
   const handleDevLogin = useCallback(async () => {
     const res = await fetch("/api/auth/dev-login", { method: "POST" });
@@ -224,10 +238,25 @@ function LoginForm() {
         <CardDescription>Платформа обучения Dota. Войдите, чтобы продолжить.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <label className="flex cursor-pointer items-start gap-3 text-[13px] leading-snug text-[var(--text-2)]">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--points)]"
+            checked={pdConsent}
+            onChange={(e) => setPdConsent(e.target.checked)}
+          />
+          <span>
+            Согласен(на) на обработку персональных данных согласно{" "}
+            <Link href="/privacy" className="text-[var(--points)] underline" target="_blank">
+              Политике конфиденциальности
+            </Link>
+          </span>
+        </label>
+
         <button
           type="button"
           onClick={handleBotLogin}
-          disabled={loading || botWaiting || !botUsername}
+          disabled={loading || botWaiting || !botUsername || !pdConsent}
           className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#54A9EB] px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#4B9AD6] disabled:pointer-events-none disabled:opacity-50 min-[720px]:h-11"
         >
           <TelegramIcon />
@@ -284,7 +313,7 @@ function LoginForm() {
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
           <Button
             onClick={handlePasswordLogin}
-            disabled={loading || !login || !password}
+            disabled={loading || !login || !password || !pdConsent}
             className="w-full"
           >
             {loading ? "Вход..." : "Войти"}
