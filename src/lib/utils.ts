@@ -64,6 +64,16 @@ export function formatDate(date: Date | string) {
   }).format(new Date(date));
 }
 
+/** Дата без времени (для занятий, дневника и т.п.) */
+export function formatDateOnly(date: Date | string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: APP_TIMEZONE,
+  }).format(new Date(date));
+}
+
 export function displayName(user: {
   firstName: string;
   lastName?: string | null;

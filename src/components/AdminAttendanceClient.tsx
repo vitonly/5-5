@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { displayName, formatDate } from "@/lib/utils";
+import { displayName, formatDateOnly } from "@/lib/utils";
 import { POINT_VALUES, formatPoints } from "@/lib/points";
 
 type Student = {
@@ -235,7 +235,7 @@ export function AdminAttendanceClient() {
             variant={s.id === activeId ? "default" : "outline"}
             onClick={() => setActiveId(s.id)}
           >
-            {formatDate(s.date).replace(/ в .+$/, "")} ·{" "}
+            {formatDateOnly(s.date)} ·{" "}
             {(s.id === activeId
               ? presentSet.size
               : s.attendances.filter((a) => a.present).length)}
@@ -264,7 +264,7 @@ export function AdminAttendanceClient() {
       {active ? (
         <Card>
           <CardHeader>
-            <CardTitle>Посещаемость · {formatDate(active.date)}</CardTitle>
+            <CardTitle>Посещаемость · {formatDateOnly(active.date)}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {students.map((st) => {

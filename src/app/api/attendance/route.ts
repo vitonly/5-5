@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
-import { parseAppDateTime, formatDate } from "@/lib/utils";
+import { parseAppDateTime, formatDateOnly } from "@/lib/utils";
 import {
   POINT_VALUES,
   addPoints,
@@ -56,7 +56,7 @@ async function applyAttendanceUpdate(
       await addPoints(
         userId,
         POINT_VALUES.LESSON_ATTEND,
-        `Посещение занятия ${formatDate(sessionDate)}`,
+        `Посещение занятия ${formatDateOnly(sessionDate)}`,
         { type: "LESSON_ATTEND", id: attendance.id }
       );
     }
