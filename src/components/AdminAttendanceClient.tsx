@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,16 @@ export function AdminAttendanceClient() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState(nextWednesdayLocal());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  /** Local checkbox overrides before/while server sync */
+  const [localPresent, setLocalPresent] = useState<Record<string, boolean>>({});
+  const pendingRef = useRef<Map<string, boolean>>(new Map());
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushChainRef = useRef<Promise<void>>(Promise.resolve());
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,16 +67,15 @@ export function AdminAttendanceClient() {
       const data = await res.json();
       setSessions(data.sessions || []);
       setStudents(data.students || []);
-      if (!activeId && data.sessions?.[0]) setActiveId(data.sessions[0].id);
+      setActiveId((prev) => prev ?? data.sessions?.[0]?.id ?? null);
     } finally {
       setLoading(false);
     }
-  }, [activeId]);
+  }, []);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   const active = useMemo(
     () => sessions.find((s) => s.id === activeId) ?? null,
@@ -79,8 +87,98 @@ export function AdminAttendanceClient() {
     for (const a of active?.attendances ?? []) {
       if (a.present) set.add(a.userId);
     }
+    for (const [uid, on] of Object.entries(localPresent)) {
+      if (on) set.add(uid);
+      else set.delete(uid);
+    }
     return set;
-  }, [active]);
+  }, [active, localPresent]);
+
+  useEffect(() => {
+    // Clear local overrides when switching session
+    setLocalPresent({});
+    pendingRef.current.clear();
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, [activeId]);
+
+  const flushPending = useCallback(async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+
+    const snapshot = new Map(pendingRef.current);
+    if (snapshot.size === 0) return;
+    pendingRef.current.clear();
+
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const updates = [...snapshot.entries()].map(([userId, present]) => ({
+        userId,
+        present,
+      }));
+      const res = await fetch("/api/attendance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, updates }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Re-queue failed updates
+        for (const [uid, present] of snapshot) {
+          if (!pendingRef.current.has(uid)) pendingRef.current.set(uid, present);
+        }
+        setSyncError(data.error || "Не удалось сохранить");
+        return;
+      }
+      if (data.session) {
+        setSessions((prev) =>
+          prev.map((s) => (s.id === data.session.id ? data.session : s))
+        );
+        // Drop local overrides that match server after sync
+        setLocalPresent((prev) => {
+          const next = { ...prev };
+          for (const [uid, present] of snapshot) {
+            if (next[uid] === present && !pendingRef.current.has(uid)) {
+              delete next[uid];
+            }
+          }
+          return next;
+        });
+      }
+      router.refresh();
+    } catch {
+      for (const [uid, present] of snapshot) {
+        if (!pendingRef.current.has(uid)) pendingRef.current.set(uid, present);
+      }
+      setSyncError("Сеть: не удалось сохранить");
+    } finally {
+      setSyncing(false);
+      // If more toggles arrived during flush — schedule another
+      if (pendingRef.current.size > 0) {
+        flushTimerRef.current = setTimeout(() => {
+          flushChainRef.current = flushChainRef.current.then(() => flushPending());
+        }, 200);
+      }
+    }
+  }, [router]);
+
+  function scheduleFlush() {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(() => {
+      flushChainRef.current = flushChainRef.current.then(() => flushPending());
+    }, 600);
+  }
+
+  function toggle(userId: string, present: boolean) {
+    if (!active) return;
+    setLocalPresent((prev) => ({ ...prev, [userId]: present }));
+    pendingRef.current.set(userId, present);
+    setSyncError(null);
+    scheduleFlush();
+  }
 
   async function createSession() {
     const res = await fetch("/api/attendance", {
@@ -98,30 +196,17 @@ export function AdminAttendanceClient() {
     router.refresh();
   }
 
-  async function toggle(userId: string, present: boolean) {
-    if (!active) return;
-    setSaving(userId);
-    try {
-      const res = await fetch("/api/attendance", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: active.id, userId, present }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || "Ошибка");
-        return;
-      }
-      await load();
-      router.refresh();
-    } finally {
-      setSaving(null);
-    }
-  }
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    };
+  }, []);
 
   if (loading) {
     return <p className="text-sm text-[var(--text-3)]">Загрузка…</p>;
   }
+
+  const pendingCount = Object.keys(localPresent).length;
 
   return (
     <div className="space-y-6">
@@ -129,8 +214,8 @@ export function AdminAttendanceClient() {
         <CardHeader>
           <CardTitle>Новое занятие</CardTitle>
           <p className="text-sm text-[var(--text-3)]">
-            Обычно среда. Отмеченные получают +{formatPoints(POINT_VALUES.LESSON_ATTEND)} к очкам
-            платформы. Снятие отметки откатывает очки.
+            Отмечайте всех сразу — очки (+{formatPoints(POINT_VALUES.LESSON_ATTEND)})
+            начислятся пакетом через мгновение. Снятие отметки откатывает очки.
           </p>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -142,7 +227,7 @@ export function AdminAttendanceClient() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {sessions.map((s) => (
           <Button
             key={s.id}
@@ -151,9 +236,29 @@ export function AdminAttendanceClient() {
             onClick={() => setActiveId(s.id)}
           >
             {formatDate(s.date).replace(/ в .+$/, "")} ·{" "}
-            {s.attendances.filter((a) => a.present).length}/{students.length}
+            {(s.id === activeId
+              ? presentSet.size
+              : s.attendances.filter((a) => a.present).length)}
+            /{students.length}
           </Button>
         ))}
+        {syncing && (
+          <span className="text-xs text-[var(--text-4)]">Сохранение очков…</span>
+        )}
+        {!syncing && pendingCount > 0 && (
+          <span className="text-xs text-[var(--text-4)]">Ожидание…</span>
+        )}
+        {syncError && (
+          <button
+            type="button"
+            className="text-xs text-[var(--danger)] underline"
+            onClick={() => {
+              flushChainRef.current = flushChainRef.current.then(() => flushPending());
+            }}
+          >
+            {syncError} — повторить
+          </button>
+        )}
       </div>
 
       {active ? (
@@ -171,15 +276,11 @@ export function AdminAttendanceClient() {
                 >
                   <span className="font-medium text-[var(--text)]">{displayName(st)}</span>
                   <span className="flex items-center gap-2">
-                    {saving === st.id && (
-                      <span className="text-xs text-[var(--text-4)]">…</span>
-                    )}
                     <input
                       type="checkbox"
                       className="h-5 w-5 accent-[var(--points)]"
                       checked={on}
-                      disabled={saving === st.id}
-                      onChange={(e) => void toggle(st.id, e.target.checked)}
+                      onChange={(e) => toggle(st.id, e.target.checked)}
                     />
                     <span
                       className={`font-mono-num text-xs ${

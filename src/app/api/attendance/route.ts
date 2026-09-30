@@ -9,9 +9,67 @@ import {
 } from "@/lib/points";
 
 function startOfDayMoscow(d: Date) {
-  // Normalize to date-only for uniqueness of lesson sessions
   const iso = d.toISOString().slice(0, 10);
   return parseAppDateTime(`${iso}T12:00`);
+}
+
+type AttendanceUpdate = { userId: string; present: boolean };
+
+async function applyAttendanceUpdate(
+  sessionId: string,
+  sessionDate: Date,
+  userId: string,
+  present: boolean
+) {
+  const student = await prisma.user.findFirst({
+    where: { id: userId, role: "STUDENT" },
+    select: { id: true },
+  });
+  if (!student) return { userId, present: false, error: "Ученик не найден" };
+
+  const existing = await prisma.lessonAttendance.findUnique({
+    where: { sessionId_userId: { sessionId, userId } },
+  });
+
+  if (present) {
+    const attendance =
+      existing ??
+      (await prisma.lessonAttendance.create({
+        data: { sessionId, userId, present: true },
+      }));
+
+    if (existing && !existing.present) {
+      await prisma.lessonAttendance.update({
+        where: { id: existing.id },
+        data: { present: true },
+      });
+    }
+
+    const alreadyAwarded = await prisma.pointLog.findFirst({
+      where: {
+        userId,
+        sourceType: "LESSON_ATTEND",
+        sourceId: attendance.id,
+      },
+    });
+    if (!alreadyAwarded) {
+      await addPoints(
+        userId,
+        POINT_VALUES.LESSON_ATTEND,
+        `Посещение занятия ${formatDate(sessionDate)}`,
+        { type: "LESSON_ATTEND", id: attendance.id }
+      );
+    }
+
+    return { userId, present: true, attendanceId: attendance.id };
+  }
+
+  if (existing) {
+    await removePointsBySource(userId, "LESSON_ATTEND", existing.id);
+    await prisma.lessonAttendance.delete({ where: { id: existing.id } });
+  }
+
+  return { userId, present: false };
 }
 
 export async function GET() {
@@ -67,13 +125,19 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
-  const { sessionId, userId, present } = body as {
-    sessionId?: string;
-    userId?: string;
-    present?: boolean;
-  };
+  const { sessionId } = body as { sessionId?: string };
 
-  if (!sessionId || !userId || typeof present !== "boolean") {
+  if (!sessionId) {
+    return NextResponse.json({ error: "Неверные параметры" }, { status: 400 });
+  }
+
+  const updates: AttendanceUpdate[] = Array.isArray(body.updates)
+    ? body.updates
+    : body.userId != null && typeof body.present === "boolean"
+      ? [{ userId: body.userId, present: body.present }]
+      : [];
+
+  if (updates.length === 0) {
     return NextResponse.json({ error: "Неверные параметры" }, { status: 400 });
   }
 
@@ -82,55 +146,23 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Занятие не найдено" }, { status: 404 });
   }
 
-  const student = await prisma.user.findFirst({
-    where: { id: userId, role: "STUDENT" },
-  });
-  if (!student) {
-    return NextResponse.json({ error: "Ученик не найден" }, { status: 404 });
-  }
-
-  const existing = await prisma.lessonAttendance.findUnique({
-    where: { sessionId_userId: { sessionId, userId } },
-  });
-
-  if (present) {
-    const attendance =
-      existing ??
-      (await prisma.lessonAttendance.create({
-        data: { sessionId, userId, present: true },
-      }));
-
-    if (existing && !existing.present) {
-      await prisma.lessonAttendance.update({
-        where: { id: existing.id },
-        data: { present: true },
-      });
+  // Last write wins per userId within the same batch
+  const byUser = new Map<string, boolean>();
+  for (const u of updates) {
+    if (u?.userId && typeof u.present === "boolean") {
+      byUser.set(u.userId, u.present);
     }
-
-    const alreadyAwarded = await prisma.pointLog.findFirst({
-      where: {
-        userId,
-        sourceType: "LESSON_ATTEND",
-        sourceId: attendance.id,
-      },
-    });
-    if (!alreadyAwarded) {
-      await addPoints(
-        userId,
-        POINT_VALUES.LESSON_ATTEND,
-        `Посещение занятия ${formatDate(session.date)}`,
-        { type: "LESSON_ATTEND", id: attendance.id }
-      );
-    }
-
-    return NextResponse.json({ ok: true, attendanceId: attendance.id, present: true });
   }
 
-  // Снять отметку → откат очков
-  if (existing) {
-    await removePointsBySource(userId, "LESSON_ATTEND", existing.id);
-    await prisma.lessonAttendance.delete({ where: { id: existing.id } });
+  const results = [];
+  for (const [userId, present] of byUser) {
+    results.push(await applyAttendanceUpdate(sessionId, session.date, userId, present));
   }
 
-  return NextResponse.json({ ok: true, present: false });
+  const refreshed = await prisma.lessonSession.findUnique({
+    where: { id: sessionId },
+    include: { attendances: { include: { user: true } } },
+  });
+
+  return NextResponse.json({ ok: true, results, session: refreshed });
 }
