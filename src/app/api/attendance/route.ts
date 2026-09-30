@@ -74,6 +74,15 @@ async function applyAttendanceUpdate(
 
 export async function GET() {
   await requireAdmin();
+
+  // One-time cleanup: attendance reasons should be date-only (no "в 12:00")
+  await prisma.$executeRawUnsafe(`
+    UPDATE "PointLog"
+    SET reason = regexp_replace(reason, ' в [0-9]{1,2}:[0-9]{2}$', '')
+    WHERE "sourceType" = 'LESSON_ATTEND'
+      AND reason ~ ' в [0-9]{1,2}:[0-9]{2}$'
+  `);
+
   const sessions = await prisma.lessonSession.findMany({
     orderBy: { date: "desc" },
     include: {
