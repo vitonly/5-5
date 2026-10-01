@@ -6,6 +6,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 const TG_LOGIN_TOKEN_KEY = "tg_login_token";
 const TG_LOGIN_URL_KEY = "tg_login_url";
 
+/** https://t.me/Bot?start=x → tg://resolve?domain=Bot&start=x (надёжнее на телефоне) */
+function toTelegramDeepLink(httpsUrl: string): string {
+  try {
+    const u = new URL(httpsUrl);
+    if (u.hostname !== "t.me" && u.hostname !== "telegram.me") return httpsUrl;
+    const domain = u.pathname.replace(/^\//, "").split("/")[0];
+    if (!domain) return httpsUrl;
+    const start = u.searchParams.get("start");
+    const q = start ? `?domain=${encodeURIComponent(domain)}&start=${encodeURIComponent(start)}` : `?domain=${encodeURIComponent(domain)}`;
+    return `tg://resolve${q}`;
+  } catch {
+    return httpsUrl;
+  }
+}
+
 /**
  * Промежуточная страница на нашем домене.
  * 1) Сохраняет тикет входа
@@ -15,12 +30,11 @@ const TG_LOGIN_URL_KEY = "tg_login_url";
 function OpenTelegram() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirected = useRef(false);
+  const leftForTelegram = useRef(false);
+  const token = searchParams.get("token");
+  const to = searchParams.get("to");
 
   useEffect(() => {
-    const token = searchParams.get("token");
-    const to = searchParams.get("to");
-
     if (!token || !to) {
       router.replace("/login");
       return;
@@ -33,43 +47,52 @@ function OpenTelegram() {
       /* ignore */
     }
 
-    function goLogin() {
+    function returnToLogin() {
+      // Только после того, как реально уходили в Telegram — иначе pageshow
+      // на первой загрузке срывает редирект и «Открыть вручную».
+      if (!leftForTelegram.current) return;
       router.replace("/login");
     }
 
-    // Вернулись из приложения Telegram на эту же вкладку
     function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted || document.visibilityState === "visible") {
-        goLogin();
-      }
+      if (e.persisted) returnToLogin();
     }
     function onVisible() {
-      if (document.visibilityState === "visible" && redirected.current) {
-        goLogin();
-      }
+      if (document.visibilityState === "visible") returnToLogin();
     }
 
     window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisible);
 
-    if (!redirected.current) {
-      redirected.current = true;
-      // Небольшая пауза, чтобы успел записаться sessionStorage
-      const t = window.setTimeout(() => {
-        window.location.href = to;
-      }, 50);
-      return () => {
-        window.clearTimeout(t);
-        window.removeEventListener("pageshow", onPageShow);
-        document.removeEventListener("visibilitychange", onVisible);
-      };
-    }
+    const t = window.setTimeout(() => {
+      leftForTelegram.current = true;
+      // Сначала deep link приложения, иначе https://t.me
+      window.location.href = toTelegramDeepLink(to);
+      window.setTimeout(() => {
+        if (document.visibilityState === "visible") {
+          window.location.href = to;
+        }
+      }, 400);
+    }, 80);
 
     return () => {
+      window.clearTimeout(t);
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [router, searchParams]);
+  }, [router, token, to]);
+
+  function openManual(e: React.MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    if (!to) return;
+    leftForTelegram.current = true;
+    window.location.assign(toTelegramDeepLink(to));
+    window.setTimeout(() => {
+      if (document.visibilityState === "visible") {
+        window.location.assign(to);
+      }
+    }, 400);
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--bg)] p-6 text-center">
@@ -78,14 +101,18 @@ function OpenTelegram() {
         Нажмите Start в боте, затем вернитесь сюда — вход завершится сам.
       </p>
       <a
-        href={searchParams.get("to") || "/login"}
+        href={to || "/login"}
+        onClick={openManual}
         className="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-[8px] bg-[#54A9EB] px-5 text-sm font-medium text-white"
       >
         Открыть Telegram вручную
       </a>
       <button
         type="button"
-        onClick={() => router.replace("/login")}
+        onClick={() => {
+          leftForTelegram.current = false;
+          router.replace("/login");
+        }}
         className="text-sm text-[var(--points)] underline"
       >
         Уже нажал Start — вернуться на вход

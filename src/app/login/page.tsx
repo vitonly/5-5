@@ -272,6 +272,30 @@ function LoginForm() {
             {botUrl && (
               <a
                 href={botUrl}
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Deep link приложения, иначе https://t.me (как на /login/tg)
+                  try {
+                    const u = new URL(botUrl);
+                    const domain = u.pathname.replace(/^\//, "").split("/")[0];
+                    const start = u.searchParams.get("start");
+                    if (domain && (u.hostname === "t.me" || u.hostname === "telegram.me")) {
+                      const deep = start
+                        ? `tg://resolve?domain=${encodeURIComponent(domain)}&start=${encodeURIComponent(start)}`
+                        : `tg://resolve?domain=${encodeURIComponent(domain)}`;
+                      window.location.assign(deep);
+                      window.setTimeout(() => {
+                        if (document.visibilityState === "visible") {
+                          window.location.assign(botUrl);
+                        }
+                      }, 400);
+                      return;
+                    }
+                  } catch {
+                    /* fall through */
+                  }
+                  window.location.assign(botUrl);
+                }}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-[8px] border border-[var(--points-border)] bg-[var(--points-bg)] px-4 font-medium text-[var(--points)]"
               >
                 Открыть Telegram
