@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
 import { recalculateStreakWinPoints } from "@/lib/points";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminMatchesPage() {
   await recalculateStreakWinPoints().catch(() => 0);
 

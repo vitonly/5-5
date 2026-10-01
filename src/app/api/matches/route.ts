@@ -16,7 +16,7 @@ import {
   validateLineups,
 } from "@/lib/match-lineup";
 import type { TeamAssignment } from "@/lib/match-lineup";
-import { startMatchSession, confirmLineups } from "@/lib/match-signup";
+import { startMatchSession, confirmLineups, confirmLineupsGame2 } from "@/lib/match-signup";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -166,15 +166,43 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (body.action === "updateTeams") {
-    if (
-      session.status === "COMPLETED" ||
-      session.status === "IN_PROGRESS"
-    ) {
+    const game = Number(body.game ?? 1) === 2 ? 2 : 1;
+    if (session.status === "COMPLETED") {
       return NextResponse.json(
-        { error: "Сессия начата или завершена — состав нельзя менять" },
+        { error: "Сессия завершена — состав нельзя менять" },
         { status: 400 }
       );
     }
+    if (game === 1) {
+      if (session.status === "IN_PROGRESS") {
+        return NextResponse.json(
+          { error: "Сессия начата — состав №1 нельзя менять" },
+          { status: 400 }
+        );
+      }
+    } else {
+      const hasG2 =
+        session.teamAssignmentsGame2 &&
+        session.teamAssignmentsGame2 !== "{}";
+      if (!hasG2) {
+        return NextResponse.json(
+          { error: "Сначала соберите состав на 2-ю игру" },
+          { status: 400 }
+        );
+      }
+      if (session.status === "IN_PROGRESS") {
+        const played = await prisma.matchGame.count({
+          where: { sessionId },
+        });
+        if (played >= 2) {
+          return NextResponse.json(
+            { error: "Игра №2 уже записана — состав нельзя менять" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const radiant = Array.isArray(body.radiant) ? body.radiant : [];
     const dire = Array.isArray(body.dire) ? body.dire : [];
     const normalizedRadiant = radiant.map(
@@ -194,7 +222,19 @@ export async function PATCH(request: NextRequest) {
     }
 
     const built = buildAssignmentsFromLineups(normalizedRadiant, normalizedDire);
-    // Любая правка сбрасывает утверждение — снова TEAMS_SET
+
+    if (game === 2) {
+      const updated = await prisma.matchSession.update({
+        where: { id: sessionId },
+        data: {
+          teamAssignmentsGame2: built.assignmentsJson,
+          lineupsGame2Confirmed: false,
+        },
+      });
+      return NextResponse.json({ session: updated });
+    }
+
+    // Любая правка состава №1 сбрасывает утверждение — снова TEAMS_SET
     const updated = await prisma.matchSession.update({
       where: { id: sessionId },
       data: {
@@ -219,6 +259,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
     const assignments = parseAssignments(session.teamAssignments);
+    let avoid: TeamAssignment | null = null;
+    try {
+      const prev = JSON.parse(session.teamAssignmentsGame2 || "{}") as TeamAssignment;
+      if (Object.keys(prev).length) avoid = prev;
+    } catch {
+      avoid = null;
+    }
     const allIds = [
       ...parseJsonArray(session.radiantPlayerIds),
       ...parseJsonArray(session.direPlayerIds),
@@ -235,9 +282,13 @@ export async function PATCH(request: NextRequest) {
       secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
     }));
     try {
-      const teams = reshuffleForSecondGame(players, assignments as Parameters<
-        typeof reshuffleForSecondGame
-      >[1]);
+      const teams = reshuffleForSecondGame(
+        players,
+        assignments as Parameters<typeof reshuffleForSecondGame>[1],
+        avoid as Parameters<typeof reshuffleForSecondGame>[2],
+        Number(body.intensity ?? 3),
+        Boolean(body.onlyListedRoles)
+      );
       const map: TeamAssignment = {};
       for (const p of teams.radiant) {
         map[p.id] = { team: "RADIANT", position: p.position };
@@ -247,7 +298,10 @@ export async function PATCH(request: NextRequest) {
       }
       const updated = await prisma.matchSession.update({
         where: { id: sessionId },
-        data: { teamAssignmentsGame2: JSON.stringify(map) },
+        data: {
+          teamAssignmentsGame2: JSON.stringify(map),
+          lineupsGame2Confirmed: false,
+        },
       });
       return NextResponse.json({
         session: updated,
@@ -256,6 +310,18 @@ export async function PATCH(request: NextRequest) {
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Не удалось собрать 2-й состав" },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (body.action === "confirmLineupsGame2") {
+    try {
+      const updated = await confirmLineupsGame2(sessionId);
+      return NextResponse.json({ session: updated });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось утвердить 2-й состав" },
         { status: 400 }
       );
     }
@@ -302,6 +368,12 @@ export async function PATCH(request: NextRequest) {
     nextGameNumber >= 2 &&
     session.teamAssignmentsGame2 &&
     session.teamAssignmentsGame2 !== "{}";
+  if (useGame2 && !session.lineupsGame2Confirmed) {
+    return NextResponse.json(
+      { error: "Сначала утвердите состав на 2-ю игру (кнопка ниже состава)" },
+      { status: 400 }
+    );
+  }
   const assignments = parseAssignments(
     useGame2 ? session.teamAssignmentsGame2! : session.teamAssignments
   );

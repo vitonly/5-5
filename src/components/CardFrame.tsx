@@ -170,38 +170,30 @@ export function CardFrame({
           <stop offset="55%" stopColor={design.bgGradient[1]} />
           <stop offset="100%" stopColor={design.bgGradient[2]} />
         </linearGradient>
-        <linearGradient id={`fade-${design.id}`} x1="0%" y1="60%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="100%" stopColor={design.bgGradient[2]} />
-        </linearGradient>
       </defs>
 
       {/* Border */}
       <path d={SHIELD_PATH} fill={`url(#${borderId})`} />
 
       <g clipPath={`url(#${clipId})`} transform="translate(3.5, 3.5) scale(0.975)">
-        <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#bg-${design.id})`} />
-        <PatternLayer design={design} />
-
-        {/* Player photo — крупнее, с сохранением пропорций (meet + zoom) */}
         {photoUrl ? (
-          <g
-            transform={`translate(${CARD_WIDTH / 2}, 210) scale(1.5) translate(${-CARD_WIDTH / 2}, -210)`}
-          >
-            <image
-              href={photoUrl}
-              x="0"
-              y="72"
-              width={CARD_WIDTH}
-              height="290"
-              preserveAspectRatio="xMidYMid meet"
-            />
-          </g>
+          <image
+            href={photoUrl}
+            x="0"
+            y="0"
+            width={CARD_WIDTH}
+            height={CARD_HEIGHT}
+            preserveAspectRatio="xMidYMid slice"
+          />
         ) : (
-          <g transform="translate(90, 110)" opacity="0.45" fill={design.accent}>
-            <ellipse cx="50" cy="35" rx="32" ry="36" />
-            <path d="M10 180 Q10 100 50 88 Q90 100 90 180 Z" />
-          </g>
+          <>
+            <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#bg-${design.id})`} />
+            <PatternLayer design={design} />
+            <g transform="translate(90, 110)" opacity="0.45" fill={design.accent}>
+              <ellipse cx="50" cy="35" rx="32" ry="36" />
+              <path d="M10 180 Q10 100 50 88 Q90 100 90 180 Z" />
+            </g>
+          </>
         )}
 
         {/* Сила поверх фото */}
@@ -217,10 +209,7 @@ export function CardFrame({
           {rating}
         </text>
 
-        {/* Bottom fade — выше сужения щита */}
-        <rect x="-6" y="250" width={CARD_WIDTH + 12} height="120" fill={`url(#fade-${design.id})`} />
-
-        {/* Name bar в широкой части карточки (до сужения к острию) */}
+        {/* Name bar */}
         <rect
           x="24"
           y="278"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import { PlayerRolesDisplay } from "@/components/PlayerRolesDisplay";
 import { PowerPill } from "@/components/StatPills";
 import { teamDisplayName } from "@/lib/team-names";
 import { usePasteImage } from "@/lib/use-paste-image";
+import { RESHUFFLE_INTENSITY_LABELS, type ReshuffleIntensity } from "@/lib/team-balance";
 
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
@@ -49,6 +50,7 @@ export function AdminMatchesClient({
   students: Student[];
 }) {
   const router = useRouter();
+  const [sessions, setSessions] = useState(initial);
   const [date, setDate] = useState("");
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [openDate, setOpenDate] = useState("");
@@ -58,10 +60,63 @@ export function AdminMatchesClient({
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [openError, setOpenError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingGame, setEditingGame] = useState<1 | 2>(1);
   const [draftRadiant, setDraftRadiant] = useState<DraftSlot[]>([]);
   const [draftDire, setDraftDire] = useState<DraftSlot[]>([]);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [reshuffleIntensity, setReshuffleIntensity] = useState<ReshuffleIntensity>(3);
+  const [onlyListedRoles, setOnlyListedRoles] = useState(true);
+
+  function intensityControl() {
+    return (
+      <div className="flex flex-col gap-2 sm:max-w-md">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-[var(--text-3)]">
+            Сила пересборки:{" "}
+            <span className="font-medium text-[var(--text)]">
+              {reshuffleIntensity} — {RESHUFFLE_INTENSITY_LABELS[reshuffleIntensity]}
+            </span>
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={5}
+            step={1}
+            value={reshuffleIntensity}
+            onChange={(e) =>
+              setReshuffleIntensity(Number(e.target.value) as ReshuffleIntensity)
+            }
+            className="w-full accent-[var(--accent)]"
+            disabled={saving}
+          />
+          <span className="flex justify-between text-[10px] text-[var(--text-4)]">
+            <span>мягко</span>
+            <span>жёстко</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-xs text-[var(--text-3)] cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-[var(--accent)]"
+            checked={onlyListedRoles}
+            onChange={(e) => setOnlyListedRoles(e.target.checked)}
+            disabled={saving}
+          />
+          <span>
+            Не ставить на роль, которой нет у игрока
+            <span className="block text-[10px] text-[var(--text-4)]">
+              Только primary / secondary из профиля
+            </span>
+          </span>
+        </label>
+      </div>
+    );
+  }
+
+  useEffect(() => {
+    setSessions(initial);
+  }, [initial]);
 
   const studentMap = useMemo(
     () => Object.fromEntries(students.map((s) => [s.id, s])),
@@ -208,18 +263,72 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
-  async function generateGame2(sessionId: string) {
+  async function generateGame2(sessionId: string, intensity = reshuffleIntensity) {
     setSaving(true);
     try {
       const res = await fetch("/api/matches", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, action: "generateGame2" }),
+        body: JSON.stringify({
+          sessionId,
+          action: "generateGame2",
+          intensity,
+          onlyListedRoles,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data.error || "Ошибка");
         return;
+      }
+      if (data.session) {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === data.session.id
+              ? {
+                  ...s,
+                  ...data.session,
+                  games: s.games,
+                  rsvps: s.rsvps,
+                }
+              : s
+          )
+        );
+      }
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmLineupsGame2(sessionId: string) {
+    if (
+      !confirm(
+        "Утвердить состав на игру №2? Игрокам уйдёт уведомление в Telegram."
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/matches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, action: "confirmLineupsGame2" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(typeof data.error === "string" ? data.error : "Не удалось утвердить");
+        return;
+      }
+      if (data.session) {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === data.session.id
+              ? { ...s, ...data.session, games: s.games, rsvps: s.rsvps }
+              : s
+          )
+        );
       }
       router.refresh();
     } finally {
@@ -301,10 +410,22 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
-  function startEdit(session: Session) {
-    const assignments = parseTeamAssignments(session.teamAssignments);
-    const radiantIds = parseJsonArray(session.radiantPlayerIds);
-    const direIds = parseJsonArray(session.direPlayerIds);
+  function startEdit(session: Session, game: 1 | 2 = 1) {
+    const assignments = parseTeamAssignments(
+      game === 2 ? session.teamAssignmentsGame2 : session.teamAssignments
+    );
+    const radiantIds =
+      game === 2
+        ? Object.entries(assignments)
+            .filter(([, a]) => a.team === "RADIANT")
+            .map(([id]) => id)
+        : parseJsonArray(session.radiantPlayerIds);
+    const direIds =
+      game === 2
+        ? Object.entries(assignments)
+            .filter(([, a]) => a.team === "DIRE")
+            .map(([id]) => id)
+        : parseJsonArray(session.direPlayerIds);
     setDraftRadiant(
       lineupForTeam("RADIANT", radiantIds, assignments).map((s) => ({
         userId: s.userId,
@@ -317,6 +438,7 @@ export function AdminMatchesClient({
         position: s.position,
       }))
     );
+    setEditingGame(game);
     setEditingId(session.id);
     setEditError("");
   }
@@ -361,6 +483,7 @@ export function AdminMatchesClient({
         body: JSON.stringify({
           sessionId,
           action: "updateTeams",
+          game: editingGame,
           radiant: draftRadiant,
           dire: draftDire,
         }),
@@ -369,6 +492,20 @@ export function AdminMatchesClient({
       if (!res.ok) {
         setEditError(typeof data.error === "string" ? data.error : "Не удалось сохранить");
         return;
+      }
+      if (data.session) {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === data.session.id
+              ? {
+                  ...s,
+                  ...data.session,
+                  games: s.games,
+                  rsvps: s.rsvps,
+                }
+              : s
+          )
+        );
       }
       setEditingId(null);
       router.refresh();
@@ -516,12 +653,26 @@ export function AdminMatchesClient({
         </CardContent>
       </Card>
 
-      {initial.map((session) => {
+      {sessions.map((session) => {
         const radiantIds = parseJsonArray(session.radiantPlayerIds);
         const direIds = parseJsonArray(session.direPlayerIds);
         const assignments = parseTeamAssignments(session.teamAssignments);
         const radiantLineup = lineupForTeam("RADIANT", radiantIds, assignments);
         const direLineup = lineupForTeam("DIRE", direIds, assignments);
+        const game2Assignments = parseTeamAssignments(session.teamAssignmentsGame2);
+        const hasGame2 = Object.keys(game2Assignments).length > 0;
+        const game2RadiantIds = Object.entries(game2Assignments)
+          .filter(([, a]) => a.team === "RADIANT")
+          .map(([id]) => id);
+        const game2DireIds = Object.entries(game2Assignments)
+          .filter(([, a]) => a.team === "DIRE")
+          .map(([id]) => id);
+        const game2RadiantLineup = hasGame2
+          ? lineupForTeam("RADIANT", game2RadiantIds, game2Assignments)
+          : [];
+        const game2DireLineup = hasGame2
+          ? lineupForTeam("DIRE", game2DireIds, game2Assignments)
+          : [];
         const isEditing = editingId === session.id;
         const nameFromIds = (ids: string[], fallback: string) =>
           teamDisplayName(
@@ -542,14 +693,29 @@ export function AdminMatchesClient({
           isEditing ? draftDire.map((s) => s.userId).filter(Boolean) : direIds,
           "Team B"
         );
+        const game2RadiantName = nameFromIds(game2RadiantIds, "Team A");
+        const game2DireName = nameFromIds(game2DireIds, "Team B");
+        const game2RadiantPower = sumPower(game2RadiantLineup, studentMap);
+        const game2DirePower = sumPower(game2DireLineup, studentMap);
+        const game2PowerDiff = Math.abs(game2RadiantPower - game2DirePower);
+        const nextGameNumber = session.games.length + 1;
+        const recordingGame2 = nextGameNumber >= 2 && hasGame2;
+        const activeWinRadiantName = recordingGame2 ? game2RadiantName : radiantName;
+        const activeWinDireName = recordingGame2 ? game2DireName : direName;
         const beforeStart =
           session.status === "PLANNED" ||
           session.status === "TEAMS_SET" ||
           session.status === "LINEUPS_CONFIRMED";
-        const canEdit =
+        const canEditGame1 =
           beforeStart &&
           session.status !== "COMPLETED" &&
           radiantIds.length === 5;
+        const canEditGame2 =
+          hasGame2 &&
+          session.status !== "COMPLETED" &&
+          (beforeStart ||
+            (session.status === "IN_PROGRESS" && session.games.length < 2));
+        const canEdit = canEditGame1 || canEditGame2;
         const rsvps = session.rsvps ?? [];
         const joined = rsvps.filter((r) => r.status === "JOINED");
         const queued = rsvps
@@ -579,9 +745,26 @@ export function AdminMatchesClient({
                   </Badge>
                   <Badge>{MATCH_STATUS_LABELS[session.status]}</Badge>
                   {canEdit && !isEditing && (
-                    <Button variant="secondary" size="sm" onClick={() => startEdit(session)}>
-                      Править состав
-                    </Button>
+                    <>
+                      {canEditGame1 && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => startEdit(session, 1)}
+                        >
+                          Править №1
+                        </Button>
+                      )}
+                      {canEditGame2 && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => startEdit(session, 2)}
+                        >
+                          Править №2
+                        </Button>
+                      )}
+                    </>
                   )}
                   <Button
                     variant="destructive"
@@ -639,6 +822,9 @@ export function AdminMatchesClient({
 
               {isEditing ? (
                 <div className="space-y-4">
+                  <p className="font-display text-base font-semibold text-[var(--text)]">
+                    Редактирование состава на игру №{editingGame}
+                  </p>
                   <p className="text-sm text-[var(--text-3)]">
                     Смена игрока в слоте — свап с тем, кто сейчас на этой позиции.
                   </p>
@@ -663,7 +849,9 @@ export function AdminMatchesClient({
                   {editError && <p className="text-sm text-[var(--danger)]">{editError}</p>}
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => saveEdit(session.id)} disabled={saving}>
-                      {saving ? "Сохранение..." : "Сохранить состав"}
+                      {saving
+                        ? "Сохранение..."
+                        : `Сохранить состав №${editingGame}`}
                     </Button>
                     <Button
                       variant="secondary"
@@ -680,6 +868,9 @@ export function AdminMatchesClient({
               ) : (
                 radiantLineup.length > 0 && (
                   <div className="space-y-3">
+                    <p className="font-display text-base font-semibold text-[var(--text)]">
+                      Состав на игру №1
+                    </p>
                     <div className="grid gap-4 md:grid-cols-2">
                       <TeamBlock
                         title={radiantName}
@@ -711,93 +902,170 @@ export function AdminMatchesClient({
               )}
 
               {session.status === "TEAMS_SET" && !isEditing && (
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => confirmLineups(session.id)}>
-                    Утвердить составы
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={saving}
-                    onClick={() => generateGame2(session.id)}
-                  >
-                    Собрать состав на 2-ю игру
-                  </Button>
-                  <Button variant="outline" onClick={() => completeSession(session.id)}>
-                    Отменить / завершить без игр
-                  </Button>
+                <div className="space-y-2">
+                  {!hasGame2 && intensityControl()}
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => confirmLineups(session.id)}>
+                      Утвердить составы (игра 1)
+                    </Button>
+                    {!hasGame2 && (
+                      <Button
+                        variant="secondary"
+                        disabled={saving}
+                        onClick={() => generateGame2(session.id)}
+                      >
+                        Собрать состав на 2-ю игру
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => completeSession(session.id)}>
+                      Отменить / завершить без игр
+                    </Button>
+                  </div>
                 </div>
               )}
 
               {(session.status === "LINEUPS_CONFIRMED" ||
                 session.status === "IN_PROGRESS" ||
                 session.status === "TEAMS_SET") &&
-                (session as { teamAssignmentsGame2?: string }).teamAssignmentsGame2 &&
-                (session as { teamAssignmentsGame2?: string }).teamAssignmentsGame2 !==
-                  "{}" && (
-                  <p className="text-xs text-[var(--success)]">
-                    Состав на 2-ю игру готов (минимальный свап команд).
-                  </p>
+                hasGame2 &&
+                !isEditing && (
+                  <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-display text-base font-semibold text-[var(--text)]">
+                        Состав на игру №2
+                      </p>
+                      {session.lineupsGame2Confirmed ? (
+                        <Badge variant="success">Утверждён · TG разослан</Badge>
+                      ) : (
+                        <Badge variant="warning">Черновик — утвердите</Badge>
+                      )}
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TeamBlock
+                        title={game2RadiantName}
+                        lineup={game2RadiantLineup}
+                        map={studentMap}
+                        teamPower={game2RadiantPower}
+                      />
+                      <TeamBlock
+                        title={game2DireName}
+                        lineup={game2DireLineup}
+                        map={studentMap}
+                        teamPower={game2DirePower}
+                      />
+                    </div>
+                    <p className="font-mono-num text-sm text-[var(--text-2)]">
+                      Сумма силы: {game2RadiantName} <b>{game2RadiantPower}</b> ·{" "}
+                      {game2DireName} <b>{game2DirePower}</b>
+                      {" · "}
+                      Разница: <b>{game2PowerDiff}</b>
+                      {game2RadiantPower !== game2DirePower && (
+                        <span className="text-[var(--text-4)]">
+                          {" "}
+                          (
+                          {game2RadiantPower > game2DirePower
+                            ? game2RadiantName
+                            : game2DireName}{" "}
+                          сильнее)
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-[var(--text-3)]">
+                      Пересборка с учётом позиций, ролей и баланса силы. Победа в обеих
+                      играх за день даёт доп. очки (+2 за вторую победу подряд).
+                    </p>
+                    <div className="space-y-2">
+                      {intensityControl()}
+                      <div className="flex flex-wrap gap-2">
+                        {!session.lineupsGame2Confirmed && (
+                          <Button
+                            disabled={saving}
+                            onClick={() => confirmLineupsGame2(session.id)}
+                          >
+                            Утвердить состав на игру №2
+                          </Button>
+                        )}
+                        <Button
+                          variant="secondary"
+                          disabled={saving}
+                          onClick={() => generateGame2(session.id)}
+                        >
+                          Пересобрать 2-й состав
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
               {session.status === "LINEUPS_CONFIRMED" && !isEditing && (
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => startSession(session.id)}>
-                    Старт сессии (все за ПК)
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={saving}
-                    onClick={() => generateGame2(session.id)}
-                  >
-                    Собрать состав на 2-ю игру
-                  </Button>
-                  <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
-                    MVP: опрос в TG
-                  </Button>
-                  <Button variant="outline" onClick={() => completeSession(session.id)}>
-                    Отменить / завершить без игр
-                  </Button>
+                <div className="space-y-2">
+                  {!hasGame2 && intensityControl()}
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => startSession(session.id)}>
+                      Старт сессии (все за ПК)
+                    </Button>
+                    {!hasGame2 && (
+                      <Button
+                        variant="secondary"
+                        disabled={saving}
+                        onClick={() => generateGame2(session.id)}
+                      >
+                        Собрать состав на 2-ю игру
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
+                      MVP: опрос в TG
+                    </Button>
+                    <Button variant="outline" onClick={() => completeSession(session.id)}>
+                      Отменить / завершить без игр
+                    </Button>
+                  </div>
                 </div>
               )}
 
               {session.status === "IN_PROGRESS" && !isEditing && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() =>
-                      recordResult(session.id, "RADIANT", session.games.length + 1)
-                    }
-                  >
-                    Победа {radiantName} (игра {session.games.length + 1})
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      recordResult(session.id, "DIRE", session.games.length + 1)
-                    }
-                  >
-                    Победа {direName} (игра {session.games.length + 1})
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      recordResult(session.id, "DRAW", session.games.length + 1)
-                    }
-                  >
-                    Ничья (игра {session.games.length + 1})
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={saving}
-                    onClick={() => generateGame2(session.id)}
-                  >
-                    Состав на 2-ю игру
-                  </Button>
-                  <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
-                    MVP: опрос в TG
-                  </Button>
-                  <Button variant="outline" onClick={() => completeSession(session.id)}>
-                    Завершить сессию
-                  </Button>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    Записать результат — игра {nextGameNumber}
+                    {recordingGame2 ? " (состав №2)" : " (состав №1)"}
+                  </p>
+                  {!hasGame2 && intensityControl()}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() =>
+                        recordResult(session.id, "RADIANT", nextGameNumber)
+                      }
+                    >
+                      Победа {activeWinRadiantName}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => recordResult(session.id, "DIRE", nextGameNumber)}
+                    >
+                      Победа {activeWinDireName}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => recordResult(session.id, "DRAW", nextGameNumber)}
+                    >
+                      Ничья
+                    </Button>
+                    {!hasGame2 && (
+                      <Button
+                        variant="secondary"
+                        disabled={saving}
+                        onClick={() => generateGame2(session.id)}
+                      >
+                        Состав на 2-ю игру
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
+                      MVP: опрос в TG
+                    </Button>
+                    <Button variant="outline" onClick={() => completeSession(session.id)}>
+                      Завершить сессию
+                    </Button>
+                  </div>
                 </div>
               )}
 
@@ -807,21 +1075,42 @@ export function AdminMatchesClient({
                     Результаты:{" "}
                     {session.games
                       .map((g) => {
+                        const useG2Names =
+                          g.gameNumber >= 2 && hasGame2;
+                        const rName = useG2Names ? game2RadiantName : radiantName;
+                        const dName = useG2Names ? game2DireName : direName;
                         const w =
                           g.winnerTeam === "RADIANT"
-                            ? radiantName
+                            ? rName
                             : g.winnerTeam === "DIRE"
-                              ? direName
+                              ? dName
                               : "Ничья";
                         return `Игра ${g.gameNumber}: ${w}`;
                       })
                       .join(" · ")}
                   </p>
                   <p>
-                    Счёт: {radiantName}{" "}
-                    {session.games.filter((g) => g.winnerTeam === "RADIANT").length} —{" "}
-                    {direName}{" "}
-                    {session.games.filter((g) => g.winnerTeam === "DIRE").length}
+                    Счёт по командам игры 1: {radiantName}{" "}
+                    {session.games.filter(
+                      (g) => g.gameNumber === 1 && g.winnerTeam === "RADIANT"
+                    ).length}{" "}
+                    — {direName}{" "}
+                    {session.games.filter(
+                      (g) => g.gameNumber === 1 && g.winnerTeam === "DIRE"
+                    ).length}
+                    {hasGame2 && (
+                      <>
+                        {" · "}
+                        игры 2: {game2RadiantName}{" "}
+                        {session.games.filter(
+                          (g) => g.gameNumber >= 2 && g.winnerTeam === "RADIANT"
+                        ).length}{" "}
+                        — {game2DireName}{" "}
+                        {session.games.filter(
+                          (g) => g.gameNumber >= 2 && g.winnerTeam === "DIRE"
+                        ).length}
+                      </>
+                    )}
                   </p>
                   {session.status === "IN_PROGRESS" && !isEditing && (
                     <Button

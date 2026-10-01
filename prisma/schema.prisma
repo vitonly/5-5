@@ -379,6 +379,8 @@ model MatchSession {
   teamAssignments       String             @default("{}")
   /** Состав игры 2 (минимальный ребаланс) */
   teamAssignmentsGame2  String             @default("{}")
+  /** Утверждён ли состав игры 2 (TG разослан) */
+  lineupsGame2Confirmed Boolean            @default(false)
   mvpResolved           Boolean            @default(false)
   mvpWinnerId           String?
   createdAt             DateTime           @default(now())

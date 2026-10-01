@@ -170,6 +170,79 @@ async function notifyTeamsFormed(sessionId: string) {
   await refreshQueueMessages(sessionId);
 }
 
+/** Уведомить игроков о составе на игру №2 */
+async function notifyTeamsFormedGame2(sessionId: string) {
+  const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
+  if (!session) return;
+
+  let assignment: TeamAssignment = {};
+  try {
+    assignment = JSON.parse(session.teamAssignmentsGame2 || "{}") as TeamAssignment;
+  } catch {
+    return;
+  }
+  const radiantIds = Object.entries(assignment)
+    .filter(([, a]) => a.team === "RADIANT")
+    .sort((a, b) => a[1].position - b[1].position)
+    .map(([id]) => id);
+  const direIds = Object.entries(assignment)
+    .filter(([, a]) => a.team === "DIRE")
+    .sort((a, b) => a[1].position - b[1].position)
+    .map(([id]) => id);
+  const allIds = [...radiantIds, ...direIds];
+  if (allIds.length !== OPEN_SLOTS) return;
+
+  const [users, profiles, rsvps] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: allIds } } }),
+    prisma.playerProfile.findMany({
+      where: { userId: { in: allIds } },
+      select: { userId: true, finalRating: true },
+    }),
+    prisma.matchRsvp.findMany({
+      where: { sessionId, userId: { in: allIds } },
+    }),
+  ]);
+
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+  const powerMap = Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating]));
+  const rsvpMap = Object.fromEntries(rsvps.map((r) => [r.userId, r]));
+
+  const { teamDisplayName } = await import("@/lib/team-names");
+  const named = (ids: string[]) =>
+    ids.map((id) => ({
+      id,
+      firstName: userMap[id]?.firstName,
+      lastName: userMap[id]?.lastName,
+      username: userMap[id]?.username,
+      finalRating: powerMap[id] ?? 0,
+    }));
+  const radiantName = teamDisplayName(named(radiantIds), "Team A");
+  const direName = teamDisplayName(named(direIds), "Team B");
+
+  const lineFor = (ids: string[]) =>
+    ids
+      .map((id) => {
+        const pos = assignment[id]?.position;
+        const name = userMap[id] ? displayName(userMap[id]) : id;
+        return `  ${pos ? POSITION_LABELS[pos] ?? pos : "?"}: ${name}`;
+      })
+      .join("\n");
+
+  const header = `⚔️ <b>Состав на игру №2 утверждён</b>\n${formatDate(session.date)}\n\nМинимальный свап команд.\n\n<b>${radiantName}</b>\n${lineFor(radiantIds)}\n\n<b>${direName}</b>\n${lineFor(direIds)}`;
+
+  for (const userId of allIds) {
+    const user = userMap[userId];
+    if (!user) continue;
+    const a = assignment[userId];
+    const side = a?.team === "DIRE" ? direName : radiantName;
+    const pos = a?.position ? POSITION_LABELS[a.position] ?? String(a.position) : "?";
+    const text = `${header}\n\nВы: <b>${side}</b>, ${pos}`;
+    const rsvp = rsvpMap[userId];
+    const chatId = rsvp?.tgChatId || notifyChatId(user);
+    await sendTelegramMessage(chatId, text);
+  }
+}
+
 /** Утвердить составы: TG всем игрокам, дальше можно стартовать. */
 export async function confirmLineups(sessionId: string) {
   const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
@@ -196,6 +269,38 @@ export async function confirmLineups(sessionId: string) {
   });
 
   await notifyTeamsFormed(sessionId);
+  return updated;
+}
+
+/** Утвердить состав на игру №2 и разослать в Telegram. */
+export async function confirmLineupsGame2(sessionId: string) {
+  const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
+  if (!session) throw new Error("Сессия не найдена");
+  if (session.lineupsGame2Confirmed) {
+    throw new Error("Состав на 2-ю игру уже утверждён");
+  }
+  let assignment: TeamAssignment = {};
+  try {
+    assignment = JSON.parse(session.teamAssignmentsGame2 || "{}") as TeamAssignment;
+  } catch {
+    throw new Error("Сначала соберите состав на 2-ю игру");
+  }
+  const radiantIds = Object.entries(assignment)
+    .filter(([, a]) => a.team === "RADIANT")
+    .map(([id]) => id);
+  const direIds = Object.entries(assignment)
+    .filter(([, a]) => a.team === "DIRE")
+    .map(([id]) => id);
+  if (radiantIds.length !== 5 || direIds.length !== 5) {
+    throw new Error("Сначала соберите полный состав на 2-ю игру (10 игроков)");
+  }
+
+  const updated = await prisma.matchSession.update({
+    where: { id: sessionId },
+    data: { lineupsGame2Confirmed: true },
+  });
+
+  await notifyTeamsFormedGame2(sessionId);
   return updated;
 }
 
