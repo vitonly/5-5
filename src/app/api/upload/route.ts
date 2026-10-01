@@ -85,19 +85,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: blob.url });
   }
 
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json(
-      {
-        error:
-          "Хранилище файлов не настроено. Vercel → Storage → Blob → создайте store → BLOB_READ_WRITE_TOKEN в Environment Variables → Redeploy.",
-      },
-      { status: 503 }
-    );
-  }
-
+  // VPS / self-host: диск (UPLOADS_DIR или public/uploads)
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  const uploadsDir =
+    process.env.UPLOADS_DIR?.trim() || path.join(process.cwd(), "public", "uploads");
   await mkdir(uploadsDir, { recursive: true });
   await writeFile(path.join(uploadsDir, safeName), buffer);
 

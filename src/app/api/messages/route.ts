@@ -90,14 +90,26 @@ export async function POST(request: NextRequest) {
     text || "📷 Фото"
   }\n\nОтветить можно на сайте.`;
 
-  if (image) {
-    const sent = await sendTelegramInviteDetailed(notifyChatId(peer), notifyText, undefined, image);
-    if (!sent.ok) {
-      await sendTelegramMessage(notifyChatId(peer), `${notifyText}\n${image}`);
+  // Не блокируем ответ клиенту ожиданием Telegram
+  void (async () => {
+    try {
+      if (image) {
+        const sent = await sendTelegramInviteDetailed(
+          notifyChatId(peer),
+          notifyText,
+          undefined,
+          image
+        );
+        if (!sent.ok) {
+          await sendTelegramMessage(notifyChatId(peer), `${notifyText}\n${image}`);
+        }
+      } else {
+        await sendTelegramMessage(notifyChatId(peer), notifyText);
+      }
+    } catch {
+      /* ignore notify errors */
     }
-  } else {
-    await sendTelegramMessage(notifyChatId(peer), notifyText);
-  }
+  })();
 
   return NextResponse.json({ message });
 }

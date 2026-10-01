@@ -23,6 +23,10 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "СТАРТ+ dota2 education",
   description: "СТАРТ+ — платформа обучения Dota 2: домашки, рейтинги, 5v5. Сайт в разработке v1.01",
+  icons: {
+    icon: [{ url: "/brand/start-plus.png?v=2", type: "image/png" }],
+    apple: [{ url: "/brand/start-plus.png?v=2", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

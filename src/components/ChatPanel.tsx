@@ -101,6 +101,11 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
   async function send() {
     if ((!draft.trim() && !pendingImage) || sending) return;
     const recipientId = isAdmin ? peerId : undefined;
+    const body = draft;
+    const imageUrl = pendingImage;
+    // Сразу очищаем — иначе при долгом TG-уведомлении поля «залипают»
+    setDraft("");
+    setPendingImage(null);
     setSending(true);
     try {
       const res = await fetch("/api/messages", {
@@ -108,16 +113,23 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientId,
-          body: draft,
-          imageUrl: pendingImage,
+          body,
+          imageUrl,
         }),
       });
-      if (res.ok) {
-        setDraft("");
-        setPendingImage(null);
-        loadMessages();
-        loadContacts();
+      if (!res.ok) {
+        setDraft(body);
+        setPendingImage(imageUrl);
+        const data = await res.json().catch(() => ({}));
+        alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        return;
       }
+      void loadMessages();
+      void loadContacts();
+    } catch {
+      setDraft(body);
+      setPendingImage(imageUrl);
+      alert("Не удалось отправить");
     } finally {
       setSending(false);
     }

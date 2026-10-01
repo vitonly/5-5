@@ -51,6 +51,7 @@ export function AdminAttendanceClient() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(true);
 
   /** Local checkbox overrides before/while server sync */
   const [localPresent, setLocalPresent] = useState<Record<string, boolean>>({});
@@ -98,6 +99,7 @@ export function AdminAttendanceClient() {
     // Clear local overrides when switching session
     setLocalPresent({});
     pendingRef.current.clear();
+    setListOpen(true);
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
@@ -263,37 +265,60 @@ export function AdminAttendanceClient() {
 
       {active ? (
         <Card>
-          <CardHeader>
-            <CardTitle>Посещаемость · {formatDateOnly(active.date)}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {students.map((st) => {
-              const on = presentSet.has(st.id);
-              return (
-                <label
-                  key={st.id}
-                  className="flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
-                >
-                  <span className="font-medium text-[var(--text)]">{displayName(st)}</span>
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5 accent-[var(--points)]"
-                      checked={on}
-                      onChange={(e) => toggle(st.id, e.target.checked)}
-                    />
-                    <span
-                      className={`font-mono-num text-xs ${
-                        on ? "text-[var(--success)]" : "text-[var(--text-4)]"
-                      }`}
-                    >
-                      {on ? `+${formatPoints(POINT_VALUES.LESSON_ATTEND)}` : "нет"}
+          <button
+            type="button"
+            onClick={() => setListOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--control)]/40"
+            aria-expanded={listOpen}
+          >
+            <div>
+              <p className="font-display text-lg font-semibold text-[var(--text)]">
+                Посещаемость · {formatDateOnly(active.date)}
+              </p>
+              <p className="mt-0.5 text-sm text-[var(--text-3)]">
+                {presentSet.size}/{students.length} присутствуют
+                {!listOpen && " · нажмите, чтобы развернуть"}
+              </p>
+            </div>
+            <span
+              className={`shrink-0 text-[var(--text-3)] transition-transform ${
+                listOpen ? "rotate-180" : ""
+              }`}
+              aria-hidden
+            >
+              ▾
+            </span>
+          </button>
+          {listOpen && (
+            <CardContent className="space-y-2 border-t border-[var(--border-soft)] pt-4">
+              {students.map((st) => {
+                const on = presentSet.has(st.id);
+                return (
+                  <label
+                    key={st.id}
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
+                  >
+                    <span className="font-medium text-[var(--text)]">{displayName(st)}</span>
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5 accent-[var(--points)]"
+                        checked={on}
+                        onChange={(e) => toggle(st.id, e.target.checked)}
+                      />
+                      <span
+                        className={`font-mono-num text-xs ${
+                          on ? "text-[var(--success)]" : "text-[var(--text-4)]"
+                        }`}
+                      >
+                        {on ? `+${formatPoints(POINT_VALUES.LESSON_ATTEND)}` : "нет"}
+                      </span>
                     </span>
-                  </span>
-                </label>
-              );
-            })}
-          </CardContent>
+                  </label>
+                );
+              })}
+            </CardContent>
+          )}
         </Card>
       ) : (
         <p className="text-sm text-[var(--text-3)]">Создайте занятие, чтобы отметить учеников.</p>

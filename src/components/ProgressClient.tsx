@@ -169,19 +169,20 @@ export function ProgressClient({
       {!loading && <ProgressBarsChart points={chartPoints} title={`За ${RANGE_LABELS[range].toLowerCase()}`} />}
 
       {!compact && !readOnly && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Запись за день</CardTitle>
-            <p className="text-sm text-[var(--text-3)]">Без баллов — просто учёт привычек.</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <Label>Дата</Label>
-              <Input type="date" value={dayKey} onChange={(e) => setDayKey(e.target.value)} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-4">
+          <div>
+            <Label>Дата</Label>
+            <Input type="date" value={dayKey} onChange={(e) => setDayKey(e.target.value)} />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Игр сыграно</CardTitle>
+              <p className="text-sm text-[var(--text-3)]">Просто счётчик за день.</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div>
-                <Label>Игр сыграно</Label>
+                <Label>Количество</Label>
                 <Input
                   type="number"
                   min={0}
@@ -190,8 +191,20 @@ export function ProgressClient({
                   onChange={(e) => setGamesPlayed(Number(e.target.value) || 0)}
                 />
               </div>
+              <Button onClick={() => void save()} disabled={saving}>
+                {saving ? "Сохранение…" : "Сохранить игры"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Реплеев посмотрено</CardTitle>
+              <p className="text-sm text-[var(--text-3)]">Без баллов — учёт просмотров и выводов.</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div>
-                <Label>Реплеев посмотрено</Label>
+                <Label>Количество</Label>
                 <Input
                   type="number"
                   min={0}
@@ -200,30 +213,30 @@ export function ProgressClient({
                   onChange={(e) => setReplaysWatched(Number(e.target.value) || 0)}
                 />
               </div>
-            </div>
-            <div>
-              <Label>Какие реплеи</Label>
-              <Textarea
-                value={replayNotes}
-                onChange={(e) => setReplayNotes(e.target.value)}
-                placeholder="Герои, позиции, тайминги…"
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label>Выводы / что нового</Label>
-              <Textarea
-                value={takeaways}
-                onChange={(e) => setTakeaways(e.target.value)}
-                placeholder="Что подметили, что будете делать иначе"
-                rows={3}
-              />
-            </div>
-            <Button onClick={() => void save()} disabled={saving}>
-              {saving ? "Сохранение…" : "Сохранить день"}
-            </Button>
-          </CardContent>
-        </Card>
+              <div>
+                <Label>Какие реплеи</Label>
+                <Textarea
+                  value={replayNotes}
+                  onChange={(e) => setReplayNotes(e.target.value)}
+                  placeholder="Герои, позиции, тайминги…"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label>Выводы / что нового</Label>
+                <Textarea
+                  value={takeaways}
+                  onChange={(e) => setTakeaways(e.target.value)}
+                  placeholder="Что подметили, что будете делать иначе"
+                  rows={3}
+                />
+              </div>
+              <Button onClick={() => void save()} disabled={saving}>
+                {saving ? "Сохранение…" : "Сохранить реплеи"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {!compact && logs.length > 0 && (

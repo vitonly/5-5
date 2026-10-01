@@ -8,11 +8,9 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { getVotingSeason } from "@/lib/seasons";
 
 const studentLinks = [
-  { href: "/", label: "Главная" },
   { href: "/homework", label: "Домашки" },
   { href: "/materials", label: "Материалы" },
   { href: "/match", label: "5x5" },
-  { href: "/match/vote", label: "Голосование" },
   { href: "/progress", label: "Мой прогресс" },
   { href: "/rules", label: "Rule book" },
   { href: "/stats", label: "Статистика" },
@@ -83,7 +81,6 @@ export async function Navbar() {
   }
 
   const studentTabs = [
-    { href: "/", label: "Главная", icon: "home" as const },
     {
       href: "/homework",
       label: "Домашки",
@@ -141,10 +138,11 @@ export async function Navbar() {
           <Link
             href={isAdmin ? "/admin" : "/"}
             className="flex min-w-0 items-center gap-2.5"
+            title="На главную"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/start-plus.png"
+              src="/brand/start-plus.png?v=2"
               alt="СТАРТ+"
               className="h-9 w-9 shrink-0 object-contain min-[720px]:h-10 min-[720px]:w-10"
             />
@@ -165,7 +163,7 @@ export async function Navbar() {
               const badge =
                 link.href === "/homework" || link.href === "/admin/homework"
                   ? pendingHomework
-                  : link.href === "/match/vote"
+                  : link.href === "/match"
                     ? pendingVotes
                     : 0;
               return (
@@ -186,17 +184,6 @@ export async function Navbar() {
           </nav>
 
           <div className="flex items-center gap-2 min-[720px]:gap-3">
-            {!isAdmin && pendingVotes > 0 && (
-              <Link
-                href="/match/vote"
-                className="relative flex h-9 items-center rounded-[var(--radius-control)] bg-[var(--points-bg)] px-2.5 text-[12px] font-medium text-[var(--points)] min-[720px]:hidden"
-              >
-                Голос
-                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono-num text-[9px] font-bold text-white">
-                  {pendingVotes > 9 ? "9+" : pendingVotes}
-                </span>
-              </Link>
-            )}
             <Link
               href={isAdmin ? "/admin" : playerProfilePath(user.id, user)}
               className="hidden max-w-[140px] truncate text-sm font-medium text-[var(--text)] transition-colors hover:text-[var(--points)] min-[720px]:inline"
@@ -216,15 +203,6 @@ export async function Navbar() {
         {/* mobile secondary links (stats etc.) — thin strip for students */}
         {!isAdmin && (
           <div className="flex gap-1 overflow-x-auto border-t border-[var(--border-soft)] px-3 py-1.5 min-[720px]:hidden">
-            <Link
-              href="/match/vote"
-              className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
-            >
-              Голосование
-              {pendingVotes > 0 && (
-                <span className="ml-1 font-mono-num text-[var(--danger)]">{pendingVotes}</span>
-              )}
-            </Link>
             <Link
               href="/progress"
               className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"

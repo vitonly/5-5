@@ -124,10 +124,11 @@ def main():
         f.write(tgz)
 
     run(client, f"rm -rf {REMOTE_APP} && mkdir -p {REMOTE_APP} && tar -xzf /tmp/startplus.tgz -C {REMOTE_APP}")
+    # Empty real dir during build — Turbopack breaks on symlink to /var/www/.../uploads
     run(
         client,
         f"mkdir -p /var/www/startplus/uploads && rm -rf {REMOTE_APP}/public/uploads && "
-        f"ln -s /var/www/startplus/uploads {REMOTE_APP}/public/uploads",
+        f"mkdir -p {REMOTE_APP}/public/uploads",
     )
 
     remote_env = {
@@ -140,6 +141,7 @@ def main():
         "CRON_SECRET": env.get("CRON_SECRET", "cron-secret-change-me-16chars"),
         "TWITCH_CLIENT_ID": env.get("TWITCH_CLIENT_ID", ""),
         "TWITCH_CLIENT_SECRET": env.get("TWITCH_CLIENT_SECRET", ""),
+        "UPLOADS_DIR": "/var/www/startplus/uploads",
         "NODE_ENV": "production",
         "PORT": "3000",
     }
@@ -186,6 +188,13 @@ def main():
     code, _ = run(client, f"cd {REMOTE_APP} && npm run build", timeout=1800)
     if code != 0:
         raise SystemExit("Build failed")
+
+    # Symlink uploads after build (nginx serves /uploads from this dir)
+    run(
+        client,
+        f"rm -rf {REMOTE_APP}/public/uploads && "
+        f"ln -s /var/www/startplus/uploads {REMOTE_APP}/public/uploads",
+    )
 
     run(client, "pm2 delete startplus || true")
     run(client, f"cd {REMOTE_APP} && pm2 start npm --name startplus -- start && pm2 save")
