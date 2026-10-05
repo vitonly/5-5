@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { handleTelegramUpdate, type TelegramUpdate } from "@/lib/telegram-bot";
 
 export async function POST(request: NextRequest) {
@@ -10,7 +10,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const update = (await request.json()) as TelegramUpdate;
-  await handleTelegramUpdate(update);
+  let update: TelegramUpdate;
+  try {
+    update = (await request.json()) as TelegramUpdate;
+  } catch {
+    return NextResponse.json({ error: "Bad JSON" }, { status: 400 });
+  }
+
+  // Быстрый 200 для Telegram — обработка в фоне, иначе Connection timed out
+  after(async () => {
+    try {
+      await handleTelegramUpdate(update);
+    } catch (e) {
+      console.error("[telegram webhook]", e);
+    }
+  });
+
   return NextResponse.json({ ok: true });
 }

@@ -41,6 +41,44 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ material });
 }
 
+export async function PATCH(request: NextRequest) {
+  await requireAdmin();
+  const { id, type, title, description, url, positions, skillLevels } =
+    await request.json();
+
+  if (!id || typeof id !== "string") {
+    return NextResponse.json({ error: "Не указан материал" }, { status: 400 });
+  }
+
+  const trimmedTitle = title ? String(title).trim() : "";
+  const trimmedDescription = description ? String(description).trim() : "";
+  const trimmedUrl = url ? String(url).trim() : null;
+
+  if (!trimmedTitle && !trimmedDescription && !trimmedUrl) {
+    return NextResponse.json(
+      { error: "Укажите ссылку, название или описание" },
+      { status: 400 }
+    );
+  }
+
+  const materialType = (type as MaterialType) || "VIDEO";
+  const material = await prisma.learningMaterial.update({
+    where: { id },
+    data: {
+      type: materialType,
+      title: trimmedTitle,
+      description: trimmedDescription,
+      url: trimmedUrl,
+      positions: toJsonArray((positions as DotaRole[]) || []),
+      skillLevels: toJsonArray(
+        materialType === "VIDEO" ? (skillLevels as SkillLevel[]) || [] : []
+      ),
+    },
+  });
+
+  return NextResponse.json({ material });
+}
+
 export async function DELETE(request: NextRequest) {
   await requireAdmin();
   const { id } = await request.json();

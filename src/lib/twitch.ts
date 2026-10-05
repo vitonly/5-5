@@ -57,8 +57,15 @@ export async function getLiveStreams(logins: string[]): Promise<LiveStream[]> {
   const unique = Array.from(new Set(logins.map((l) => l.toLowerCase())));
   if (unique.length === 0) return [];
 
-  const viaHelix = await getLiveStreamsViaHelix(unique);
-  if (viaHelix !== null) return viaHelix;
+  const hasHelix = Boolean(
+    process.env.TWITCH_CLIENT_ID?.trim() && process.env.TWITCH_CLIENT_SECRET?.trim()
+  );
+
+  // Если Helix настроен — только он. DecAPI при ошибках/429 врёт «live».
+  if (hasHelix) {
+    const viaHelix = await getLiveStreamsViaHelix(unique);
+    return viaHelix ?? [];
+  }
 
   return getLiveStreamsViaDecapi(unique);
 }
@@ -76,8 +83,13 @@ async function getLiveStreamsViaHelix(logins: string[]): Promise<LiveStream[] | 
     try {
       const res = await fetch(`https://api.twitch.tv/helix/streams?${params}`, {
         headers: { "Client-Id": clientId, Authorization: `Bearer ${token}` },
-        next: { revalidate: 60 },
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
       });
+      if (res.status === 401) {
+        cachedToken = null;
+        return null;
+      }
       if (!res.ok) return null;
       const data = await res.json();
       for (const s of data.data as TwitchStream[]) {
@@ -101,27 +113,65 @@ async function getLiveStreamsViaHelix(logins: string[]): Promise<LiveStream[] | 
 
 /** Без ключей Twitch — через публичный decapi.me (запасной вариант) */
 async function getLiveStreamsViaDecapi(logins: string[]): Promise<LiveStream[]> {
-  const results = await Promise.all(logins.map(checkDecapiLive));
-  return results.filter((r): r is LiveStream => r !== null).sort((a, b) => b.viewers - a.viewers);
+  // Последовательно — параллельный шквал легко ловит 429 у DecAPI
+  const results: LiveStream[] = [];
+  for (const login of logins) {
+    const live = await checkDecapiLive(login);
+    if (live) results.push(live);
+  }
+  return results.sort((a, b) => b.viewers - a.viewers);
 }
 
-async function decapiText(path: string): Promise<string> {
-  const res = await fetch(`https://decapi.me/twitch/${path}`, { next: { revalidate: 60 } });
-  return (await res.text()).trim();
+function isDecapiJunk(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  return (
+    /^429\b/i.test(t) ||
+    /too many requests/i.test(t) ||
+    /thou shall not pass/i.test(t) ||
+    /error occurred/i.test(t) ||
+    /rate.?limit/i.test(t) ||
+    /unavailable/i.test(t) ||
+    t.startsWith("{")
+  );
+}
+
+/** Uptime живого канала: "3 hours, 12 minutes, 5 seconds" и т.п. */
+function isDecapiLiveUptime(uptime: string): boolean {
+  if (isDecapiJunk(uptime) || /is offline/i.test(uptime)) return false;
+  return /\b(seconds?|minutes?|hours?|days?|secs?|mins?|hrs?)\b/i.test(uptime);
+}
+
+async function decapiText(path: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://decapi.me/twitch/${path}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    if (isDecapiJunk(text)) return null;
+    return text;
+  } catch {
+    return null;
+  }
 }
 
 async function checkDecapiLive(login: string): Promise<LiveStream | null> {
   try {
     const uptime = await decapiText(`uptime/${encodeURIComponent(login)}`);
-    if (/is offline/i.test(uptime)) return null;
+    if (!uptime || !isDecapiLiveUptime(uptime)) return null;
 
     const [viewersText, title] = await Promise.all([
       decapiText(`viewercount/${encodeURIComponent(login)}`),
       decapiText(`title/${encodeURIComponent(login)}`),
     ]);
 
+    // Если title/viewers тоже мусор — канал не считаем live
+    if (title !== null && isDecapiJunk(title)) return null;
+
     let viewers = 0;
-    if (!/is offline/i.test(viewersText)) {
+    if (viewersText && !/is offline/i.test(viewersText)) {
       const n = parseInt(viewersText, 10);
       if (!Number.isNaN(n)) viewers = n;
     }
@@ -129,7 +179,7 @@ async function checkDecapiLive(login: string): Promise<LiveStream | null> {
     return {
       login,
       name: login,
-      title: title || "В эфире",
+      title: title && !isDecapiJunk(title) ? title : "В эфире",
       viewers,
       thumbnailUrl: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-440x248.jpg`,
       game: "",

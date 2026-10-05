@@ -33,10 +33,28 @@ import { teamDisplayName } from "@/lib/team-names";
 import { usePasteImage } from "@/lib/use-paste-image";
 import { RESHUFFLE_INTENSITY_LABELS, type ReshuffleIntensity } from "@/lib/team-balance";
 
+type MvpVoteRow = {
+  id: string;
+  voterId: string;
+  nomineeId: string;
+  voter: {
+    id: string;
+    firstName: string;
+    lastName?: string | null;
+    username?: string | null;
+  };
+  nominee: {
+    id: string;
+    firstName: string;
+    lastName?: string | null;
+    username?: string | null;
+  };
+};
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
   games: MatchGame[];
   rsvps?: RsvpWithUser[];
+  mvpVotes?: MvpVoteRow[];
 };
 type Student = User & { profile: PlayerProfile | null };
 type DraftSlot = { userId: string; position: number };
@@ -343,8 +361,16 @@ export function AdminMatchesClient({
       body: JSON.stringify({ sessionId, action: "sendInvites" }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) alert(data.error || "Ошибка");
-    else alert("Опросы MVP отправлены в TG");
+    if (!res.ok) {
+      alert(data.error || "Ошибка");
+      return;
+    }
+    alert(
+      `MVP в TG: отправлено ${data.sent ?? 0}/${data.total ?? "?"}` +
+        (data.skippedNoTg ? `, без TG: ${data.skippedNoTg}` : "") +
+        (data.skippedVoted ? `, уже голосовали: ${data.skippedVoted}` : "") +
+        (data.failed ? `, ошибки: ${data.failed}` : "")
+    );
   }
 
   async function confirmLineups(sessionId: string) {
@@ -1013,9 +1039,6 @@ export function AdminMatchesClient({
                         Собрать состав на 2-ю игру
                       </Button>
                     )}
-                    <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
-                      MVP: опрос в TG
-                    </Button>
                     <Button variant="outline" onClick={() => completeSession(session.id)}>
                       Отменить / завершить без игр
                     </Button>
@@ -1059,15 +1082,104 @@ export function AdminMatchesClient({
                         Состав на 2-ю игру
                       </Button>
                     )}
-                    <Button variant="outline" onClick={() => sendMvpInvites(session.id)}>
-                      MVP: опрос в TG
-                    </Button>
                     <Button variant="outline" onClick={() => completeSession(session.id)}>
                       Завершить сессию
                     </Button>
                   </div>
                 </div>
               )}
+
+              {(session.status === "LINEUPS_CONFIRMED" ||
+                session.status === "IN_PROGRESS" ||
+                session.status === "COMPLETED" ||
+                (session.mvpVotes && session.mvpVotes.length > 0)) &&
+                !isEditing && (
+                  <div className="space-y-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium text-[var(--text)]">
+                        MVP дня{" "}
+                        {session.mvpResolved
+                          ? session.mvpWinnerId
+                            ? `(закрыто, победитель: ${displayName(
+                                studentMap[session.mvpWinnerId] ?? {
+                                  firstName: "?",
+                                }
+                              )})`
+                            : "(закрыто, ничья)"
+                          : "(голосование)"}
+                      </p>
+                      {!session.mvpResolved && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => sendMvpInvites(session.id)}
+                        >
+                          MVP: опрос в TG
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-[var(--text-3)]">
+                      Ученикам: топ-3 по голосам + кто проголосовал. Здесь ещё — кто за
+                      кого.
+                    </p>
+                    {(session.mvpVotes?.length ?? 0) === 0 ? (
+                      <p className="text-xs text-[var(--text-4)]">Пока нет голосов.</p>
+                    ) : (
+                      <>
+                        <div className="text-xs text-[var(--text-2)]">
+                          <p className="font-medium text-[var(--text)]">Топ-3</p>
+                          {(() => {
+                            const counts = new Map<string, number>();
+                            for (const v of session.mvpVotes!) {
+                              counts.set(
+                                v.nomineeId,
+                                (counts.get(v.nomineeId) ?? 0) + 1
+                              );
+                            }
+                            const medals = ["🥇", "🥈", "🥉"];
+                            return [...counts.entries()]
+                              .sort((a, b) => b[1] - a[1])
+                              .slice(0, 3)
+                              .map(([id, n], i) => (
+                                <p key={id}>
+                                  {medals[i]}{" "}
+                                  {displayName(
+                                    studentMap[id] ?? { firstName: "?" }
+                                  )}{" "}
+                                  — <b>{n}</b>
+                                </p>
+                              ));
+                          })()}
+                        </div>
+                        <ul className="space-y-1 text-xs text-[var(--text-2)]">
+                          {session.mvpVotes!.map((v) => (
+                            <li key={v.id}>
+                              {displayName(v.voter)} → {displayName(v.nominee)}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {(() => {
+                      const voted = new Set(
+                        (session.mvpVotes ?? []).map((v) => v.voterId)
+                      );
+                      const all = [...radiantIds, ...direIds];
+                      const pending = all.filter((id) => !voted.has(id));
+                      if (!pending.length || session.mvpResolved) return null;
+                      return (
+                        <p className="text-xs text-[var(--text-4)]">
+                          Ещё не голосовали:{" "}
+                          {pending
+                            .map((id) =>
+                              displayName(studentMap[id] ?? { firstName: id })
+                            )
+                            .join(", ")}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                )}
 
               {session.games.length > 0 && (
                 <div className="space-y-2 text-sm text-[var(--text-3)]">

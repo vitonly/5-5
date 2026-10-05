@@ -15,7 +15,27 @@ export default async function AdminMatchesPage() {
           include: { user: true },
           orderBy: [{ status: "asc" }, { respondedAt: "asc" }],
         },
-        mvpVotes: true,
+        mvpVotes: {
+          include: {
+            voter: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
+            nominee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
       orderBy: { date: "desc" },
     }),

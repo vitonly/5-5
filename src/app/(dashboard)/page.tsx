@@ -169,7 +169,10 @@ export default async function HomePage() {
             <section>
               <h3 className="mb-3 text-[var(--danger)]">Сейчас в эфире</h3>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {live.liveStreams.map((s) => {
+                {[...live.liveStreams]
+                  .sort((a, b) => b.viewers - a.viewers)
+                  .slice(0, 6)
+                  .map((s) => {
                   const material = materialByLogin[s.login.toLowerCase()];
                   if (!material) return null;
                   return (

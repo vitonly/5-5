@@ -126,6 +126,15 @@ export default async function MatchPage() {
                         Ваша команда: {myTeam === "RADIANT" ? radiantName : direName}
                       </span>
                     )}
+                    {session.mvpResolved && session.mvpWinnerId && userMap[session.mvpWinnerId] && (
+                      <span className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-[var(--points)]/40 bg-[var(--points)]/10 px-2 py-0.5 text-xs font-medium text-[var(--points)]">
+                        ⭐ MVP{" "}
+                        {userMap[session.mvpWinnerId].firstName}
+                        {userMap[session.mvpWinnerId].lastName
+                          ? ` ${userMap[session.mvpWinnerId].lastName}`
+                          : ""}
+                      </span>
+                    )}
                   </div>
                   <Badge>{MATCH_STATUS_LABELS[session.status]}</Badge>
                 </div>
@@ -166,6 +175,7 @@ export default async function MatchPage() {
                       points={radiantPoints}
                       showPoints={session.games.length > 0}
                       accent="radiant"
+                      mvpWinnerId={session.mvpWinnerId}
                     />
 
                     <div className="flex flex-col items-center justify-center gap-1 border-y border-[var(--border-soft)] bg-[var(--surface-muted)] px-4 py-6 md:border-x md:border-y-0">
@@ -192,6 +202,7 @@ export default async function MatchPage() {
                       points={direPoints}
                       showPoints={session.games.length > 0}
                       accent="dire"
+                      mvpWinnerId={session.mvpWinnerId}
                     />
                   </div>
                 )}
@@ -244,6 +255,7 @@ function TeamPanel({
   points,
   showPoints,
   accent,
+  mvpWinnerId,
 }: {
   title: string;
   lineup: LineupSlot[];
@@ -253,6 +265,7 @@ function TeamPanel({
   points: number;
   showPoints: boolean;
   accent: "radiant" | "dire";
+  mvpWinnerId?: string | null;
 }) {
   const showIndividualPower = viewer.role === "ADMIN";
   const border =
@@ -285,13 +298,30 @@ function TeamPanel({
         <ul className="space-y-2">
           {lineup.map((slot) => {
             const u = userMap[slot.userId];
+            const isMvp = Boolean(mvpWinnerId && slot.userId === mvpWinnerId);
             return (
-              <li key={slot.userId} className="flex items-center justify-between gap-2 text-sm">
+              <li
+                key={slot.userId}
+                className={`flex items-center justify-between gap-2 text-sm ${
+                  isMvp
+                    ? "rounded-[var(--radius-control)] bg-[var(--points)]/10 px-1.5 py-0.5"
+                    : ""
+                }`}
+              >
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="inline-flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--control)] px-1 font-mono-num text-[11px] text-[var(--text-2)]">
                     {slot.position}
                   </span>
                   {u ? <PlayerLink user={u} viewer={viewer} /> : slot.userId}
+                  {isMvp && (
+                    <span
+                      className="shrink-0 text-[var(--points)]"
+                      title="MVP игрового дня"
+                      aria-label="MVP"
+                    >
+                      ⭐
+                    </span>
+                  )}
                   <span className="hidden text-[10px] text-[var(--text-4)] sm:inline">
                     {POSITION_LABELS[slot.position]?.split("·")[1]?.trim() ?? ""}
                   </span>

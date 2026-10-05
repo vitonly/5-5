@@ -3,6 +3,7 @@ import { applyHomeworkOverduePenalty } from "@/lib/points";
 import { finalizeSeason, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
 import { formatDate } from "@/lib/utils";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
+import { processMvpDeadlines } from "@/lib/match-mvp";
 
 export async function processOverdueHomework() {
   const now = new Date();
@@ -77,11 +78,13 @@ export async function runAutomation() {
   const overdueProcessed = await processOverdueHomework();
   const votingClosed = await processExpiredVoting();
   const seasonsClosed = await processExpiredSeasons();
+  const mvpClosed = await processMvpDeadlines();
 
   return {
     overdueProcessed,
     votingClosed,
     seasonsClosed,
+    mvpClosed,
     ranAt: new Date().toISOString(),
   };
 }

@@ -258,7 +258,14 @@ export function MaterialsClient({
             <section>
               <h2 className="mb-4 text-xl font-bold text-[var(--text)]">🔴 Сейчас в эфире</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {liveStreamEntries.map(({ material, login }) => (
+                {[...liveStreamEntries]
+                  .sort((a, b) => {
+                    const va = liveByLogin.get(a.login)?.viewers ?? 0;
+                    const vb = liveByLogin.get(b.login)?.viewers ?? 0;
+                    return vb - va;
+                  })
+                  .slice(0, 6)
+                  .map(({ material, login }) => (
                   <StreamCard
                     key={material.id}
                     material={material}

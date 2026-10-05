@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireAdmin } from "@/lib/session";
 import {
   castMvpVote,
+  getMvpAdminBreakdown,
   getMvpStatusForUser,
   resolveMvpIfReady,
   sendMvpVoteInvites,
 } from "@/lib/match-mvp";
-import { requireAdmin } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const user = await requireUser();
@@ -15,6 +15,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "sessionId" }, { status: 400 });
   }
   await resolveMvpIfReady(sessionId).catch(() => null);
+
+  if (request.nextUrl.searchParams.get("admin") === "1") {
+    await requireAdmin();
+    const breakdown = await getMvpAdminBreakdown(sessionId);
+    return NextResponse.json({ breakdown });
+  }
+
   const status = await getMvpStatusForUser(sessionId, user.id);
   return NextResponse.json({ status });
 }
@@ -33,8 +40,8 @@ export async function POST(request: NextRequest) {
     if (!sessionId) {
       return NextResponse.json({ error: "sessionId" }, { status: 400 });
     }
-    await sendMvpVoteInvites(sessionId);
-    return NextResponse.json({ ok: true });
+    const report = await sendMvpVoteInvites(sessionId);
+    return NextResponse.json({ ok: true, ...report });
   }
 
   if (action === "resolve") {
@@ -47,7 +54,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (!sessionId || !nomineeId) {
-    return NextResponse.json({ error: "Укажите sessionId и nomineeId" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Укажите sessionId и nomineeId" },
+      { status: 400 }
+    );
   }
 
   try {

@@ -19,12 +19,15 @@ const SKILL_LEVELS = Object.keys(SKILL_LEVEL_LABELS) as SkillLevel[];
 
 export function AdminMaterialsClient({ materials }: { materials: LearningMaterial[] }) {
   const router = useRouter();
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState<MaterialType>("VIDEO");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [positions, setPositions] = useState<DotaRole[]>([]);
   const [skillLevels, setSkillLevels] = useState<SkillLevel[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   function togglePosition(r: DotaRole) {
     setPositions((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
@@ -36,26 +39,86 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
     );
   }
 
+  function resetForm() {
+    setEditingId(null);
+    setType("VIDEO");
+    setTitle("");
+    setDescription("");
+    setUrl("");
+    setPositions([]);
+    setSkillLevels([]);
+    setError("");
+  }
+
+  function startEdit(m: LearningMaterial) {
+    setEditingId(m.id);
+    setType(m.type);
+    setTitle(m.title ?? "");
+    setDescription(m.description ?? "");
+    setUrl(m.url ?? "");
+    setPositions(parseJsonArray(m.positions) as DotaRole[]);
+    setSkillLevels(parseSkillLevels(m.skillLevels));
+    setError("");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   async function create() {
-    const res = await fetch("/api/materials", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        title,
-        description,
-        url,
-        positions,
-        skillLevels: type === "VIDEO" ? skillLevels : [],
-      }),
-    });
-    if (res.ok) {
-      setTitle("");
-      setDescription("");
-      setUrl("");
-      setPositions([]);
-      setSkillLevels([]);
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          title,
+          description,
+          url,
+          positions,
+          skillLevels: type === "VIDEO" ? skillLevels : [],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Не удалось добавить");
+        return;
+      }
+      resetForm();
       router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/materials", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingId,
+          type,
+          title,
+          description,
+          url,
+          positions,
+          skillLevels: type === "VIDEO" ? skillLevels : [],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Не удалось сохранить");
+        return;
+      }
+      resetForm();
+      router.refresh();
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -66,6 +129,7 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
+    if (editingId === id) resetForm();
     router.refresh();
   }
 
@@ -76,11 +140,13 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
         ? "Ссылка на видео (YouTube)"
         : "Ссылка на статью";
 
+  const canSubmit = Boolean(url.trim() || title.trim() || description.trim());
+
   return (
     <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle>Добавить материал</CardTitle>
+          <CardTitle>{editingId ? "Редактировать материал" : "Добавить материал"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -154,9 +220,23 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
               </div>
             </div>
           )}
-          <Button onClick={create} disabled={!url && !title && !description}>
-            Добавить
-          </Button>
+          {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+          <div className="flex flex-wrap gap-2">
+            {editingId ? (
+              <>
+                <Button onClick={saveEdit} disabled={saving || !canSubmit}>
+                  {saving ? "Сохранение..." : "Сохранить"}
+                </Button>
+                <Button variant="secondary" onClick={resetForm} disabled={saving}>
+                  Отмена
+                </Button>
+              </>
+            ) : (
+              <Button onClick={create} disabled={saving || !canSubmit}>
+                {saving ? "Добавление..." : "Добавить"}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -164,17 +244,36 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
         {materials.map((m) => {
           const pos = parseJsonArray(m.positions) as DotaRole[];
           const levels = parseSkillLevels(m.skillLevels);
+          const isEditing = editingId === m.id;
           return (
-            <Card key={m.id}>
+            <Card
+              key={m.id}
+              className={isEditing ? "ring-2 ring-[var(--admin-border)]" : undefined}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <Badge>{MATERIAL_TYPE_LABELS[m.type]}</Badge>
                     <CardTitle className="mt-2">{materialDisplayTitle(m)}</CardTitle>
                   </div>
-                  <Button size="sm" variant="destructive" onClick={() => remove(m.id)}>
-                    ✕
-                  </Button>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => startEdit(m)}
+                      disabled={saving}
+                    >
+                      Править
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => remove(m.id)}
+                      disabled={saving}
+                    >
+                      ✕
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">

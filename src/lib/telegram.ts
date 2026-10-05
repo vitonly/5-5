@@ -31,6 +31,7 @@ async function telegramApi(method: string, body: Record<string, unknown>) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12_000),
     });
     const data = await res.json().catch(() => null);
     return { ok: res.ok && Boolean(data?.ok), data };
@@ -193,5 +194,6 @@ export function notifyChatId(user: {
   telegramChatId?: string | null;
   telegramId?: string | null;
 }) {
-  return user.telegramChatId || null;
+  // У личных чатов chat_id обычно совпадает с telegramId
+  return user.telegramChatId || user.telegramId || null;
 }

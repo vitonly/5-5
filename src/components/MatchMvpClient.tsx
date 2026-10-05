@@ -12,6 +12,28 @@ type Nominee = {
   username?: string | null;
 };
 
+type Standing = {
+  place: number;
+  id: string;
+  name: string;
+  votes: number;
+};
+
+type Status = {
+  open: boolean;
+  resolved: boolean;
+  votesCount: number;
+  playersCount: number;
+  hasVoted: boolean;
+  winnerId: string | null;
+  winnerName: string | null;
+  votedNames: string[];
+  pendingNames: string[];
+  standings: Standing[];
+};
+
+const MEDALS = ["🥇", "🥈", "🥉"];
+
 export function MatchMvpClient({
   sessionId,
   nominees,
@@ -20,14 +42,7 @@ export function MatchMvpClient({
   nominees: Nominee[];
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState<{
-    open: boolean;
-    resolved: boolean;
-    votesCount: number;
-    playersCount: number;
-    myNomineeId: string | null;
-    winnerId: string | null;
-  } | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -65,21 +80,63 @@ export function MatchMvpClient({
   }
 
   if (!status) return null;
+
+  const standings =
+    status.standings?.length > 0 ? (
+      <div className="mt-2 space-y-0.5 text-xs text-[var(--text-2)]">
+        <p className="font-medium text-[var(--text)]">Топ-3 по голосам</p>
+        {status.standings.map((s) => (
+          <p key={s.id}>
+            {MEDALS[s.place - 1] ?? `${s.place}.`} {s.name} — <b>{s.votes}</b>
+          </p>
+        ))}
+      </div>
+    ) : (
+      <p className="mt-2 text-xs text-[var(--text-4)]">Топ-3: пока нет голосов</p>
+    );
+
+  const turnout = (
+    <div className="mt-2 space-y-1 text-xs text-[var(--text-3)]">
+      <p>
+        Голосов: {status.votesCount}/{status.playersCount} (кто именно за кого — скрыто)
+      </p>
+      {standings}
+      {status.votedNames.length > 0 && (
+        <p>
+          <span className="text-[var(--success)]">Проголосовали:</span>{" "}
+          {status.votedNames.join(", ")}
+        </p>
+      )}
+      {status.pendingNames.length > 0 && !status.resolved && (
+        <p>
+          <span className="text-[var(--text-4)]">Ещё нет голоса:</span>{" "}
+          {status.pendingNames.join(", ")}
+        </p>
+      )}
+    </div>
+  );
+
   if (status.resolved) {
     return (
-      <p className="text-sm text-[var(--text-3)]">
-        MVP дня: голосование закрыто
-        {status.winnerId ? " (победитель определён)" : " (ничья — очки не начислены)"}. Голосов:{" "}
-        {status.votesCount}/{status.playersCount}
-      </p>
+      <div className="text-sm text-[var(--text-3)]">
+        <p>
+          MVP дня: голосование закрыто
+          {status.winnerName
+            ? ` — победитель ${status.winnerName}`
+            : " (ничья — очки не начислены)"}
+          .
+        </p>
+        {turnout}
+      </div>
     );
   }
 
-  if (status.myNomineeId) {
+  if (status.hasVoted) {
     return (
-      <p className="text-sm text-[var(--success)]">
-        Вы уже проголосовали за MVP. Голосов: {status.votesCount}/{status.playersCount}
-      </p>
+      <div className="text-sm text-[var(--success)]">
+        <p>Ваш голос за MVP учтён. Выбор анонимен для остальных.</p>
+        {turnout}
+      </div>
     );
   }
 
@@ -89,9 +146,9 @@ export function MatchMvpClient({
     <div className="space-y-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3">
       <p className="text-sm font-semibold">🏆 MVP игрового дня</p>
       <p className="text-xs text-[var(--text-3)]">
-        Один голос до 23:59 МСК. За себя голосовать нельзя. Сейчас: {status.votesCount}/
-        {status.playersCount}
+        Один голос до 23:59 МСК. За себя нельзя. Голосование анонимное.
       </p>
+      {turnout}
       <div className="flex flex-wrap gap-2">
         {nominees.map((n) => (
           <Button
