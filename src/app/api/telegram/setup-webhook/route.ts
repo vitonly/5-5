@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { telegramApiBase, telegramBotUrl, telegramProxyHeaders } from "@/lib/telegram-api";
 
-/** Выставляет webhook бота на этот деплой. Нужен CRON_SECRET. */
+/** Выставляет webhook бота. Нужен CRON_SECRET. */
 export async function POST(request: NextRequest) {
   try {
     const secret = process.env.CRON_SECRET;
     if (!secret) {
-      return NextResponse.json({ error: "CRON_SECRET не задан в Vercel" }, { status: 503 });
+      return NextResponse.json({ error: "CRON_SECRET не задан" }, { status: 503 });
     }
 
     const auth = request.headers.get("authorization") || "";
@@ -17,7 +18,6 @@ export async function POST(request: NextRequest) {
     const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
     let appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
 
-    // fallback: взять хост из самого запроса
     if (!appUrl) {
       const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
       const proto = request.headers.get("x-forwarded-proto") || "https";
@@ -26,28 +26,36 @@ export async function POST(request: NextRequest) {
 
     if (!botToken || botToken === "dev-token") {
       return NextResponse.json(
-        { error: "TELEGRAM_BOT_TOKEN пустой или неверный в Environment Variables" },
-        { status: 500 }
-      );
-    }
-    if (!appUrl) {
-      return NextResponse.json(
-        { error: "NEXT_PUBLIC_APP_URL пустой. Укажи https://5-5-kappa.vercel.app" },
+        { error: "TELEGRAM_BOT_TOKEN пустой или неверный" },
         { status: 500 }
       );
     }
 
-    const webhookUrl = `${appUrl}/api/telegram/webhook`;
+    // Если есть CF proxy — webhook на Worker (Telegram стабильно достучится до Cloudflare)
+    const proxyBase = telegramApiBase();
+    const useProxy = Boolean(process.env.TELEGRAM_API_BASE?.trim());
+    const webhookUrl = useProxy
+      ? `${proxyBase}/webhook`
+      : appUrl
+        ? `${appUrl}/api/telegram/webhook`
+        : "";
+
+    if (!webhookUrl) {
+      return NextResponse.json(
+        { error: "Нужен TELEGRAM_API_BASE (CF proxy) или NEXT_PUBLIC_APP_URL" },
+        { status: 500 }
+      );
+    }
+
     const body: Record<string, string> = { url: webhookUrl };
 
     const whSecret = (process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
-    // Telegram: secret_token только A-Z a-z 0-9 _ -
     if (whSecret) {
       if (!/^[A-Za-z0-9_-]{1,256}$/.test(whSecret)) {
         return NextResponse.json(
           {
             error:
-              "TELEGRAM_WEBHOOK_SECRET содержит недопустимые символы. Только латиница, цифры, _ и -. Или очисти переменную.",
+              "TELEGRAM_WEBHOOK_SECRET содержит недопустимые символы. Только латиница, цифры, _ и -.",
           },
           { status: 500 }
         );
@@ -55,10 +63,11 @@ export async function POST(request: NextRequest) {
       body.secret_token = whSecret;
     }
 
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+    const res = await fetch(telegramBotUrl(botToken, "setWebhook"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: telegramProxyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
     });
     const data = (await res.json()) as { ok?: boolean; description?: string };
 
@@ -77,6 +86,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       webhookUrl,
+      viaProxy: useProxy,
       telegram: data,
     });
   } catch (e) {

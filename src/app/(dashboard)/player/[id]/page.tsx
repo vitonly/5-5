@@ -56,14 +56,17 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
 
   const historyPlayerIds = new Set<string>();
   for (const part of matchParts) {
-    try {
-      const assignments = JSON.parse(part.game.session.teamAssignments || "{}") as Record<
-        string,
-        unknown
-      >;
-      for (const id of Object.keys(assignments)) historyPlayerIds.add(id);
-    } catch {
-      /* ignore */
+    const blobs = [
+      part.game.session.teamAssignments,
+      part.game.session.teamAssignmentsGame2,
+    ];
+    for (const blob of blobs) {
+      try {
+        const assignments = JSON.parse(blob || "{}") as Record<string, unknown>;
+        for (const id of Object.keys(assignments)) historyPlayerIds.add(id);
+      } catch {
+        /* ignore */
+      }
     }
   }
   const historyPlayers =

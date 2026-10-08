@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
-import { parseAppDateTime } from "@/lib/utils";
+import { formatDate, parseAppDateTime } from "@/lib/utils";
 import {
   adminRemoveFromSignup,
   adminReinvitePlayer,
@@ -9,6 +9,17 @@ import {
   listStudentsWithTelegram,
   startMatchSession,
 } from "@/lib/match-signup";
+import { sendTelegramTestToAdmin } from "@/lib/tg-test";
+import type { InlineKeyboard } from "@/lib/telegram";
+
+const TEST_SIGNUP_KEYBOARD: InlineKeyboard = {
+  inline_keyboard: [
+    [
+      { text: "✅ Я играю", callback_data: "m5:test:y" },
+      { text: "❌ Не играю", callback_data: "m5:test:n" },
+    ],
+  ],
+};
 
 export async function GET() {
   await requireAdmin();
@@ -25,9 +36,30 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const body = await request.json();
-  const { date, inviteUserIds, inviteAll } = body;
+  const { date, inviteUserIds, inviteAll, testToAdmin } = body;
+
+  if (testToAdmin) {
+    if (!date) {
+      return NextResponse.json({ error: "Укажите дату для превью" }, { status: 400 });
+    }
+    try {
+      const when = parseAppDateTime(date);
+      const inviteText = `🎮 <b>Открыта запись на 5v5</b>\n\nДата: ${formatDate(when)}\n\nНажмите кнопку ниже. Первые 10 попадают в состав, остальные — в очередь.\n\n<i>(Это тест — кнопки не записывают)</i>`;
+      await sendTelegramTestToAdmin(admin.id, inviteText, {
+        photoUrl:
+          typeof body.inviteImageUrl === "string" ? body.inviteImageUrl : null,
+        keyboard: TEST_SIGNUP_KEYBOARD,
+      });
+      return NextResponse.json({ success: true, test: true });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Ошибка теста" },
+        { status: 400 }
+      );
+    }
+  }
 
   if (!date) {
     return NextResponse.json({ error: "Укажите дату" }, { status: 400 });

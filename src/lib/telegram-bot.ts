@@ -482,11 +482,15 @@ export async function fetchTelegramUpdates(offset?: number) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || token === "dev-token") return [];
 
-  const url = new URL(`https://api.telegram.org/bot${token}/getUpdates`);
+  const { telegramBotUrl, telegramProxyHeaders } = await import("@/lib/telegram-api");
+  const url = new URL(telegramBotUrl(token, "getUpdates"));
   url.searchParams.set("timeout", "30");
   if (offset) url.searchParams.set("offset", String(offset));
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), {
+    headers: telegramProxyHeaders(),
+    signal: AbortSignal.timeout(45_000),
+  });
   if (!res.ok) return [];
 
   const data = await res.json();

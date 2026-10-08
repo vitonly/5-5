@@ -1,0 +1,12 @@
+name = "startplus-tg-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# Secrets (wrangler secret put ...):
+#   PROXY_SECRET          — общий секрет VPS ↔ Worker
+# Optional vars via [vars] or dashboard:
+#   FORWARD_WEBHOOK_URL   — https://www.startdota.ru/api/telegram/webhook
+
+[vars]
+FORWARD_WEBHOOK_URL = "https://www.startdota.ru/api/telegram/webhook"

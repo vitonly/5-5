@@ -9,6 +9,15 @@ interface TwitchStream {
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+const LIVE_CACHE_TTL_MS = 45_000;
+const LIVE_BUDGET_MS = 1_800;
+const HELIX_TIMEOUT_MS = 1_600;
+const DECAPI_TIMEOUT_MS = 1_200;
+
+type LiveCache = { key: string; at: number; streams: LiveStream[] };
+let liveCache: LiveCache | null = null;
+let liveInflight: { key: string; promise: Promise<LiveStream[]> } | null = null;
+
 async function getAppToken(): Promise<string | null> {
   const clientId = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
@@ -21,7 +30,7 @@ async function getAppToken(): Promise<string | null> {
   try {
     const res = await fetch(
       `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
-      { method: "POST" }
+      { method: "POST", signal: AbortSignal.timeout(HELIX_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -53,21 +62,70 @@ export interface LiveStream {
   url: string;
 }
 
-export async function getLiveStreams(logins: string[]): Promise<LiveStream[]> {
-  const unique = Array.from(new Set(logins.map((l) => l.toLowerCase())));
-  if (unique.length === 0) return [];
+function cacheKey(logins: string[]): string {
+  return [...logins].sort().join(",");
+}
 
+async function fetchLiveStreamsFresh(unique: string[]): Promise<LiveStream[]> {
   const hasHelix = Boolean(
     process.env.TWITCH_CLIENT_ID?.trim() && process.env.TWITCH_CLIENT_SECRET?.trim()
   );
 
-  // Если Helix настроен — только он. DecAPI при ошибках/429 врёт «live».
   if (hasHelix) {
     const viaHelix = await getLiveStreamsViaHelix(unique);
-    return viaHelix ?? [];
+    if (viaHelix !== null) return viaHelix;
+    // Helix недоступен (часто сеть VPS) — не блокируем страницу DecAPI
+    return [];
   }
 
   return getLiveStreamsViaDecapi(unique);
+}
+
+/**
+ * Быстрый путь для SSR: кэш / stale, жёсткий бюджет ~1.8s.
+ * Не держит белый экран на таймаутах Twitch.
+ */
+export async function getLiveStreams(logins: string[]): Promise<LiveStream[]> {
+  const unique = Array.from(new Set(logins.map((l) => l.toLowerCase())));
+  if (unique.length === 0) return [];
+
+  const key = cacheKey(unique);
+  const now = Date.now();
+
+  if (liveCache && liveCache.key === key && now - liveCache.at < LIVE_CACHE_TTL_MS) {
+    return liveCache.streams;
+  }
+
+  const stale = liveCache && liveCache.key === key ? liveCache.streams : null;
+
+  if (!liveInflight || liveInflight.key !== key) {
+    const promise = fetchLiveStreamsFresh(unique)
+      .then((streams) => {
+        liveCache = { key, at: Date.now(), streams };
+        return streams;
+      })
+      .finally(() => {
+        if (liveInflight?.key === key) liveInflight = null;
+      });
+    liveInflight = { key, promise };
+  }
+
+  // Есть stale — отдаём сразу, обновление в фоне
+  if (stale) {
+    void liveInflight.promise;
+    return stale;
+  }
+
+  try {
+    return await Promise.race([
+      liveInflight.promise,
+      new Promise<LiveStream[]>((resolve) =>
+        setTimeout(() => resolve([]), LIVE_BUDGET_MS)
+      ),
+    ]);
+  } catch {
+    return [];
+  }
 }
 
 async function getLiveStreamsViaHelix(logins: string[]): Promise<LiveStream[] | null> {
@@ -84,7 +142,7 @@ async function getLiveStreamsViaHelix(logins: string[]): Promise<LiveStream[] | 
       const res = await fetch(`https://api.twitch.tv/helix/streams?${params}`, {
         headers: { "Client-Id": clientId, Authorization: `Bearer ${token}` },
         cache: "no-store",
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(HELIX_TIMEOUT_MS),
       });
       if (res.status === 401) {
         cachedToken = null;
@@ -113,11 +171,15 @@ async function getLiveStreamsViaHelix(logins: string[]): Promise<LiveStream[] | 
 
 /** Без ключей Twitch — через публичный decapi.me (запасной вариант) */
 async function getLiveStreamsViaDecapi(logins: string[]): Promise<LiveStream[]> {
-  // Последовательно — параллельный шквал легко ловит 429 у DecAPI
   const results: LiveStream[] = [];
-  for (const login of logins) {
-    const live = await checkDecapiLive(login);
-    if (live) results.push(live);
+  // небольшая параллельность + короткий таймаут, чтобы не ловить 429 и не висеть
+  const concurrency = 3;
+  for (let i = 0; i < logins.length; i += concurrency) {
+    const chunk = logins.slice(i, i + concurrency);
+    const part = await Promise.all(chunk.map(checkDecapiLive));
+    for (const live of part) {
+      if (live) results.push(live);
+    }
   }
   return results.sort((a, b) => b.viewers - a.viewers);
 }
@@ -146,7 +208,7 @@ async function decapiText(path: string): Promise<string | null> {
   try {
     const res = await fetch(`https://decapi.me/twitch/${path}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(DECAPI_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const text = (await res.text()).trim();
@@ -167,7 +229,6 @@ async function checkDecapiLive(login: string): Promise<LiveStream | null> {
       decapiText(`title/${encodeURIComponent(login)}`),
     ]);
 
-    // Если title/viewers тоже мусор — канал не считаем live
     if (title !== null && isDecapiJunk(title)) return null;
 
     let viewers = 0;

@@ -1,3 +1,8 @@
+import { existsSync } from "fs";
+import { readFile } from "fs/promises";
+import path from "path";
+import { telegramBotUrl, telegramProxyHeaders } from "@/lib/telegram-api";
+
 export type InlineKeyboardButton = {
   text: string;
   callback_data: string;
@@ -20,6 +25,39 @@ export type TelegramSendResult = {
   messageId?: number;
 };
 
+function uploadsDir(): string {
+  return (
+    process.env.UPLOADS_DIR?.trim() || path.join(process.cwd(), "public", "uploads")
+  );
+}
+
+/** Локальный путь к /uploads/... — Telegram часто не может скачать URL с нашего VPS. */
+export function localUploadPath(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let pathname = url.trim();
+  try {
+    if (/^https?:\/\//i.test(pathname)) {
+      pathname = new URL(pathname).pathname;
+    }
+  } catch {
+    return null;
+  }
+  if (!pathname.startsWith("/uploads/")) return null;
+  const name = path.basename(pathname);
+  if (!name || name === "." || name.includes("..")) return null;
+  const full = path.join(uploadsDir(), name);
+  return existsSync(full) ? full : null;
+}
+
+function guessMime(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  return "application/octet-stream";
+}
+
 async function telegramApi(method: string, body: Record<string, unknown>) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || token === "dev-token") {
@@ -27,11 +65,50 @@ async function telegramApi(method: string, body: Record<string, unknown>) {
   }
 
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    const res = await fetch(telegramBotUrl(token, method), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: telegramProxyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok && Boolean(data?.ok), data };
+  } catch {
+    return { ok: false as const, data: null };
+  }
+}
+
+async function telegramApiMultipart(
+  method: string,
+  fields: Record<string, string>,
+  file: {
+    field: string;
+    filename: string;
+    buffer: Buffer;
+    contentType: string;
+  }
+) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || token === "dev-token") {
+    return { ok: false as const, data: null };
+  }
+
+  try {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      form.append(key, value);
+    }
+    form.append(
+      file.field,
+      new Blob([new Uint8Array(file.buffer)], { type: file.contentType }),
+      file.filename
+    );
+
+    const res = await fetch(telegramBotUrl(token, method), {
+      method: "POST",
+      headers: telegramProxyHeaders(),
+      body: form,
+      signal: AbortSignal.timeout(60_000),
     });
     const data = await res.json().catch(() => null);
     return { ok: res.ok && Boolean(data?.ok), data };
@@ -71,37 +148,78 @@ export async function sendTelegramMessageDetailed(
   };
 }
 
-/** Текст + опциональное фото (caption ≤ 1024). */
+/** Текст + опциональное фото (caption ≤ 1024). Файл шлём multipart с диска — URL Telegram часто не тянет. */
 export async function sendTelegramInviteDetailed(
   chatId: string | null | undefined,
   text: string,
   replyMarkup?: InlineKeyboard,
   imageUrl?: string | null
 ): Promise<TelegramSendResult> {
-  const photo = absolutePublicUrl(imageUrl);
-  if (!photo) {
+  if (!chatId) return { ok: false };
+  if (!imageUrl) {
     return sendTelegramMessageDetailed(chatId, text, replyMarkup);
   }
-  if (!chatId) return { ok: false };
 
   const caption = text.length > 1024 ? `${text.slice(0, 1020)}…` : text;
-  const body: Record<string, unknown> = {
-    chat_id: chatId,
-    photo,
+  const fields: Record<string, string> = {
+    chat_id: String(chatId),
     caption,
     parse_mode: "HTML",
   };
-  if (replyMarkup) body.reply_markup = replyMarkup;
+  if (replyMarkup) fields.reply_markup = JSON.stringify(replyMarkup);
 
-  const { ok, data } = await telegramApi("sendPhoto", body);
-  if (!ok) {
-    // fallback без фото, если URL недоступен Telegram
-    return sendTelegramMessageDetailed(chatId, text, replyMarkup);
+  const localPath = localUploadPath(imageUrl);
+  if (localPath) {
+    try {
+      const buffer = await readFile(localPath);
+      const filename = path.basename(localPath);
+      const isGif = path.extname(filename).toLowerCase() === ".gif";
+      const { ok, data } = await telegramApiMultipart(
+        isGif ? "sendAnimation" : "sendPhoto",
+        fields,
+        {
+          field: isGif ? "animation" : "photo",
+          filename,
+          buffer,
+          contentType: guessMime(filename),
+        }
+      );
+      if (ok) {
+        return {
+          ok: true,
+          messageId:
+            typeof data?.result?.message_id === "number"
+              ? data.result.message_id
+              : undefined,
+        };
+      }
+    } catch {
+      /* fall through */
+    }
   }
-  return {
-    ok: true,
-    messageId: typeof data?.result?.message_id === "number" ? data.result.message_id : undefined,
-  };
+
+  const photo = absolutePublicUrl(imageUrl);
+  if (photo) {
+    const body: Record<string, unknown> = {
+      chat_id: chatId,
+      photo,
+      caption,
+      parse_mode: "HTML",
+    };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+    const { ok, data } = await telegramApi("sendPhoto", body);
+    if (ok) {
+      return {
+        ok: true,
+        messageId:
+          typeof data?.result?.message_id === "number"
+            ? data.result.message_id
+            : undefined,
+      };
+    }
+  }
+
+  return sendTelegramMessageDetailed(chatId, text, replyMarkup);
 }
 
 export async function sendTelegramMessage(

@@ -106,14 +106,28 @@ export function buildMatchHistoryEntries(
       id: string;
       gameNumber: number;
       winnerTeam: string;
-      session: { date: Date; teamAssignments: string };
+      session: {
+        date: Date;
+        teamAssignments: string;
+        teamAssignmentsGame2?: string | null;
+      };
     };
   }[],
   playersById: Record<string, MatchHistoryPlayer> = {}
 ): MatchHistoryEntry[] {
   return participations
     .map((p) => {
-      const assignments = parseTeamAssignments(p.game.session.teamAssignments);
+      const useGame2 =
+        p.game.gameNumber >= 2 &&
+        Boolean(
+          p.game.session.teamAssignmentsGame2 &&
+            p.game.session.teamAssignmentsGame2 !== "{}"
+        );
+      const assignments = parseTeamAssignments(
+        useGame2
+          ? p.game.session.teamAssignmentsGame2!
+          : p.game.session.teamAssignments
+      );
       const position = assignments[userId]?.position ?? null;
       const side = (p.team === "DIRE" ? "DIRE" : "RADIANT") as SideCode;
       const teammates = Object.entries(assignments)

@@ -872,6 +872,15 @@ export async function handleMatchSignupCallback(opts: {
   const sessionId = parts[1];
   const choice = parts[2];
 
+  if (sessionId === "test") {
+    await answerCallbackQuery(
+      opts.callbackQueryId,
+      "Это тест-превью — запись не создаётся",
+      true
+    );
+    return;
+  }
+
   const user = await prisma.user.findUnique({
     where: { telegramId: opts.telegramUserId },
   });

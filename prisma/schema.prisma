@@ -441,3 +441,28 @@ model MatchParticipant {
   prevWinStreak  Int       @default(0)
   pointsAwarded  Float     @default(0)
 }
+
+/** Архив занятий: презентации, Word и др. файлы. Добавляет только тренер. */
+model LessonArchive {
+  id          String              @id @default(cuid())
+  title       String
+  description String              @default("")
+  /** Ученики видят занятие только когда тренер открыл доступ */
+  isOpen      Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  files       LessonArchiveFile[]
+}
+
+model LessonArchiveFile {
+  id        String        @id @default(cuid())
+  lessonId  String
+  lesson    LessonArchive @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  mimeType  String?
+  sizeBytes Int?
+  createdAt DateTime      @default(now())
+
+  @@index([lessonId])
+}

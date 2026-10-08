@@ -3,9 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { TopPlayerCard } from "@/components/TopPlayerCard";
 import { MobilePodiumList } from "@/components/MobilePodiumList";
-import { StreamCard } from "@/components/StreamCard";
+import { HomeLiveStreams } from "@/components/HomeLiveStreams";
 import { VideoCard } from "@/components/VideoCard";
-import { getLiveStreamsFromMaterials } from "@/lib/materials-live";
 import { extractTwitchLogin } from "@/lib/twitch";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { SEASON_LABELS } from "@/lib/labels";
@@ -16,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const viewer = await getSessionUser();
   const seasonId = await getActiveSeasonId();
-  const [activeSeason, leaderboard, latestVideos, live, streamMaterials, openSeason] =
+  const [activeSeason, leaderboard, latestVideos, streamMaterials, openSeason] =
     await Promise.all([
       seasonId ? prisma.ratingSeason.findUnique({ where: { id: seasonId } }) : null,
       getSeasonLeaderboard(seasonId),
@@ -25,7 +24,6 @@ export default async function HomePage() {
         orderBy: { createdAt: "desc" },
         take: 6,
       }),
-      getLiveStreamsFromMaterials(),
       prisma.learningMaterial.findMany({
         where: { type: "STREAM" },
       }),
@@ -153,7 +151,7 @@ export default async function HomePage() {
         </div>
       )}
 
-      {(live.liveStreams.length > 0 || latestVideos.length > 0) && (
+      {(streamMaterials.length > 0 || latestVideos.length > 0) && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2>Обучающие материалы</h2>
@@ -165,28 +163,7 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          {live.liveStreams.length > 0 && (
-            <section>
-              <h3 className="mb-3 text-[var(--danger)]">Сейчас в эфире</h3>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[...live.liveStreams]
-                  .sort((a, b) => b.viewers - a.viewers)
-                  .slice(0, 6)
-                  .map((s) => {
-                  const material = materialByLogin[s.login.toLowerCase()];
-                  if (!material) return null;
-                  return (
-                    <StreamCard
-                      key={s.login}
-                      material={material}
-                      login={s.login}
-                      live={s}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          )}
+          <HomeLiveStreams materialByLogin={materialByLogin} />
 
           {latestVideos.length > 0 && (
             <section>

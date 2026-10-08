@@ -171,7 +171,7 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
-  async function createOpenSignup(allWithTg: boolean) {
+  async function createOpenSignup(allWithTg: boolean, testToAdmin = false) {
     setCreatingOpen(true);
     setOpenError("");
     try {
@@ -179,18 +179,32 @@ export function AdminMatchesClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          allWithTg
-            ? { date: openDate, inviteAll: true, inviteImageUrl: inviteImageUrl || null }
-            : {
+          testToAdmin
+            ? {
                 date: openDate,
-                inviteUserIds: inviteIds,
+                testToAdmin: true,
                 inviteImageUrl: inviteImageUrl || null,
               }
+            : allWithTg
+              ? {
+                  date: openDate,
+                  inviteAll: true,
+                  inviteImageUrl: inviteImageUrl || null,
+                }
+              : {
+                  date: openDate,
+                  inviteUserIds: inviteIds,
+                  inviteImageUrl: inviteImageUrl || null,
+                }
         ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setOpenError(typeof data.error === "string" ? data.error : "Ошибка");
+        return;
+      }
+      if (testToAdmin) {
+        alert("Тест отправлен вам в Telegram");
         return;
       }
       setOpenDate("");
@@ -675,6 +689,14 @@ export function AdminMatchesClient({
             >
               Всем с Telegram ({withTelegram.length})
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => createOpenSignup(false, true)}
+              disabled={!openDate || creatingOpen}
+              title="Отправить себе превью опроса в Telegram"
+            >
+              Тест мне
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -950,11 +972,12 @@ export function AdminMatchesClient({
                 </div>
               )}
 
-              {(session.status === "LINEUPS_CONFIRMED" ||
-                session.status === "IN_PROGRESS" ||
-                session.status === "TEAMS_SET") &&
-                hasGame2 &&
-                !isEditing && (
+              {hasGame2 &&
+                !isEditing &&
+                (session.status === "LINEUPS_CONFIRMED" ||
+                  session.status === "IN_PROGRESS" ||
+                  session.status === "TEAMS_SET" ||
+                  session.status === "COMPLETED") && (
                   <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-display text-base font-semibold text-[var(--text)]">
@@ -996,30 +1019,35 @@ export function AdminMatchesClient({
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-[var(--text-3)]">
-                      Пересборка с учётом позиций, ролей и баланса силы. Победа в обеих
-                      играх за день даёт доп. очки (+2 за вторую победу подряд).
-                    </p>
-                    <div className="space-y-2">
-                      {intensityControl()}
-                      <div className="flex flex-wrap gap-2">
-                        {!session.lineupsGame2Confirmed && (
-                          <Button
-                            disabled={saving}
-                            onClick={() => confirmLineupsGame2(session.id)}
-                          >
-                            Утвердить состав на игру №2
-                          </Button>
-                        )}
-                        <Button
-                          variant="secondary"
-                          disabled={saving}
-                          onClick={() => generateGame2(session.id)}
-                        >
-                          Пересобрать 2-й состав
-                        </Button>
-                      </div>
-                    </div>
+                    {session.status !== "COMPLETED" && (
+                      <>
+                        <p className="text-xs text-[var(--text-3)]">
+                          Пересборка с учётом позиций, ролей и баланса силы. Победа в
+                          обеих играх за день даёт доп. очки (+2 за вторую победу
+                          подряд).
+                        </p>
+                        <div className="space-y-2">
+                          {intensityControl()}
+                          <div className="flex flex-wrap gap-2">
+                            {!session.lineupsGame2Confirmed && (
+                              <Button
+                                disabled={saving}
+                                onClick={() => confirmLineupsGame2(session.id)}
+                              >
+                                Утвердить состав на игру №2
+                              </Button>
+                            )}
+                            <Button
+                              variant="secondary"
+                              disabled={saving}
+                              onClick={() => generateGame2(session.id)}
+                            >
+                              Пересобрать 2-й состав
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

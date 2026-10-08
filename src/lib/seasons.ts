@@ -153,6 +153,28 @@ export async function closeVoting(seasonId: string) {
   });
 }
 
+/** Открыть голосование на 24 часа (для дооценки новичков). Очки платформы не трогаем. */
+export async function reopenVotingFor24h(seasonId: string) {
+  const existing = await prisma.ratingSeason.findUnique({ where: { id: seasonId } });
+  if (!existing) throw new Error("Сезон не найден");
+
+  await prisma.ratingSeason.updateMany({
+    where: { status: "OPEN", id: { not: seasonId } },
+    data: { status: "CLOSED", closedAt: new Date() },
+  });
+
+  const votingClosesAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  return prisma.ratingSeason.update({
+    where: { id: seasonId },
+    data: {
+      status: "OPEN",
+      closedAt: null,
+      votingClosesAt,
+      // Не меняем isActive / closesAt — только окно оценок
+    },
+  });
+}
+
 export async function finalizeSeason(seasonId: string) {
   await recalculateAllPlayerStrengths(seasonId);
 

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { finalizeSeason, refreshPlayerStrength, resetAllPowerToRankBase, recalculateAllPlayerStrengths, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
+import {
+  finalizeSeason,
+  refreshPlayerStrength,
+  resetAllPowerToRankBase,
+  recalculateAllPlayerStrengths,
+  closeVoting,
+  reopenVotingFor24h,
+  migrateLegacySeasonDeadlines,
+} from "@/lib/seasons";
 import { parseAppDateTime } from "@/lib/utils";
 import { restoreSeasonPointsToProfiles } from "@/lib/points";
 import type { SeasonName, VibeValue } from "@prisma/client";
@@ -118,6 +126,22 @@ export async function PUT(request: NextRequest) {
     }
     const season = await closeVoting(seasonId);
     return NextResponse.json({ season });
+  }
+
+  if (action === "reopenVoting24h") {
+    await requireAdmin();
+    if (!seasonId) {
+      return NextResponse.json({ error: "Не указан сезон" }, { status: 400 });
+    }
+    try {
+      const season = await reopenVotingFor24h(seasonId);
+      return NextResponse.json({ season });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось открыть голосование" },
+        { status: 400 }
+      );
+    }
   }
 
   if (action === "close") {

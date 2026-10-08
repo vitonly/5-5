@@ -85,7 +85,15 @@ export function AdminSeasonsClient({
 
   async function seasonAction(
     seasonId: string,
-    action: "close" | "closeVoting" | "open" | "continue" | "activate" | "setDeadlines" | "delete",
+    action:
+      | "close"
+      | "closeVoting"
+      | "reopenVoting24h"
+      | "open"
+      | "continue"
+      | "activate"
+      | "setDeadlines"
+      | "delete",
     deadlines?: { votingClosesAt?: string; closesAt?: string }
   ) {
     await fetch("/api/ratings", {
@@ -660,24 +668,39 @@ export function AdminSeasonsClient({
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      const d = deadlinesFor(season);
-                      if (
-                        confirm(
-                          "Продолжить сезон? Голосование откроется снова, текущие очки платформы сохранятся. Можно заранее поправить дедлайны выше и нажать «Сохранить дедлайны»."
-                        )
-                      ) {
-                        seasonAction(season.id, "continue", {
-                          votingClosesAt: d.voting || undefined,
-                          closesAt: d.season || undefined,
-                        });
-                      }
-                    }}
-                  >
-                    Продолжить сезон (без сброса очков)
-                  </Button>
+                  <>
+                    <Button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Открыть голосование на 24 часа?\n\nУченики снова смогут оценить тех, кого не успели (например, новичка). Очки платформы не сбросятся. Через сутки голосование закроется само."
+                          )
+                        ) {
+                          seasonAction(season.id, "reopenVoting24h");
+                        }
+                      }}
+                    >
+                      Открыть голосование на сутки
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const d = deadlinesFor(season);
+                        if (
+                          confirm(
+                            "Продолжить сезон? Голосование откроется снова, текущие очки платформы сохранятся. Можно заранее поправить дедлайны выше и нажать «Сохранить дедлайны»."
+                          )
+                        ) {
+                          seasonAction(season.id, "continue", {
+                            votingClosesAt: d.voting || undefined,
+                            closesAt: d.season || undefined,
+                          });
+                        }
+                      }}
+                    >
+                      Продолжить сезон (без сброса очков)
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="destructive"

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StreamCard } from "@/components/StreamCard";
 import { VideoCard } from "@/components/VideoCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,7 +52,31 @@ export function MaterialsClient({
   const [typeFilter, setTypeFilter] = useState<Filter>("ALL");
   const [roleFilter, setRoleFilter] = useState<DotaRole | null>(null);
   const [tab, setTab] = useState<Tab>("active");
+  const [liveLoginsState, setLiveLoginsState] = useState(liveLogins);
+  const [liveStreamsState, setLiveStreamsState] = useState(liveStreams);
   const { views, markViewed, unmarkViewed } = useMaterialViews(initialViews);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/streams/live");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          liveLogins?: string[];
+          liveStreams?: LiveStream[];
+        };
+        if (cancelled) return;
+        setLiveLoginsState(data.liveLogins ?? []);
+        setLiveStreamsState(data.liveStreams ?? []);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     return materials.filter((m) => {
@@ -122,13 +146,16 @@ export function MaterialsClient({
       .filter((e): e is { material: LearningMaterial; login: string } => Boolean(e.login));
   }, [filtered]);
 
-  const liveLoginSet = useMemo(() => new Set(liveLogins.map((l) => l.toLowerCase())), [liveLogins]);
+  const liveLoginSet = useMemo(
+    () => new Set(liveLoginsState.map((l) => l.toLowerCase())),
+    [liveLoginsState]
+  );
 
   const liveByLogin = useMemo(() => {
     const map = new Map<string, LiveStream>();
-    for (const s of liveStreams) map.set(s.login.toLowerCase(), s);
+    for (const s of liveStreamsState) map.set(s.login.toLowerCase(), s);
     return map;
-  }, [liveStreams]);
+  }, [liveStreamsState]);
 
   const liveStreamEntries = streamEntries.filter(({ login }) => liveLoginSet.has(login));
   const offlineStreamEntries = streamEntries.filter(({ login }) => !liveLoginSet.has(login));

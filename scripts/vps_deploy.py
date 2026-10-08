@@ -131,12 +131,35 @@ def main():
         f"mkdir -p {REMOTE_APP}/public/uploads",
     )
 
+    # Preserve secrets already on the server
+    prev_env: dict[str, str] = {}
+    try:
+        with sftp.file(f"{REMOTE_APP}/.env", "r") as ef:
+            for line in ef.read().decode("utf-8", "replace").splitlines():
+                if "=" not in line or line.strip().startswith("#"):
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if (
+                    k.startswith("LIVEKIT_")
+                    or k == "NEXT_PUBLIC_LIVEKIT_URL"
+                    or k in ("TELEGRAM_API_BASE", "TELEGRAM_PROXY_SECRET", "TELEGRAM_WEBHOOK_SECRET")
+                ):
+                    prev_env[k] = v
+    except OSError:
+        pass
+
     remote_env = {
         "DATABASE_URL": PG_URL,
         "JWT_SECRET": env.get("JWT_SECRET", "change-me"),
         "TELEGRAM_BOT_TOKEN": env.get("TELEGRAM_BOT_TOKEN", ""),
         "NEXT_PUBLIC_BOT_USERNAME": env.get("NEXT_PUBLIC_BOT_USERNAME", ""),
         "ADMIN_TELEGRAM_IDS": env.get("ADMIN_TELEGRAM_IDS", ""),
+        "TELEGRAM_WEBHOOK_SECRET": env.get("TELEGRAM_WEBHOOK_SECRET")
+        or prev_env.get("TELEGRAM_WEBHOOK_SECRET", ""),
+        "TELEGRAM_API_BASE": env.get("TELEGRAM_API_BASE") or prev_env.get("TELEGRAM_API_BASE", ""),
+        "TELEGRAM_PROXY_SECRET": env.get("TELEGRAM_PROXY_SECRET")
+        or prev_env.get("TELEGRAM_PROXY_SECRET", ""),
         "NEXT_PUBLIC_APP_URL": "https://www.startdota.ru",
         "CRON_SECRET": env.get("CRON_SECRET", "cron-secret-change-me-16chars"),
         "TWITCH_CLIENT_ID": env.get("TWITCH_CLIENT_ID", ""),
@@ -144,6 +167,14 @@ def main():
         "UPLOADS_DIR": "/var/www/startplus/uploads",
         "NODE_ENV": "production",
         "PORT": "3000",
+        "LIVEKIT_URL": env.get("LIVEKIT_URL") or prev_env.get("LIVEKIT_URL", ""),
+        "LIVEKIT_INTERNAL_URL": env.get("LIVEKIT_INTERNAL_URL")
+        or prev_env.get("LIVEKIT_INTERNAL_URL", "http://127.0.0.1:7880"),
+        "LIVEKIT_API_KEY": env.get("LIVEKIT_API_KEY") or prev_env.get("LIVEKIT_API_KEY", ""),
+        "LIVEKIT_API_SECRET": env.get("LIVEKIT_API_SECRET")
+        or prev_env.get("LIVEKIT_API_SECRET", ""),
+        "NEXT_PUBLIC_LIVEKIT_URL": env.get("NEXT_PUBLIC_LIVEKIT_URL")
+        or prev_env.get("NEXT_PUBLIC_LIVEKIT_URL", ""),
     }
     body = "\n".join(f'{k}="{v}"' for k, v in remote_env.items()) + "\n"
     with sftp.file(f"{REMOTE_APP}/.env", "w") as f:
@@ -206,7 +237,7 @@ server {{
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name startdota.ru www.startdota.ru {HOST} _;
-    client_max_body_size 12m;
+    client_max_body_size 64m;
 
     location /.well-known/acme-challenge/ {{
         root /var/www/html;
@@ -222,7 +253,7 @@ server {{
     listen [::]:443 ssl;
     http2 on;
     server_name startdota.ru www.startdota.ru;
-    client_max_body_size 12m;
+    client_max_body_size 64m;
 
     ssl_certificate /etc/letsencrypt/live/startdota.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/startdota.ru/privkey.pem;

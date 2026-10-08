@@ -10,6 +10,7 @@ import { getVotingSeason } from "@/lib/seasons";
 const studentLinks = [
   { href: "/homework", label: "Домашки" },
   { href: "/materials", label: "Материалы" },
+  { href: "/lessons", label: "Архив" },
   { href: "/match", label: "5x5" },
   { href: "/progress", label: "Мой прогресс" },
   { href: "/rules", label: "Rule book" },
@@ -21,6 +22,7 @@ const adminLinks = [
   { href: "/admin/students", label: "Ученики" },
   { href: "/admin/homework", label: "Домашки" },
   { href: "/admin/materials", label: "Материалы" },
+  { href: "/admin/lessons", label: "Архив" },
   { href: "/admin/matches", label: "5v5" },
   { href: "/admin/attendance", label: "Посещаемость" },
   { href: "/admin/seasons", label: "Сезоны" },
