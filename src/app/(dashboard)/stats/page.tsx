@@ -37,7 +37,7 @@ export default async function StatsPage({
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Статистика</h1>
+      <h1>Статистика</h1>
 
       {seasons.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -58,7 +58,7 @@ export default async function StatsPage({
                 href={`/stats?season=${s.id}`}
                 className={`rounded-[var(--radius-control)] border px-3 py-2 text-sm font-medium transition-colors ${
                   active
-                    ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]"
+                    ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]"
                     : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]"
                 }`}
               >
@@ -114,7 +114,7 @@ export default async function StatsPage({
                 <span className="font-medium text-[var(--text)]">
                   {SEASON_LABELS[s.name]} {s.year}
                 </span>
-                <span className="text-[var(--text-4)]">
+                <span className="text-[var(--text-3)]">
                   {s.closedAt
                     ? `закрыт ${new Date(s.closedAt).toLocaleDateString("ru-RU")}`
                     : "закрыт"}{" "}

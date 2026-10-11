@@ -245,10 +245,10 @@ export function AdminAttendanceClient() {
           </Button>
         ))}
         {syncing && (
-          <span className="text-xs text-[var(--text-4)]">Сохранение очков…</span>
+          <span className="text-xs text-[var(--text-3)]">Сохранение очков…</span>
         )}
         {!syncing && pendingCount > 0 && (
-          <span className="text-xs text-[var(--text-4)]">Ожидание…</span>
+          <span className="text-xs text-[var(--text-3)]">Ожидание…</span>
         )}
         {syncError && (
           <button
@@ -308,7 +308,7 @@ export function AdminAttendanceClient() {
                       />
                       <span
                         className={`font-mono-num text-xs ${
-                          on ? "text-[var(--success)]" : "text-[var(--text-4)]"
+                          on ? "text-[var(--success)]" : "text-[var(--text-3)]"
                         }`}
                       >
                         {on ? `+${formatPoints(POINT_VALUES.LESSON_ATTEND)}` : "нет"}

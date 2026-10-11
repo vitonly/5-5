@@ -147,7 +147,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--points)] text-2xl text-white shadow-lg hover:bg-[var(--points-hover)] min-[720px]:bottom-6 min-[720px]:right-6"
+        className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 z-40 flex h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full bg-[var(--points)] text-2xl text-white shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--points-hover)] active:scale-[0.97] min-[720px]:bottom-6 min-[720px]:right-6"
         aria-label="Чат"
       >
         💬
@@ -159,7 +159,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
       </button>
 
       <aside
-        className={`fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-2xl transition-transform duration-300 ${
+        className={`drawer-panel fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-popover)] ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -233,7 +233,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
                   return (
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div
-                        className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                        className={`max-w-[75%] rounded-[var(--radius-card)] px-3 py-2 text-sm ${
                           mine
                             ? "bg-[var(--points)] text-white"
                             : "bg-[var(--control)] text-[var(--text)]"
@@ -245,14 +245,14 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
                             <img
                               src={m.imageUrl}
                               alt=""
-                              className="mb-2 max-h-48 w-full rounded-lg object-cover"
+                              className="mb-2 max-h-48 w-full rounded-[var(--radius-control)] object-cover"
                             />
                           </a>
                         )}
                         {m.body && m.body !== "📷 Фото" && (
                           <p className="whitespace-pre-wrap break-words">{m.body}</p>
                         )}
-                        <p className="mt-1 font-mono-num text-[10px] opacity-60">
+                        <p className="mt-1 font-mono-num text-[11px] opacity-60">
                           {formatDate(m.createdAt)}
                         </p>
                       </div>

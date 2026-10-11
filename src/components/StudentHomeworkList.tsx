@@ -57,26 +57,26 @@ export function StudentHomeworkList({
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-1">
+      <div className="flex gap-1 rounded-[var(--radius-control)] bg-[var(--control)] p-1">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-[6px] px-3 py-2.5 text-center text-sm font-medium transition-colors ${
+            className={`press flex-1 rounded-[var(--radius-sm)] px-3 py-2.5 text-center text-sm font-medium transition-[background-color,color,box-shadow] duration-[200ms] ${
               tab === t.key
-                ? "bg-[var(--points-bg)] text-[var(--points)]"
-                : "text-[var(--text-2)] hover:bg-[var(--control)]"
+                ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)]"
+                : "text-[var(--text-2)] hover:text-[var(--text)]"
             }`}
           >
             {t.label}
-            <span className="ml-1.5 font-mono-num text-[12px] opacity-70">{t.count}</span>
+            <span className="ml-1.5 font-mono-num text-[12px] text-[var(--text-3)]">{t.count}</span>
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-[var(--text-3)]">В этой вкладке пока пусто</p>
+        <p className="surface-card px-4 py-10 text-center text-sm text-[var(--text-3)]">В этой вкладке пока пусто</p>
       ) : (
         <div className="space-y-4">
           {filtered.map((a) => (
@@ -196,7 +196,7 @@ function HomeworkCard({
   }
 
   return (
-    <Card className={isRevision ? "border-[var(--danger-border)] border-l-[3px] border-l-[var(--danger)]" : undefined}>
+    <Card className={isRevision ? "border-[var(--danger-border)]" : undefined}>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
@@ -217,7 +217,7 @@ function HomeworkCard({
         <HomeworkMaterials materialIds={assignment.homework.materialIds} materials={materials} />
 
         {isRevision && assignment.revisionNote && (
-          <div className="rounded-[var(--radius-control)] border border-[var(--danger-border)] border-l-[3px] border-l-[var(--danger)] bg-[var(--danger-bg)] p-3 text-sm text-[var(--danger)]">
+          <div className="rounded-[var(--radius-control)] border border-[var(--danger-border)] bg-[var(--danger-bg)] p-3 text-sm text-[var(--danger)]">
             <p className="font-medium">Комментарий тренера</p>
             <p className="mt-1 whitespace-pre-wrap">{assignment.revisionNote}</p>
           </div>
@@ -304,7 +304,7 @@ function HomeworkCard({
                   ? "Загрузка..."
                   : "Перетащите файл, нажмите или Ctrl+V"}
               </p>
-              <p className="mt-1 font-mono-num text-[11px] text-[var(--text-4)]">
+              <p className="mt-1 font-mono-num text-[11px] text-[var(--text-3)]">
                 dem, mp4, png · до 10 МБ
               </p>
             </div>

@@ -34,7 +34,7 @@ export function StreamCard({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] transition-transform hover:-translate-y-0.5"
+      className="hover-lift group block overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
     >
       <div className="relative">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -55,7 +55,7 @@ export function StreamCard({
         )}
       </div>
       <div className="p-3">
-        <span className="font-mono-num text-[10px] font-medium uppercase tracking-wider text-[var(--text-4)]">
+        <span className="font-mono-num text-[11px] font-medium uppercase tracking-wider text-[var(--text-3)]">
           Эфир
         </span>
         <p className="mt-1 truncate text-sm font-semibold text-[var(--text)] group-hover:text-[var(--points)]">
@@ -70,7 +70,7 @@ export function StreamCard({
             {roles.map((r) => (
               <span
                 key={r}
-                className="rounded border border-[var(--border)] bg-[var(--control)] px-2 py-0.5 text-[10px] text-[var(--text-2)]"
+                className="rounded border border-[var(--border)] bg-[var(--control)] px-2 py-0.5 text-[11px] text-[var(--text-2)]"
               >
                 {DOTA_ROLE_LABELS[r]}
               </span>

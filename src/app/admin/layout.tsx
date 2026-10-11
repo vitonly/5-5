@@ -19,12 +19,12 @@ export default async function AdminLayout({
       <Navbar />
       <div className="border-b border-[var(--admin-border)] bg-[var(--admin-bg)]">
         <div className="page-shell py-3">
-          <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--admin)]">
+          <p className="eyebrow text-[var(--admin)]">
             Панель тренера
           </p>
         </div>
       </div>
-      <main className="page-shell py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] min-[720px]:py-10 min-[720px]:pb-10">
+      <main className="rise-in page-shell py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] min-[720px]:py-10 min-[720px]:pb-10">
         {children}
       </main>
       <VoiceDock role={user.role} myId={user.id} />

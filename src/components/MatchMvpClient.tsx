@@ -92,7 +92,7 @@ export function MatchMvpClient({
         ))}
       </div>
     ) : (
-      <p className="mt-2 text-xs text-[var(--text-4)]">Топ-3: пока нет голосов</p>
+      <p className="mt-2 text-xs text-[var(--text-3)]">Топ-3: пока нет голосов</p>
     );
 
   const turnout = (
@@ -109,7 +109,7 @@ export function MatchMvpClient({
       )}
       {status.pendingNames.length > 0 && !status.resolved && (
         <p>
-          <span className="text-[var(--text-4)]">Ещё нет голоса:</span>{" "}
+          <span className="text-[var(--text-3)]">Ещё нет голоса:</span>{" "}
           {status.pendingNames.join(", ")}
         </p>
       )}

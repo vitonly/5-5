@@ -10,12 +10,12 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-8 px-4 py-10">
       <div>
-        <p className="text-sm text-[var(--text-4)]">
+        <p className="text-sm text-[var(--text-3)]">
           <Link href="/login" className="text-[var(--points)] hover:underline">
             ← Вход
           </Link>
         </p>
-        <h1 className="mt-3 font-display text-3xl font-bold text-[var(--text)]">
+        <h1 className="mt-3 text-[var(--text)]">
           Политика конфиденциальности
         </h1>
         <p className="mt-2 text-sm text-[var(--text-3)]">
@@ -99,7 +99,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <p className="text-xs text-[var(--text-4)]">
+      <p className="text-xs text-[var(--text-3)]">
         См. также технический гайд для оператора:{" "}
         <code className="text-[var(--text-3)]">docs/HOSTING-RF-AND-PD.md</code> в репозитории.
       </p>

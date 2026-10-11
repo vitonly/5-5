@@ -48,7 +48,7 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Мой профиль</h1>
+        <h1>Мой профиль</h1>
         <p className="mt-1 text-sm text-[var(--text-2)]">
           Слева — данные игрока. Справа — сила (закрытая) и очки платформы.
         </p>
@@ -63,7 +63,7 @@ export default async function ProfilePage() {
 
         <div className="space-y-4">
           <div className="rounded-[var(--radius-card)] border border-[var(--power-border)] bg-[var(--power-bg)] p-5">
-            <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--power)]">
+            <p className="eyebrow text-[var(--power)]">
               Рейтинг силы
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -83,7 +83,7 @@ export default async function ProfilePage() {
 
           {user.role === "STUDENT" && (
             <div className="space-y-2">
-              <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+              <p className="eyebrow text-[var(--text-3)]">
                 Прогресс
               </p>
               <ProgressClient compact />
@@ -91,8 +91,8 @@ export default async function ProfilePage() {
           )}
 
           {vibes.length > 0 && (
-            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
-              <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)]">
+              <p className="eyebrow text-[var(--text-3)]">
                 Вайб от команды
               </p>
               <ul className="mt-2 space-y-1.5 text-sm text-[var(--text-2)]">

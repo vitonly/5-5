@@ -27,19 +27,19 @@ export function VideoCard({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-[var(--radius-card)] border bg-[var(--surface)] transition-transform ${
+      className={`relative overflow-hidden rounded-[var(--radius-card)] border bg-[var(--surface)] ${
         viewed
           ? "border-[var(--border-soft)] opacity-55 grayscale"
-          : "border-[var(--border)] hover:-translate-y-0.5"
-      }`}
+          : "hover-lift border-[var(--border)]"
+      } shadow-[var(--shadow-card)]`}
     >
       {isNew && !viewed && (
-        <span className="absolute left-2 top-2 z-10 rounded-full bg-[var(--points)] px-2.5 py-0.5 font-mono-num text-[10px] font-bold uppercase tracking-wide text-white">
+        <span className="absolute left-2 top-2 z-10 rounded-full bg-[var(--points)] px-2.5 py-0.5 font-mono-num text-[11px] font-bold uppercase tracking-wide text-white">
           Новое
         </span>
       )}
       {viewed && (
-        <span className="absolute left-2 top-2 z-10 rounded-full bg-[var(--control)] px-2.5 py-0.5 font-mono-num text-[10px] font-bold uppercase tracking-wide text-[var(--text-3)]">
+        <span className="absolute left-2 top-2 z-10 rounded-full bg-[var(--control)] px-2.5 py-0.5 font-mono-num text-[11px] font-bold uppercase tracking-wide text-[var(--text-3)]">
           Просмотрено
         </span>
       )}
@@ -48,12 +48,12 @@ export function VideoCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={title} className="aspect-video w-full object-cover" />
         ) : (
-          <div className="img-placeholder flex aspect-video w-full items-center justify-center font-mono-num text-[12px] text-[var(--text-4)]">
+          <div className="img-placeholder flex aspect-video w-full items-center justify-center font-mono-num text-[12px] text-[var(--text-3)]">
             обложка 16:9
           </div>
         )}
         <div className="p-3 pb-2">
-          <span className="font-mono-num text-[10px] font-medium uppercase tracking-wider text-[var(--text-4)]">
+          <span className="font-mono-num text-[11px] font-medium uppercase tracking-wider text-[var(--text-3)]">
             Видео
           </span>
           <p
@@ -68,7 +68,7 @@ export function VideoCard({
               {skillLevels.map((level) => (
                 <span
                   key={level}
-                  className="rounded border border-[var(--border)] bg-[var(--control)] px-2 py-0.5 text-[10px] text-[var(--text-2)]"
+                  className="rounded border border-[var(--border)] bg-[var(--control)] px-2 py-0.5 text-[11px] text-[var(--text-2)]"
                 >
                   {SKILL_LEVEL_LABELS[level]}
                 </span>

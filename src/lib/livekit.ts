@@ -171,12 +171,17 @@ export async function adminMuteParticipant(
   const client = roomClient();
   const p = await client.getParticipant(roomId, identity);
   const micTracks = (p.tracks ?? []).filter((t) => t.source === TrackSource.MICROPHONE);
-  if (micTracks.length === 0) {
-    await client.updateParticipant(roomId, identity, {
-      permission: { canPublish: !muted, canSubscribe: true, canPublishData: true },
-    });
-    return;
-  }
+
+  // Always restore/revoke publish on unmute/mute so "no track yet" cases work too
+  await client.updateParticipant(roomId, identity, {
+    permission: {
+      canPublish: !muted,
+      canSubscribe: true,
+      canPublishData: true,
+      canPublishSources: muted ? [] : [TrackSource.MICROPHONE],
+    },
+  });
+
   for (const t of micTracks) {
     await client.mutePublishedTrack(roomId, identity, t.sid, muted);
   }
@@ -196,6 +201,11 @@ export async function adminMoveParticipant(
   if (fromRoomId === toRoomId) return;
 
   const client = roomClient();
+  const source = await client.listParticipants(fromRoomId).catch(() => []);
+  if (!source.some((p) => p.identity === identity)) {
+    throw new Error("participant not found");
+  }
+
   const dest = await client.listParticipants(toRoomId).catch(() => []);
   if (dest.length >= VOICE_ROOM_CAPACITY && !dest.some((p) => p.identity === identity)) {
     throw new Error("ROOM_FULL");

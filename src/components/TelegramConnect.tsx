@@ -27,11 +27,14 @@ export function TelegramConnect({
   return (
     <Card className="border-[var(--points-border)] bg-[var(--points-bg)]">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base text-[var(--points)]">Подключите Telegram</CardTitle>
+        <CardTitle className="text-base text-[var(--points)]">
+          Привяжите Telegram для уведомлений
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-[var(--text-2)]">
-          Чтобы получать уведомления о домашках, сообщениях от тренера и напоминания — привяжите Telegram.
+          Telegram нужен для уведомлений о домашках, сообщениях от тренера и напоминаний. На вход на
+          сайт это не влияет.
         </p>
         <Button asChild>
           <a href={link} target="_blank" rel="noopener noreferrer">

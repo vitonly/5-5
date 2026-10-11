@@ -23,7 +23,7 @@ export default async function AdminSeasonsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Сезоны</h1>
+      <h1 className="mb-6">Сезоны</h1>
       <AdminSeasonsClient seasons={seasons} students={students} />
     </div>
   );

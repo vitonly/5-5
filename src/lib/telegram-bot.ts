@@ -8,7 +8,7 @@ import {
 import { upsertTelegramUser } from "@/lib/telegram-auth";
 import { handleMatchSignupCallback } from "@/lib/match-signup";
 import { castMvpVote, formatMvpStatusTelegram } from "@/lib/match-mvp";
-import { displayName, formatDate } from "@/lib/utils";
+import { displayName, formatDate, parseJsonArray } from "@/lib/utils";
 import { formatPoints } from "@/lib/points";
 import { rankLabel } from "@/lib/labels";
 import { parseTeamAssignments } from "@/lib/match-lineup";
@@ -119,23 +119,11 @@ async function replySignupStatus(userId: string): Promise<string> {
   ].join("\n");
 }
 
-async function replyTeamsStatus(userId: string): Promise<string> {
-  const session = await prisma.matchSession.findFirst({
-    where: {
-      status: { in: ["TEAMS_SET", "LINEUPS_CONFIRMED", "IN_PROGRESS"] },
-    },
-    orderBy: { date: "desc" },
-  });
-  if (!session) {
-    return "⚔️ <b>Команды</b>\nСейчас нет активной сессии 5v5.";
-  }
-
-  const assignments = parseTeamAssignments(session.teamAssignments);
-  if (!Object.keys(assignments).length) {
-    return `⚔️ <b>Команды</b> · ${formatDate(session.date)}\nСоставы ещё не собраны.`;
-  }
-
-  const me = assignments[userId];
+async function formatConfirmedLineupBlock(
+  title: string,
+  userId: string,
+  assignments: ReturnType<typeof parseTeamAssignments>
+): Promise<string> {
   const radiant = Object.entries(assignments)
     .filter(([, a]) => a.team === "RADIANT")
     .sort((a, b) => a[1].position - b[1].position);
@@ -170,14 +158,80 @@ async function replyTeamsStatus(userId: string): Promise<string> {
   );
   const line = (rows: [string, { position: number }][]) =>
     rows.map(([id, a]) => `  ${a.position}: ${displayName(byId[id])}`).join("\n");
+  const me = assignments[userId];
+  const you = me
+    ? `Вы: ${me.team === "DIRE" ? direName : radiantName}, слот ${me.position}`
+    : "";
 
   return (
-    `⚔️ <b>Команды</b> · ${formatDate(session.date)}\n` +
-    `Статус: ${session.status}\n` +
-    `${me ? `Вы: ${me.team === "DIRE" ? direName : radiantName}, слот ${me.position}\n\n` : "\n"}` +
+    `<b>${title}</b>\n` +
+    (you ? `${you}\n\n` : "\n") +
     `<b>${radiantName}</b>\n${line(radiant)}\n\n` +
     `<b>${direName}</b>\n${line(dire)}`
   );
+}
+
+async function replyTeamsStatus(userId: string): Promise<string> {
+  const session = await prisma.matchSession.findFirst({
+    where: {
+      status: { in: ["TEAMS_SET", "LINEUPS_CONFIRMED", "IN_PROGRESS"] },
+    },
+    orderBy: { date: "desc" },
+  });
+  if (!session) {
+    return "⚔️ <b>Команды</b>\nСейчас нет активной сессии 5v5.";
+  }
+
+  // До утверждения — только кто есть, без команд и позиций
+  if (session.status === "TEAMS_SET") {
+    const ids = [
+      ...parseJsonArray(session.radiantPlayerIds),
+      ...parseJsonArray(session.direPlayerIds),
+    ];
+    const users = ids.length
+      ? await prisma.user.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, firstName: true, lastName: true, username: true },
+        })
+      : [];
+    const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+    const names = ids
+      .map((id, i) => {
+        const u = byId[id];
+        return u ? `  ${i + 1}. ${displayName(u)}` : null;
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    return [
+      `⚔️ <b>Команды</b> · ${formatDate(session.date)}`,
+      `Игроки набраны (${ids.length}/10). Составы ещё не утверждены — команд и позиций нет.`,
+      "",
+      names || "  —",
+    ].join("\n");
+  }
+
+  const assignments = parseTeamAssignments(session.teamAssignments);
+  if (!Object.keys(assignments).length) {
+    return `⚔️ <b>Команды</b> · ${formatDate(session.date)}\nСоставы ещё не собраны.`;
+  }
+
+  const game1 = await formatConfirmedLineupBlock("Игра №1", userId, assignments);
+  const parts = [
+    `⚔️ <b>Команды</b> · ${formatDate(session.date)}`,
+    `Статус: ${session.status}`,
+    "",
+    game1,
+  ];
+
+  if (session.lineupsGame2Confirmed) {
+    const g2 = parseTeamAssignments(session.teamAssignmentsGame2);
+    if (Object.keys(g2).length) {
+      parts.push("", "————", "", await formatConfirmedLineupBlock("Игра №2", userId, g2));
+    }
+  }
+
+  return parts.join("\n");
 }
 
 async function replyFiveXFive(chatId: string, userId: string) {
@@ -428,7 +482,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
     } else {
       await sendTelegramMessage(
         chatId,
-        "❌ Ссылка для входа устарела. Нажмите «Войти через бота» на сайте ещё раз."
+        "❌ Ссылка для входа устарела. Нажмите «Войти через Telegram» на сайте ещё раз."
       );
     }
     return;

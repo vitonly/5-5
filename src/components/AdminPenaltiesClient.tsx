@@ -118,7 +118,7 @@ export function AdminPenaltiesClient({
                     {formatPoints(Math.abs(p.amount))}
                   </span>{" "}
                   · <PlayerLink user={p.target} className="inline" /> · {p.reason}
-                  <span className="block text-xs text-[var(--text-4)]">
+                  <span className="block text-xs text-[var(--text-3)]">
                     {formatDate(p.createdAt)} · <PlayerLink user={p.admin} className="inline text-xs" />
                   </span>
                 </li>

@@ -59,7 +59,7 @@ export default async function MatchPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Субботние 5v5</h1>
+      <h1 className="mb-6">Субботние 5v5</h1>
       <MatchNav />
 
       {sessions.length === 0 ? (
@@ -111,17 +111,20 @@ export default async function MatchPage() {
             return (
               <article
                 key={session.id}
-                className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)]"
+                className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-soft)] px-5 py-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                    <span className="eyebrow text-[var(--text-3)]">
                       Матч #{sessions.length - idx}
                     </span>
                     <h2 className="text-base font-semibold text-[var(--text)]">
                       {formatDate(session.date)}
                     </h2>
-                    {myTeam && (
+                    {myTeam &&
+                      (session.status === "LINEUPS_CONFIRMED" ||
+                        session.status === "IN_PROGRESS" ||
+                        session.status === "COMPLETED") && (
                       <span className="text-sm text-[var(--points)]">
                         Ваша команда: {myTeam === "RADIANT" ? radiantName : direName}
                       </span>
@@ -139,9 +142,7 @@ export default async function MatchPage() {
                   <Badge>{MATCH_STATUS_LABELS[session.status]}</Badge>
                 </div>
 
-                {(session.status === "IN_PROGRESS" ||
-                  session.status === "LINEUPS_CONFIRMED" ||
-                  session.status === "COMPLETED") &&
+                {(session.status === "COMPLETED" || session.mvpResolved) &&
                   (radiant.includes(user.id) || dire.includes(user.id)) && (
                     <div className="border-b border-[var(--border-soft)] px-5 py-3">
                       <MatchMvpClient
@@ -160,7 +161,31 @@ export default async function MatchPage() {
                     </div>
                   )}
 
-                {(radiant.length > 0 || dire.length > 0) && (
+                {session.status === "TEAMS_SET" &&
+                  (radiant.length > 0 || dire.length > 0) && (
+                    <div className="px-5 py-4">
+                      <p className="mb-2 text-sm text-[var(--text-3)]">
+                        Игроки набраны. Составы ещё не утверждены — команды и позиции скрыты.
+                      </p>
+                      <ul className="space-y-1 text-sm text-[var(--text)]">
+                        {[...radiant, ...dire].map((id, i) => (
+                          <li key={id}>
+                            {i + 1}.{" "}
+                            {userMap[id] ? (
+                              <PlayerLink user={userMap[id]} />
+                            ) : (
+                              id
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                {(session.status === "LINEUPS_CONFIRMED" ||
+                  session.status === "IN_PROGRESS" ||
+                  session.status === "COMPLETED") &&
+                  (radiant.length > 0 || dire.length > 0) && (
                   <div className="grid gap-0 md:grid-cols-[1fr_auto_1fr]">
                     <TeamPanel
                       title={radiantName}
@@ -268,15 +293,15 @@ function TeamPanel({
   mvpWinnerId?: string | null;
 }) {
   const showIndividualPower = viewer.role === "ADMIN";
-  const border =
-    accent === "radiant"
-      ? "border-l-[3px] border-l-[var(--success)]"
-      : "border-l-[3px] border-l-[var(--danger)] md:border-l-0 md:border-r-[3px] md:border-r-[var(--danger)]";
+  const dot = accent === "radiant" ? "bg-[var(--success)]" : "bg-[var(--danger)]";
 
   return (
-    <div className={`p-5 ${border}`}>
+    <div className="p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold text-[var(--text)]">{title}</p>
+        <p className="flex items-center gap-2 font-semibold text-[var(--text)]">
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} aria-hidden />
+          {title}
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           {lineup.length > 0 && (
             <span className="inline-flex items-center gap-1.5 text-xs text-[var(--text-3)]">
@@ -322,7 +347,7 @@ function TeamPanel({
                       ⭐
                     </span>
                   )}
-                  <span className="hidden text-[10px] text-[var(--text-4)] sm:inline">
+                  <span className="hidden text-[11px] text-[var(--text-3)] sm:inline">
                     {POSITION_LABELS[slot.position]?.split("·")[1]?.trim() ?? ""}
                   </span>
                 </span>

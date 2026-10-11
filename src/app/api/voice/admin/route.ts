@@ -63,11 +63,23 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg === "ROOM_FULL") {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "ROOM_FULL" || msg.includes("ROOM_FULL")) {
       return NextResponse.json({ error: "Целевая комната заполнена" }, { status: 409 });
     }
+    if (
+      msg.includes("not found") ||
+      msg.includes("participant does not exist") ||
+      msg.includes("participant not found") ||
+      msg.includes("twirp error not_found")
+    ) {
+      return NextResponse.json({ error: "Участник не в комнате" }, { status: 404 });
+    }
     console.error("[voice/admin]", e);
-    return NextResponse.json({ error: "Операция не выполнена" }, { status: 500 });
+    const friendly =
+      msg.includes("remote unmute is disabled") || msg.includes("cannot unmute")
+        ? "Размут на сервере выключен. Нужно enable_remote_unmute в LiveKit."
+        : "Операция не выполнена";
+    return NextResponse.json({ error: friendly, detail: msg.slice(0, 200) }, { status: 500 });
   }
 }

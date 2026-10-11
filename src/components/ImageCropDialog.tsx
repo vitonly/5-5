@@ -63,7 +63,7 @@ export function ImageCropDialog({
         aria-label="Закрыть"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-2xl">
+      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-popover)]">
         <div className="border-b border-[var(--border-soft)] px-4 py-3">
           <h3 className="font-semibold text-[var(--text)]">Обрезка фото</h3>
           <p className="text-xs text-[var(--text-3)]">Перетащите и масштабируйте, чтобы выбрать область</p>

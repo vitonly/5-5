@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Deploy START+ to Timeweb VPS. Do not commit secrets."""
 from __future__ import annotations
 
@@ -142,7 +142,10 @@ def main():
                 k, v = k.strip(), v.strip().strip('"').strip("'")
                 if (
                     k.startswith("LIVEKIT_")
+                    or k.startswith("VK_")
                     or k == "NEXT_PUBLIC_LIVEKIT_URL"
+                    or k == "NEXT_PUBLIC_VK_CLIENT_ID"
+                    or k == "ADMIN_VK_IDS"
                     or k in ("TELEGRAM_API_BASE", "TELEGRAM_PROXY_SECRET", "TELEGRAM_WEBHOOK_SECRET")
                 ):
                     prev_env[k] = v
@@ -175,6 +178,14 @@ def main():
         or prev_env.get("LIVEKIT_API_SECRET", ""),
         "NEXT_PUBLIC_LIVEKIT_URL": env.get("NEXT_PUBLIC_LIVEKIT_URL")
         or prev_env.get("NEXT_PUBLIC_LIVEKIT_URL", ""),
+        "VK_CLIENT_ID": env.get("VK_CLIENT_ID") or prev_env.get("VK_CLIENT_ID", ""),
+        "VK_CLIENT_SECRET": env.get("VK_CLIENT_SECRET") or prev_env.get("VK_CLIENT_SECRET", ""),
+        "VK_SERVICE_TOKEN": env.get("VK_SERVICE_TOKEN") or prev_env.get("VK_SERVICE_TOKEN", ""),
+        "NEXT_PUBLIC_VK_CLIENT_ID": env.get("NEXT_PUBLIC_VK_CLIENT_ID")
+        or prev_env.get("NEXT_PUBLIC_VK_CLIENT_ID", "")
+        or env.get("VK_CLIENT_ID")
+        or prev_env.get("VK_CLIENT_ID", ""),
+        "ADMIN_VK_IDS": env.get("ADMIN_VK_IDS") or prev_env.get("ADMIN_VK_IDS", ""),
     }
     body = "\n".join(f'{k}="{v}"' for k, v in remote_env.items()) + "\n"
     with sftp.file(f"{REMOTE_APP}/.env", "w") as f:

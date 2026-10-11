@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/db";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
-import { recalculateStreakWinPoints } from "@/lib/points";
+import { recalculateAllMatchWinPoints } from "@/lib/points";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMatchesPage() {
-  await recalculateStreakWinPoints().catch(() => 0);
+  // Идемпотентный пересчёт побед 5v5 (база + бонус роли, состав нужной игры)
+  await recalculateAllMatchWinPoints().catch(() => 0);
 
   const [sessions, students] = await Promise.all([
     prisma.matchSession.findMany({
@@ -48,7 +49,7 @@ export default async function AdminMatchesPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">5v5 матчи</h1>
+      <h1 className="mb-6">5v5 матчи</h1>
       <AdminMatchesClient sessions={sessions} students={students} />
     </div>
   );

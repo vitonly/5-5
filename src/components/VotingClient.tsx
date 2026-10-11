@@ -150,7 +150,7 @@ export function VotingClient({
 
   if (!openSeason) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow-card)]">
         <p className="text-[var(--text-2)]">
           Сейчас голосование закрыто. Оно откроется в начале сезона — тренер сообщит.
         </p>
@@ -166,7 +166,7 @@ export function VotingClient({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-card)]">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="font-display text-lg font-semibold">
             {SEASON_LABELS[openSeason.name]} {openSeason.year}
@@ -178,7 +178,7 @@ export function VotingClient({
                   ? "text-[var(--success)]"
                   : saveStatus === "err"
                     ? "text-[var(--danger)]"
-                    : "text-[var(--text-4)]"
+                    : "text-[var(--text-3)]"
               }`}
             >
               {saveStatus === "saving" && "сохранение…"}
@@ -193,18 +193,18 @@ export function VotingClient({
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-[var(--control)]">
           <div
-            className="h-full rounded-full bg-[var(--points)] transition-all"
-            style={{ width: `${pct}%` }}
+            className="progress-fill h-full w-full origin-left rounded-full bg-[var(--points)] transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            style={{ transform: `scaleX(${Math.max(0, Math.min(1, pct / 100))})` }}
           />
         </div>
-        <p className="mt-2 text-[12px] text-[var(--text-4)]">
+        <p className="mt-2 text-[12px] text-[var(--text-3)]">
           Оценка 0–100 и тильт. Голос тренера и учеников вес 50/50. Галочка — после сохранения.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        <aside className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
-          <p className="mb-2 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+        <aside className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)]">
+          <p className="mb-2 eyebrow text-[var(--text-3)]">
             Очередь
           </p>
           <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
@@ -219,17 +219,17 @@ export function VotingClient({
                     onClick={() => setActiveIndex(i)}
                     className={`flex min-h-[46px] w-full items-center gap-2 rounded-[var(--radius-control)] px-2.5 py-2 text-left text-sm transition-colors lg:min-h-0 ${
                       isActive
-                        ? "bg-[var(--points-bg)] text-[var(--points)]"
+                        ? "bg-[var(--points-bg)] text-[var(--points-ink)]"
                         : "text-[var(--text-2)] hover:bg-[var(--control)]"
                     }`}
                   >
                     <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
                         done
-                          ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
+                          ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-ink)]"
                           : partial
-                            ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]"
-                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-4)]"
+                            ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]"
+                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)]"
                       }`}
                     >
                       {done ? "✓" : partial ? "…" : i + 1}
@@ -244,7 +244,7 @@ export function VotingClient({
           </ul>
         </aside>
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 shadow-[var(--shadow-card)]">
           <div className="mb-5 flex items-center gap-4 border-b border-[var(--border-soft)] pb-4">
             <div className="h-14 w-14 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--control)]">
               {active.photoUrl ? (
@@ -319,7 +319,7 @@ export function VotingClient({
                 const sel = getVibe(active.id) === opt;
                 const selectedClass =
                   opt === "STABLE"
-                    ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
+                    ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-ink)]"
                     : opt === "UNSURE"
                       ? "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)]"
                       : "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]";

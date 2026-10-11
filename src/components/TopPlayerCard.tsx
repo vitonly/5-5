@@ -31,17 +31,15 @@ function PlaceholderCard({ rank, first }: { rank: number; first: boolean }) {
           clipPath: CLIP,
           background: first
             ? "linear-gradient(180deg, var(--points), var(--points-border))"
-            : "linear-gradient(180deg, #B4C2C2, #D7E1E1)",
+            : "linear-gradient(180deg, var(--border-field), var(--border))",
         }}
       >
         <div
           className="flex flex-col items-center justify-end bg-[var(--surface)] px-4 pb-10 pt-5"
           style={{ clipPath: CLIP, minHeight: first ? 300 : 260 }}
         >
-          <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
-            Место {rank}
-          </p>
-          <p className="mt-4 font-mono-num text-sm text-[var(--text-3)]">Свободно</p>
+          <p className="eyebrow">Место {rank}</p>
+          <p className="mt-3 text-sm text-[var(--text-3)]">Свободно</p>
         </div>
       </div>
     </div>
@@ -71,7 +69,7 @@ export function TopPlayerCard({
   return (
     <Link
       href={playerProfilePath(player.id, viewer)}
-      className="relative mx-auto block transition-transform hover:-translate-y-0.5"
+      className="hover-lift relative mx-auto block"
       style={{ width: w }}
     >
       <div
@@ -80,8 +78,10 @@ export function TopPlayerCard({
           clipPath: CLIP,
           background: first
             ? "linear-gradient(180deg, var(--points), var(--points-border))"
-            : "linear-gradient(180deg, #B4C2C2, #D7E1E1)",
-          boxShadow: first ? "0 12px 30px rgba(13,139,146,.18)" : undefined,
+            : "linear-gradient(180deg, var(--border-field), var(--border))",
+          filter: first
+            ? "drop-shadow(0 16px 32px rgba(11, 122, 128, 0.22))"
+            : "drop-shadow(0 8px 20px rgba(15, 26, 25, 0.10))",
         }}
       >
         <div
@@ -96,7 +96,7 @@ export function TopPlayerCard({
               className="absolute inset-0 h-full w-full object-cover object-top"
             />
           ) : (
-            <div className="img-placeholder absolute inset-0 flex items-center justify-center font-mono-num text-xs text-[var(--text-4)]">
+            <div className="img-placeholder absolute inset-0 flex items-center justify-center text-xs font-medium text-[var(--text-3)]">
               фото
             </div>
           )}
@@ -110,12 +110,22 @@ export function TopPlayerCard({
           />
 
           <div className="relative z-[1] flex h-full flex-col px-4 pb-10 pt-4">
-            <div className="flex w-full items-start">
+            <div className="flex w-full items-start justify-between">
               {canSeePower ? <PowerPill value={player.finalRating} /> : <span />}
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full font-mono-num text-sm font-bold shadow-[var(--shadow-xs)] ${
+                  first
+                    ? "bg-[var(--points)] text-[var(--on-points)]"
+                    : "bg-[var(--surface)] text-[var(--text)]"
+                }`}
+                aria-label={`Место ${rank}`}
+              >
+                {rank}
+              </span>
             </div>
 
             <div className="mt-auto min-w-0 text-center">
-              <p className="truncate font-display text-[18px] font-bold uppercase tracking-wide text-white drop-shadow">
+              <p className="truncate font-display text-[16px] font-bold uppercase leading-tight text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
                 {name || player.username || "Игрок"}
               </p>
               <div className="mt-3 flex justify-center">

@@ -10,7 +10,7 @@ import {
   type RemoteTrackPublication,
 } from "livekit-client";
 import type { VoiceRoomId } from "@/lib/voice-rooms";
-import { VOICE_ROOMS, voiceRoomLabel } from "@/lib/voice-rooms";
+import { VOICE_ROOMS, isVoiceRoomId, voiceRoomLabel } from "@/lib/voice-rooms";
 
 type RoomParticipant = {
   identity: string;
@@ -392,6 +392,13 @@ export function VoiceDock({ role, myId }: Props) {
           setConnectedIds([]);
           void refreshRooms();
         });
+        // После admin move LiveKit меняет room.name без полного leave
+        room.on(RoomEvent.RoomMetadataChanged, () => {
+          if (isVoiceRoomId(room.name)) {
+            setActiveRoomId(room.name);
+            void refreshRooms();
+          }
+        });
 
         await room.connect(data.url, data.token);
         await room.localParticipant.setMicrophoneEnabled(true, {
@@ -500,6 +507,20 @@ export function VoiceDock({ role, myId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount only
   }, []);
 
+  // Синхронизация activeRoomId после server-side move
+  useEffect(() => {
+    if (!activeRoomId) return;
+    const t = setInterval(() => {
+      const room = roomRef.current;
+      if (!room?.name) return;
+      if (isVoiceRoomId(room.name) && room.name !== activeRoomId) {
+        setActiveRoomId(room.name);
+        void refreshRooms();
+      }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [activeRoomId, refreshRooms]);
+
   const adminAction = async (body: Record<string, unknown>) => {
     setError(null);
     const res = await fetch("/api/voice/admin", {
@@ -529,7 +550,7 @@ export function VoiceDock({ role, myId }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={fabTitle}
-        className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-[4.75rem] z-40 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-xl text-[var(--text)] shadow-lg hover:bg-[var(--control)] min-[720px]:bottom-6 min-[720px]:right-[5.5rem]"
+        className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-[4.75rem] z-40 flex h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-xl text-[var(--text)] shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--control)] active:scale-[0.97] min-[720px]:bottom-6 min-[720px]:right-[5.5rem]"
       >
         {activeRoomId ? (
           <span className="relative">
@@ -542,7 +563,7 @@ export function VoiceDock({ role, myId }: Props) {
       </button>
 
       <aside
-        className={`fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-2xl transition-transform duration-300 ${
+        className={`drawer-panel fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-popover)] ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -670,10 +691,12 @@ export function VoiceDock({ role, myId }: Props) {
                 </label>
                 <div className="relative mt-1 h-3 overflow-hidden rounded bg-[var(--control)]">
                   <div
-                    className={`h-full transition-[width] duration-75 ${
+                    className={`progress-fill h-full w-full origin-left transition-transform duration-75 ${
                       micLevel >= vadThreshold ? "bg-[var(--points)]" : "bg-[var(--text-4)]"
                     }`}
-                    style={{ width: `${micLevel}%` }}
+                    style={{
+                      transform: `scaleX(${Math.max(0, Math.min(1, micLevel / 100))})`,
+                    }}
                   />
                   <div
                     className="absolute top-0 h-full w-0.5 bg-[var(--danger)]"
@@ -682,7 +705,7 @@ export function VoiceDock({ role, myId }: Props) {
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] text-[var(--text-4)]">
+                  <p className="text-[11px] text-[var(--text-3)]">
                     {testingMic || activeRoomId
                       ? `Уровень: ${micLevel} · говорите в микрофон`
                       : "Нажмите «Тест», затем говорите"}
@@ -763,7 +786,7 @@ export function VoiceDock({ role, myId }: Props) {
                 </div>
                 <ul className="space-y-2">
                   {room.participants.length === 0 && (
-                    <li className="text-xs text-[var(--text-4)]">Пусто</li>
+                    <li className="text-xs text-[var(--text-3)]">Пусто</li>
                   )}
                   {room.participants.map((p) => {
                     const speaking = speakingIds.has(p.identity);
@@ -792,7 +815,7 @@ export function VoiceDock({ role, myId }: Props) {
                             {p.isAdmin ? " · тренер" : ""}
                           </p>
                           {!isMe && isHere && (
-                            <label className="mt-1 flex items-center gap-1 text-[10px] text-[var(--text-4)]">
+                            <label className="mt-1 flex items-center gap-1 text-[11px] text-[var(--text-3)]">
                               громкость
                               <input
                                 type="range"
@@ -823,9 +846,9 @@ export function VoiceDock({ role, myId }: Props) {
                                   muted: !p.isMuted,
                                 })
                               }
-                              className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--text-2)] hover:bg-[var(--control)]"
+                              className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[11px] text-[var(--text-2)] hover:bg-[var(--control)]"
                             >
-                              {p.isMuted ? "Unmute" : "Mute"}
+                              {p.isMuted ? "Размутить" : "Мьют"}
                             </button>
                             <button
                               type="button"
@@ -837,9 +860,9 @@ export function VoiceDock({ role, myId }: Props) {
                                   identity: p.identity,
                                 })
                               }
-                              className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--danger)] hover:bg-[var(--control)]"
+                              className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[11px] text-[var(--danger)] hover:bg-[var(--control)]"
                             >
-                              Kick
+                              Кик
                             </button>
                           </div>
                         )}
@@ -852,13 +875,13 @@ export function VoiceDock({ role, myId }: Props) {
           })}
 
           {isAdmin && (
-            <p className="text-[11px] text-[var(--text-4)]">
+            <p className="text-[11px] text-[var(--text-3)]">
               Админ: перетащите ученика в другую комнату. Mute / Kick — кнопки справа.
             </p>
           )}
 
           {activeRoomId && remoteInActive.length > 0 && !settingsOpen && (
-            <p className="text-[11px] text-[var(--text-4)]">
+            <p className="text-[11px] text-[var(--text-3)]">
               Громкость каждого — у имени участника в вашей комнате.
             </p>
           )}

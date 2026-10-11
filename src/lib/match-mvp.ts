@@ -45,8 +45,11 @@ function moscowEndOfDay(date: Date): Date {
 export function isMvpVotingOpen(session: {
   date: Date;
   mvpResolved: boolean;
+  status?: string;
 }): boolean {
   if (session.mvpResolved) return false;
+  // Голосование только после «Завершить сессию»
+  if (session.status && session.status !== "COMPLETED") return false;
   const end = moscowEndOfDay(session.date);
   return Date.now() <= end.getTime();
 }
@@ -88,6 +91,9 @@ export async function castMvpVote(opts: {
   });
   if (!session) throw new Error("Сессия не найдена");
   if (session.mvpResolved) throw new Error("Голосование MVP уже закрыто");
+  if (session.status !== "COMPLETED") {
+    throw new Error("Голосование MVP откроется после завершения сессии");
+  }
   if (!isMvpVotingOpen(session)) {
     throw new Error("Время голосования MVP истекло (до 23:59 МСК)");
   }
@@ -203,6 +209,8 @@ export async function resolveMvpIfReady(sessionId: string) {
     include: { mvpVotes: true },
   });
   if (!session || session.mvpResolved) return null;
+  // Не закрывать MVP, пока сессия не завершена (голосование ещё не стартовало)
+  if (session.status !== "COMPLETED") return null;
 
   const players = playerIdsFromSession(session);
   const open = isMvpVotingOpen(session);
@@ -261,7 +269,7 @@ export async function processMvpDeadlines() {
   const sessions = await prisma.matchSession.findMany({
     where: {
       mvpResolved: false,
-      status: { in: ["LINEUPS_CONFIRMED", "IN_PROGRESS", "COMPLETED", "TEAMS_SET"] },
+      status: "COMPLETED",
     },
     select: { id: true, date: true, mvpResolved: true },
   });
@@ -285,6 +293,15 @@ export async function sendMvpVoteInvites(sessionId: string) {
   });
   if (!session) {
     return { sent: 0, skippedNoTg: 0, skippedVoted: 0, failed: 0, total: 0 };
+  }
+  if (session.status !== "COMPLETED") {
+    throw new Error("Сначала завершите сессию — потом можно слать опрос MVP");
+  }
+  if (session.mvpResolved) {
+    throw new Error("Голосование MVP уже закрыто");
+  }
+  if (!isMvpVotingOpen(session)) {
+    throw new Error("Время голосования MVP истекло (до 23:59 МСК)");
   }
 
   const players = playerIdsFromSession(session);
@@ -466,7 +483,7 @@ export async function formatMvpStatusTelegram(userId: string) {
   const session = await prisma.matchSession.findFirst({
     where: {
       OR: [
-        { mvpResolved: false, status: { in: ["LINEUPS_CONFIRMED", "IN_PROGRESS", "COMPLETED", "TEAMS_SET"] } },
+        { mvpResolved: false, status: "COMPLETED" },
         { mvpResolved: true, date: { gte: new Date(Date.now() - 36 * 3600 * 1000) } },
       ],
     },
@@ -474,7 +491,12 @@ export async function formatMvpStatusTelegram(userId: string) {
     orderBy: { date: "desc" },
   });
   if (!session) {
-    return { text: "Сейчас нет активного голосования MVP.", keyboard: null as InlineKeyboard | null };
+    return {
+      text:
+        "Сейчас нет активного голосования MVP.\n" +
+        "Оно откроется после того, как админ нажмёт «Завершить сессию».",
+      keyboard: null as InlineKeyboard | null,
+    };
   }
 
   const players = playerIdsFromSession(session);

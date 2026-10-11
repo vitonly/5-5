@@ -87,8 +87,14 @@ model User {
   telegramId     String?  @unique
   telegramChatId String?
   telegramLinkToken String? @unique
+  /** Числовой VK ID (строка), канонический ключ входа через VK ID */
+  vkId           String?  @unique
+  /** screen_name для отображения после резолва ника */
+  vkScreenName   String?
   login          String?  @unique
   passwordHash   String?
+  /** Временный plaintext пароля для разовой рассылки в TG; очищается после отправки */
+  loginPasswordTemp String?
   username       String?
   firstName      String
   lastName       String?

@@ -98,14 +98,16 @@ export default async function HomePage() {
   const top3 = [withPoints[0] ?? null, withPoints[1] ?? null, withPoints[2] ?? null];
 
   return (
-    <div className="space-y-12">
+    <div className="rise-in space-y-10 min-[720px]:space-y-14">
       <div className="text-center">
-        <h1>Топ игроков</h1>
         {activeSeason && (
-          <p className="mt-2 text-sm text-[var(--text-2)]">
+          <p className="eyebrow mb-3">
             {SEASON_LABELS[activeSeason.name]} {activeSeason.year} · очки сезона
           </p>
         )}
+        <h1 className="min-[720px]:text-[48px] min-[720px]:leading-[52px] min-[720px]:tracking-[-0.02em]">
+          Топ игроков
+        </h1>
       </div>
 
       {/* mobile: list rows */}
@@ -114,7 +116,7 @@ export default async function HomePage() {
       </div>
 
       {/* ≥720: podium */}
-      <div className="hidden min-[720px]:flex min-[720px]:flex-row min-[720px]:items-end min-[720px]:justify-center min-[720px]:gap-10 lg:gap-16">
+      <div className="hidden min-[720px]:flex min-[720px]:flex-row min-[720px]:items-end min-[720px]:justify-center min-[720px]:gap-8 lg:gap-14">
         {players.length === 0 ? (
           <p className="text-center text-[var(--text-2)]">
             Игроки появятся здесь, как только добавятся ученики.
@@ -135,12 +137,12 @@ export default async function HomePage() {
       </div>
 
       {pendingVotes > 0 && (
-        <div className="flex flex-col items-start justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--points-border)] bg-[var(--points-bg)] p-5 sm:flex-row sm:items-center">
+        <div className="flex flex-col items-start justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--points-border)] bg-[var(--points-bg)] p-5 sm:flex-row sm:items-center sm:p-6">
           <div>
-            <p className="font-display text-lg font-semibold text-[var(--points)]">
+            <p className="font-display text-[17px] font-semibold leading-snug text-[var(--points-ink)]">
               Оцени тиммейтов
             </p>
-            <p className="text-sm text-[var(--text-2)]">
+            <p className="mt-1 text-sm text-[var(--text-2)]">
               Осталось заполнить: {pendingVotes}{" "}
               {pendingVotes === 1 ? "игрок" : "игроков"}
             </p>
@@ -153,11 +155,11 @@ export default async function HomePage() {
 
       {(streamMaterials.length > 0 || latestVideos.length > 0) && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-end justify-between gap-4">
             <h2>Обучающие материалы</h2>
             <Link
               href="/materials"
-              className="text-sm font-medium text-[var(--points)] hover:underline"
+              className="press shrink-0 rounded-[var(--radius-control)] px-2 py-1 text-sm font-medium text-[var(--points-ink)] transition-colors hover:bg-[var(--points-bg)]"
             >
               Все материалы →
             </Link>

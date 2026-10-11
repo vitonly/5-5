@@ -28,7 +28,7 @@ export function LessonsArchiveClient({ lessons }: { lessons: LessonDto[] }) {
           <CardContent className="space-y-2 p-4">
             <div>
               <p className="font-semibold text-[var(--text)]">{lesson.title}</p>
-              <p className="font-mono-num text-xs text-[var(--text-4)]">
+              <p className="font-mono-num text-xs text-[var(--text-3)]">
                 {formatDate(lesson.createdAt)}
               </p>
             </div>
@@ -47,7 +47,7 @@ export function LessonsArchiveClient({ lessons }: { lessons: LessonDto[] }) {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 text-sm font-medium text-[var(--points)] hover:underline"
                     >
-                      <span className="rounded border border-[var(--border)] bg-[var(--control)] px-1.5 py-0.5 text-[10px] text-[var(--text-2)]">
+                      <span className="rounded border border-[var(--border)] bg-[var(--control)] px-1.5 py-0.5 text-[11px] text-[var(--text-2)]">
                         {fileLabel(f.name)}
                       </span>
                       {f.name}
@@ -56,7 +56,7 @@ export function LessonsArchiveClient({ lessons }: { lessons: LessonDto[] }) {
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-[var(--text-4)]">Файлов нет</p>
+              <p className="text-xs text-[var(--text-3)]">Файлов нет</p>
             )}
           </CardContent>
         </Card>

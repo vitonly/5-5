@@ -25,7 +25,7 @@ export default async function MaterialsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Обучающие материалы</h1>
+      <h1 className="mb-6">Обучающие материалы</h1>
       <MaterialsClient
         materials={materials}
         liveLogins={[]}

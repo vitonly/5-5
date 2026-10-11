@@ -112,3 +112,11 @@ export function isAdminTelegramId(telegramId: string) {
     .filter(Boolean);
   return ids.includes(telegramId);
 }
+
+export function isAdminVkId(vkId: string) {
+  const ids = (process.env.ADMIN_VK_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return ids.includes(vkId);
+}

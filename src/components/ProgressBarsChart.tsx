@@ -11,7 +11,7 @@ export function ProgressBarsChart({
 }) {
   if (!points.length) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--text-3)]">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--text-3)] shadow-[var(--shadow-card)]">
         Пока нет данных за выбранный период.
       </div>
     );
@@ -20,8 +20,8 @@ export function ProgressBarsChart({
   const max = Math.max(1, ...points.map((p) => Math.max(p.games, p.replays)));
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
-      <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+      <p className="eyebrow text-[var(--text-3)]">
         {title}
       </p>
       <div className="mt-2 flex gap-4 text-[11px] text-[var(--text-3)]">

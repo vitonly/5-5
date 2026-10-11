@@ -10,7 +10,7 @@ export default async function AdminStudentsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Ученики</h1>
+      <h1 className="mb-6">Ученики</h1>
       <AdminStudentsClient students={students} />
     </div>
   );

@@ -252,7 +252,7 @@ export function AdminSeasonsClient({
               value={votingClosesAt}
               onChange={(e) => setVotingClosesAt(e.target.value)}
             />
-            <p className="mt-1 text-xs text-[var(--text-4)]">Только оценки, без сброса очков</p>
+            <p className="mt-1 text-xs text-[var(--text-3)]">Только оценки, без сброса очков</p>
           </div>
           <div>
             <Label>Дедлайн сезона (сброс очков)</Label>
@@ -261,7 +261,7 @@ export function AdminSeasonsClient({
               value={closesAt}
               onChange={(e) => setClosesAt(e.target.value)}
             />
-            <p className="mt-1 text-xs text-[var(--text-4)]">Необязательно · полная смена сезона</p>
+            <p className="mt-1 text-xs text-[var(--text-3)]">Необязательно · полная смена сезона</p>
           </div>
           <Button onClick={handleCreateSeason}>Открыть сезон</Button>
         </CardContent>
@@ -313,7 +313,7 @@ export function AdminSeasonsClient({
                   </>
                 )}
               </p>
-              <p className="text-xs text-[var(--text-4)]">
+              <p className="text-xs text-[var(--text-3)]">
                 В списке ниже «оценил» — сколько ученик сам поставил другим. «Получил» — сколько
                 оценок пришло ему (это видно в профиле как «кто оценил вас»).
               </p>
@@ -432,7 +432,7 @@ export function AdminSeasonsClient({
                           <span className="ml-2 text-[var(--text-3)]">
                             оценил {done}/{expectedPer}
                           </span>
-                          <span className="ml-2 text-[var(--text-4)]">
+                          <span className="ml-2 text-[var(--text-3)]">
                             получил {receivedDone}/{expectedPer}
                           </span>
                           <span className="ml-2 font-mono-num text-[var(--points)]">
@@ -445,7 +445,7 @@ export function AdminSeasonsClient({
                           ) : (
                             <span className="ml-2 text-xs text-[var(--success)]">всё оценил</span>
                           )}
-                          <span className="ml-2 text-xs text-[var(--text-4)]">
+                          <span className="ml-2 text-xs text-[var(--text-3)]">
                             {isOpen ? "▾" : "▸"} детали
                           </span>
                         </button>
@@ -486,12 +486,12 @@ export function AdminSeasonsClient({
 
                       {isOpen && (
                         <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
-                          <div className="flex gap-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-1">
+                          <div className="flex gap-1 rounded-[var(--radius-control)] bg-[var(--control)] p-1">
                             <button
                               type="button"
-                              className={`flex-1 rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-medium transition-colors ${
+                              className={`flex-1 rounded-[var(--radius-sm)] px-3 py-1.5 text-xs font-medium transition-colors ${
                                 tab === "given"
-                                  ? "bg-[var(--admin-bg)] text-[var(--admin)]"
+                                  ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)]"
                                   : "text-[var(--text-3)] hover:text-[var(--text)]"
                               }`}
                               onClick={() =>
@@ -502,9 +502,9 @@ export function AdminSeasonsClient({
                             </button>
                             <button
                               type="button"
-                              className={`flex-1 rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-medium transition-colors ${
+                              className={`flex-1 rounded-[var(--radius-sm)] px-3 py-1.5 text-xs font-medium transition-colors ${
                                 tab === "received"
-                                  ? "bg-[var(--admin-bg)] text-[var(--admin)]"
+                                  ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)]"
                                   : "text-[var(--text-3)] hover:text-[var(--text)]"
                               }`}
                               onClick={() =>
@@ -568,7 +568,7 @@ export function AdminSeasonsClient({
                                       {row.vibe ? ` · вайб ${VIBE_LABELS[row.vibe]}` : " · вайб нет"}
                                     </span>
                                   ) : (
-                                    <span className="text-[var(--text-4)]">не оценивал</span>
+                                    <span className="text-[var(--text-3)]">не оценивал</span>
                                   )}
                                 </li>
                               ))}

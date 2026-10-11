@@ -28,6 +28,10 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   const [lastName, setLastName] = useState(selected?.lastName || "");
   const [photoUrl, setPhotoUrl] = useState(selected?.photoUrl || "");
   const [rankTier, setRankTier] = useState<number | null>(selected?.profile?.rankTier ?? null);
+  const [login, setLogin] = useState(selected?.login || "");
+  const [password, setPassword] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
@@ -36,9 +40,25 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const [reminding, setReminding] = useState(false);
+  const [notifyingCreds, setNotifyingCreds] = useState(false);
 
   const missingRoles = useMemo(
     () => students.filter((s) => hasIncompleteRoles(s.profile)),
+    [students]
+  );
+
+  const pendingCredentials = useMemo(
+    () =>
+      students.filter(
+        (s) => Boolean(s.login && s.loginPasswordTemp && s.telegramChatId)
+      ),
+    [students]
+  );
+  const pendingNoTg = useMemo(
+    () =>
+      students.filter(
+        (s) => Boolean(s.login && s.loginPasswordTemp && !s.telegramChatId)
+      ),
     [students]
   );
 
@@ -48,11 +68,16 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
     setLastName(s.lastName || "");
     setPhotoUrl(s.photoUrl || "");
     setRankTier(s.profile?.rankTier ?? null);
+    setLogin(s.login || "");
+    setPassword("");
+    setSaveError("");
   }
 
   async function saveStudent() {
     if (!selected) return;
-    await fetch("/api/profile", {
+    setSaving(true);
+    setSaveError("");
+    const res = await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -61,8 +86,17 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         lastName,
         photoUrl: photoUrl || null,
         rankTier,
+        login,
+        ...(password.trim() ? { password: password.trim() } : {}),
       }),
     });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSaveError(typeof data.error === "string" ? data.error : "Не удалось сохранить");
+      return;
+    }
+    setPassword("");
     router.refresh();
   }
 
@@ -115,6 +149,48 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
     router.refresh();
   }
 
+  async function notifyCredentials(opts?: {
+    userId?: string;
+    testToAdmin?: boolean;
+  }) {
+    setNotifyingCreds(true);
+    try {
+      const res = await fetch("/api/students/notify-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts || {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const skip =
+          Array.isArray(data.skippedNames) && data.skippedNames.length
+            ? `\nБез TG: ${data.skippedNames.join(", ")}`
+            : "";
+        alert(
+          (typeof data.error === "string" ? data.error : "Не удалось отправить") +
+            skip
+        );
+        return;
+      }
+      if (opts?.testToAdmin) {
+        alert("Тест отправлен вам в Telegram");
+        return;
+      }
+      const failNote =
+        Array.isArray(data.failed) && data.failed.length
+          ? `\nОшибка: ${data.failed.join(", ")}`
+          : "";
+      const skipNote =
+        Array.isArray(data.skippedNames) && data.skippedNames.length
+          ? `\nБез TG: ${data.skippedNames.join(", ")}`
+          : "";
+      alert(`Отправлено: ${data.sent}.${skipNote}${failNote}`);
+      router.refresh();
+    } finally {
+      setNotifyingCreds(false);
+    }
+  }
+
   async function remindRoles(opts: {
     userId?: string;
     allIncomplete?: boolean;
@@ -159,11 +235,62 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
 
   return (
     <div className="space-y-8">
+      {(pendingCredentials.length > 0 || pendingNoTg.length > 0) && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>
+                Рассылка логинов в TG ({pendingCredentials.length} готовы
+                {pendingNoTg.length ? `, ${pendingNoTg.length} без TG` : ""})
+              </CardTitle>
+              <Button
+                size="sm"
+                disabled={notifyingCreds || pendingCredentials.length === 0}
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `Отправить каждому свой логин и пароль в Telegram?\nГотово: ${pendingCredentials.length}`
+                    )
+                  ) {
+                    return;
+                  }
+                  void notifyCredentials();
+                }}
+              >
+                {notifyingCreds ? "Отправка…" : "Разослать всем в TG"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={notifyingCreds}
+                onClick={() => notifyCredentials({ testToAdmin: true })}
+              >
+                Тест мне
+              </Button>
+            </div>
+            <p className="text-sm text-[var(--text-3)]">
+              Пароль для рассылки сохраняется только когда вы заново задаёте пароль в карточке
+              ученика. После успешной отправки временная копия стирается.
+            </p>
+          </CardHeader>
+          {pendingNoTg.length > 0 && (
+            <CardContent>
+              <p className="text-sm text-[var(--danger)]">
+                Без Telegram (сначала привяжите бота):{" "}
+                {pendingNoTg.map((s) => displayName(s)).join(", ")}
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Добавить ученика (логин и пароль)</CardTitle>
           <p className="text-sm text-[var(--text-3)]">
-            Ученик войдёт по этому логину и паролю. Для уведомлений в Telegram — попросите привязать бота в профиле.
+            Ученик войдёт по логину и паролю. После сохранения пароля можно разослать доступы в
+            Telegram одной кнопкой выше.
           </p>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -181,12 +308,17 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
           </div>
           <div>
             <Label>Пароль</Label>
-            <Input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <Input
+              type="text"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
           </div>
           <div className="flex items-end sm:col-span-2">
             <Button
               onClick={createStudent}
-              disabled={creating || !newFirstName || !newLogin || !newPassword}
+              disabled={creating || !newFirstName.trim() || !newLogin.trim() || !newPassword}
             >
               {creating ? "Создание..." : "Создать ученика"}
             </Button>
@@ -299,12 +431,26 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                       <button
                         type="button"
                         onClick={() => selectStudent(s)}
-                        className="min-w-0 flex-1 truncate text-left text-[var(--text-4)]"
+                        className="min-w-0 flex-1 truncate text-left text-[var(--text-3)]"
                       >
                         {s.login && <span> · @{s.login}</span>}
                         <span> — {s.profile?.finalRating ?? "—"}</span>
                         {hasIncompleteRoles(s.profile) && (
                           <span className="ml-2 text-xs text-[var(--danger)]">роли!</span>
+                        )}
+                        <span
+                          className={`ml-2 text-xs ${
+                            s.login && s.passwordHash
+                              ? "text-[var(--success)]"
+                              : "text-[var(--text-3)]"
+                          }`}
+                        >
+                          {s.login && s.passwordHash ? "вход ✓" : "вход —"}
+                        </span>
+                        {s.loginPasswordTemp && (
+                          <span className="ml-2 text-xs text-[var(--points)]">
+                            → TG
+                          </span>
                         )}
                         <span
                           className={`ml-2 text-xs ${
@@ -359,6 +505,50 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                   />
                 </div>
                 <div>
+                  <Label>Логин для входа</Label>
+                  <Input
+                    value={login}
+                    onChange={(e) => setLogin(e.target.value)}
+                    placeholder="например ivan"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <Label>Новый пароль</Label>
+                  <Input
+                    type="text"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={
+                      selected.passwordHash
+                        ? "оставьте пустым, чтобы не менять"
+                        : "задайте пароль для входа"
+                    }
+                    autoComplete="new-password"
+                  />
+                  <p className="mt-1 text-xs text-[var(--text-3)]">
+                    {selected.login
+                      ? `Сейчас логин: ${selected.login}${selected.passwordHash ? " · пароль задан" : " · пароля нет"}${
+                          selected.loginPasswordTemp
+                            ? " · ждёт рассылку в TG"
+                            : ""
+                        }`
+                      : "Логина ещё нет — задайте логин и пароль, чтобы ученик мог войти."}
+                  </p>
+                  {selected.login && selected.loginPasswordTemp && selected.telegramChatId && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="mt-2"
+                      disabled={notifyingCreds}
+                      onClick={() => notifyCredentials({ userId: selected.id })}
+                    >
+                      Отправить этому в TG
+                    </Button>
+                  )}
+                </div>
+                <div>
                   <Label>Рейтинг (медаль)</Label>
                   <div className="mt-2">
                     <RankMedalPicker rankTier={rankTier} onChange={setRankTier} />
@@ -373,8 +563,9 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                   </p>
                   <PlayerRolesDisplay profile={selected.profile} />
                 </div>
-                <Button onClick={saveStudent} disabled={!firstName.trim()}>
-                  Сохранить
+                {saveError && <p className="text-sm text-[var(--danger)]">{saveError}</p>}
+                <Button onClick={saveStudent} disabled={!firstName.trim() || saving}>
+                  {saving ? "Сохранение…" : "Сохранить"}
                 </Button>
               </CardContent>
             </Card>

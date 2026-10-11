@@ -13,7 +13,7 @@ export function PointsPill({
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--points-border)] bg-[var(--points-bg)] px-2.5 text-[var(--points)]",
+        "inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--points-border)] bg-[var(--points-bg)] px-2.5 text-[var(--points-ink)]",
         className
       )}
     >
@@ -22,8 +22,8 @@ export function PointsPill({
         style={{ transform: "rotate(45deg)" }}
         aria-hidden
       />
-      <span className="font-mono-num text-[13px] font-bold">{formatPoints(value)}</span>
-      {showLabel && <span className="text-[11px] font-medium opacity-80">очк.</span>}
+      <span className="font-mono-num text-[13px] font-semibold">{formatPoints(value)}</span>
+      {showLabel && <span className="text-[11px] font-medium">очк.</span>}
     </span>
   );
 }
@@ -40,7 +40,7 @@ export function PowerPill({
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--power-border)] bg-[var(--power-bg)] px-2.5 text-[var(--power)]",
+        "inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--power-border)] bg-[var(--power-bg)] px-2.5 text-[var(--power-ink)]",
         className
       )}
     >
@@ -48,8 +48,8 @@ export function PowerPill({
         className="inline-block h-[9px] w-[9px] shrink-0 rounded-full border-2 border-[var(--power)]"
         aria-hidden
       />
-      <span className="font-mono-num text-[13px] font-bold">{value}</span>
-      {showLabel && <span className="text-[11px] font-medium opacity-80">сила</span>}
+      <span className="font-mono-num text-[13px] font-semibold">{value}</span>
+      {showLabel && <span className="text-[11px] font-medium">сила</span>}
     </span>
   );
 }

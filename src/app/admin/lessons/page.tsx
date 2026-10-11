@@ -27,7 +27,7 @@ export default async function AdminLessonsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-[var(--text)]">Архив занятий</h1>
+        <h1 className="text-[var(--text)]">Архив занятий</h1>
         <p className="mt-1 text-sm text-[var(--text-3)]">
           Добавляйте материалы и жмите «Открыть» — только тогда ученики увидят занятие.
         </p>

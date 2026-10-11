@@ -2,6 +2,23 @@
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,7 +125,7 @@ export function AdminMatchesClient({
             className="w-full accent-[var(--accent)]"
             disabled={saving}
           />
-          <span className="flex justify-between text-[10px] text-[var(--text-4)]">
+          <span className="flex justify-between text-[11px] text-[var(--text-3)]">
             <span>мягко</span>
             <span>жёстко</span>
           </span>
@@ -123,8 +140,8 @@ export function AdminMatchesClient({
           />
           <span>
             Не ставить на роль, которой нет у игрока
-            <span className="block text-[10px] text-[var(--text-4)]">
-              Только primary / secondary из профиля
+            <span className="block text-[11px] text-[var(--text-3)]">
+              Только роли из профиля. Если собрать нельзя — ошибка, без «подстановок»
             </span>
           </span>
         </label>
@@ -134,6 +151,8 @@ export function AdminMatchesClient({
 
   useEffect(() => {
     setSessions(initial);
+    setEditingId(null);
+    setEditError("");
   }, [initial]);
 
   const studentMap = useMemo(
@@ -251,12 +270,39 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
-  async function completeSession(sessionId: string) {
-    await fetch("/api/matches", {
+  async function completeSession(sessionId: string, opts?: { cancelWithoutGames?: boolean }) {
+    const session = sessions.find((s) => s.id === sessionId);
+    const hasGames = (session?.games.length ?? 0) > 0;
+    const willSendMvp = hasGames && !opts?.cancelWithoutGames;
+    if (
+      !confirm(
+        willSendMvp
+          ? "Завершить сессию? Голосование MVP откроется, игрокам уйдёт опрос в Telegram."
+          : "Завершить сессию без игр? Опрос MVP не отправится."
+      )
+    ) {
+      return;
+    }
+    const res = await fetch("/api/matches", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, completeSession: true }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Не удалось завершить");
+      return;
+    }
+    if (data.mvpError) {
+      alert(`Сессия завершена, но MVP в TG не ушёл: ${data.mvpError}`);
+    } else if (data.mvp) {
+      alert(
+        `Сессия завершена. MVP в TG: отправлено ${data.mvp.sent ?? 0}/${data.mvp.total ?? "?"}` +
+          (data.mvp.skippedNoTg ? `, без TG: ${data.mvp.skippedNoTg}` : "") +
+          (data.mvp.skippedVoted ? `, уже голосовали: ${data.mvp.skippedVoted}` : "") +
+          (data.mvp.failed ? `, ошибки: ${data.mvp.failed}` : "")
+      );
+    }
     router.refresh();
   }
 
@@ -327,6 +373,9 @@ export function AdminMatchesClient({
           )
         );
       }
+      if (data.game2Notified) {
+        alert("Состав на игру №2 собран и разослан в Telegram.");
+      }
       router.refresh();
     } finally {
       setSaving(false);
@@ -390,7 +439,7 @@ export function AdminMatchesClient({
   async function confirmLineups(sessionId: string) {
     if (
       !confirm(
-        "Утвердить составы? Игрокам уйдёт уведомление в Telegram. После этого можно стартовать сессию."
+        "Утвердить составы? Игрокам уйдёт уведомление в Telegram по игре №1. Если 2-й состав уже собран — уйдёт и по игре №2. Если соберёте 2-й состав позже — он разошлётся автоматически при сборке. После этого можно стартовать сессию."
       )
     ) {
       return;
@@ -483,6 +532,21 @@ export function AdminMatchesClient({
     setEditError("");
   }
 
+  function applyDraftSwap(all: DraftTagged[]) {
+    setDraftRadiant(
+      all
+        .filter((s) => s.team === "RADIANT")
+        .map(({ userId, position: p }) => ({ userId, position: p }))
+        .sort((x, y) => x.position - y.position)
+    );
+    setDraftDire(
+      all
+        .filter((s) => s.team === "DIRE")
+        .map(({ userId, position: p }) => ({ userId, position: p }))
+        .sort((x, y) => x.position - y.position)
+    );
+  }
+
   function assignPlayer(team: "RADIANT" | "DIRE", position: number, newUserId: string) {
     setEditError("");
     const all: DraftTagged[] = [
@@ -498,19 +562,30 @@ export function AdminMatchesClient({
     const b = all[sIdx];
     all[tIdx] = { userId: b.userId, position: a.position, team: a.team };
     all[sIdx] = { userId: a.userId, position: b.position, team: b.team };
+    applyDraftSwap(all);
+  }
 
-    setDraftRadiant(
-      all
-        .filter((s) => s.team === "RADIANT")
-        .map(({ userId, position: p }) => ({ userId, position: p }))
-        .sort((x, y) => x.position - y.position)
-    );
-    setDraftDire(
-      all
-        .filter((s) => s.team === "DIRE")
-        .map(({ userId, position: p }) => ({ userId, position: p }))
-        .sort((x, y) => x.position - y.position)
-    );
+  /** Свап двух слотов (роль/команда) — для drag-and-drop. */
+  function swapSlots(
+    fromTeam: "RADIANT" | "DIRE",
+    fromPos: number,
+    toTeam: "RADIANT" | "DIRE",
+    toPos: number
+  ) {
+    setEditError("");
+    if (fromTeam === toTeam && fromPos === toPos) return;
+    const all: DraftTagged[] = [
+      ...draftRadiant.map((s) => ({ ...s, team: "RADIANT" as const })),
+      ...draftDire.map((s) => ({ ...s, team: "DIRE" as const })),
+    ];
+    const aIdx = all.findIndex((s) => s.team === fromTeam && s.position === fromPos);
+    const bIdx = all.findIndex((s) => s.team === toTeam && s.position === toPos);
+    if (aIdx < 0 || bIdx < 0) return;
+    const aUser = all[aIdx].userId;
+    const bUser = all[bIdx].userId;
+    all[aIdx] = { ...all[aIdx], userId: bUser };
+    all[bIdx] = { ...all[bIdx], userId: aUser };
+    applyDraftSwap(all);
   }
 
   async function saveEdit(sessionId: string) {
@@ -575,7 +650,7 @@ export function AdminMatchesClient({
                   onClick={() => togglePlayer(s.id)}
                   className={`rounded-full border px-3 py-1 text-xs ${
                     selectedPlayers.includes(s.id)
-                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                   }`}
                 >
@@ -609,7 +684,7 @@ export function AdminMatchesClient({
           </div>
           <div onPaste={pasteInviteImage} tabIndex={0}>
             <Label>Фото к опросу в Telegram (необязательно)</Label>
-            <p className="mt-1 text-xs text-[var(--text-4)]">
+            <p className="mt-1 text-xs text-[var(--text-3)]">
               Придёт вместе с кнопками «Я играю» / «Не играю». JPG/PNG, до 10 МБ. Можно Ctrl+V.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -663,7 +738,7 @@ export function AdminMatchesClient({
                       !hasTg
                         ? "cursor-not-allowed border-[var(--border)] opacity-40"
                         : inviteIds.includes(s.id)
-                          ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                          ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                           : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                     }`}
                   >
@@ -800,7 +875,7 @@ export function AdminMatchesClient({
                           size="sm"
                           onClick={() => startEdit(session, 1)}
                         >
-                          Править №1
+                          Перетащить №1
                         </Button>
                       )}
                       {canEditGame2 && (
@@ -809,7 +884,7 @@ export function AdminMatchesClient({
                           size="sm"
                           onClick={() => startEdit(session, 2)}
                         >
-                          Править №2
+                          Перетащить №2
                         </Button>
                       )}
                     </>
@@ -874,26 +949,18 @@ export function AdminMatchesClient({
                     Редактирование состава на игру №{editingGame}
                   </p>
                   <p className="text-sm text-[var(--text-3)]">
-                    Смена игрока в слоте — свап с тем, кто сейчас на этой позиции.
+                    Перетащите игрока на другую роль или в другую команду — места поменяются.
+                    Можно и выбрать из списка.
                   </p>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <EditTeamBlock
-                      title={radiantName}
-                      team="RADIANT"
-                      slots={draftRadiant}
-                      pool={[...draftRadiant, ...draftDire]}
-                      map={studentMap}
-                      onAssign={assignPlayer}
-                    />
-                    <EditTeamBlock
-                      title={direName}
-                      team="DIRE"
-                      slots={draftDire}
-                      pool={[...draftRadiant, ...draftDire]}
-                      map={studentMap}
-                      onAssign={assignPlayer}
-                    />
-                  </div>
+                  <DraggableLineupEditor
+                    radiantTitle={radiantName}
+                    direTitle={direName}
+                    radiant={draftRadiant}
+                    dire={draftDire}
+                    map={studentMap}
+                    onSwapSlots={swapSlots}
+                    onAssign={assignPlayer}
+                  />
                   {editError && <p className="text-sm text-[var(--danger)]">{editError}</p>}
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => saveEdit(session.id)} disabled={saving}>
@@ -939,7 +1006,7 @@ export function AdminMatchesClient({
                       {" · "}
                       Разница: <b>{powerDiff}</b>
                       {radiantPower !== direPower && (
-                        <span className="text-[var(--text-4)]">
+                        <span className="text-[var(--text-3)]">
                           {" "}
                           ({radiantPower > direPower ? radiantName : direName} сильнее)
                         </span>
@@ -965,7 +1032,12 @@ export function AdminMatchesClient({
                         Собрать состав на 2-ю игру
                       </Button>
                     )}
-                    <Button variant="outline" onClick={() => completeSession(session.id)}>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        completeSession(session.id, { cancelWithoutGames: true })
+                      }
+                    >
                       Отменить / завершить без игр
                     </Button>
                   </div>
@@ -1009,7 +1081,7 @@ export function AdminMatchesClient({
                       {" · "}
                       Разница: <b>{game2PowerDiff}</b>
                       {game2RadiantPower !== game2DirePower && (
-                        <span className="text-[var(--text-4)]">
+                        <span className="text-[var(--text-3)]">
                           {" "}
                           (
                           {game2RadiantPower > game2DirePower
@@ -1023,8 +1095,8 @@ export function AdminMatchesClient({
                       <>
                         <p className="text-xs text-[var(--text-3)]">
                           Пересборка с учётом позиций, ролей и баланса силы. Победа в
-                          обеих играх за день даёт доп. очки (+2 за вторую победу
-                          подряд).
+                          обеих играх за день: +2 за вторую подряд + 0/0.1/0.2/0.5 за
+                          роль.
                         </p>
                         <div className="space-y-2">
                           {intensityControl()}
@@ -1067,7 +1139,12 @@ export function AdminMatchesClient({
                         Собрать состав на 2-ю игру
                       </Button>
                     )}
-                    <Button variant="outline" onClick={() => completeSession(session.id)}>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        completeSession(session.id, { cancelWithoutGames: true })
+                      }
+                    >
                       Отменить / завершить без игр
                     </Button>
                   </div>
@@ -1117,9 +1194,8 @@ export function AdminMatchesClient({
                 </div>
               )}
 
-              {(session.status === "LINEUPS_CONFIRMED" ||
-                session.status === "IN_PROGRESS" ||
-                session.status === "COMPLETED" ||
+              {(session.status === "COMPLETED" ||
+                session.mvpResolved ||
                 (session.mvpVotes && session.mvpVotes.length > 0)) &&
                 !isEditing && (
                   <div className="space-y-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3 text-sm">
@@ -1134,15 +1210,17 @@ export function AdminMatchesClient({
                                 }
                               )})`
                             : "(закрыто, ничья)"
-                          : "(голосование)"}
+                          : session.status === "COMPLETED"
+                            ? "(голосование)"
+                            : "(откроется после «Завершить сессию»)"}
                       </p>
-                      {!session.mvpResolved && (
+                      {!session.mvpResolved && session.status === "COMPLETED" && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => sendMvpInvites(session.id)}
                         >
-                          MVP: опрос в TG
+                          MVP: опрос в TG ещё раз
                         </Button>
                       )}
                     </div>
@@ -1151,7 +1229,7 @@ export function AdminMatchesClient({
                       кого.
                     </p>
                     {(session.mvpVotes?.length ?? 0) === 0 ? (
-                      <p className="text-xs text-[var(--text-4)]">Пока нет голосов.</p>
+                      <p className="text-xs text-[var(--text-3)]">Пока нет голосов.</p>
                     ) : (
                       <>
                         <div className="text-xs text-[var(--text-2)]">
@@ -1196,7 +1274,7 @@ export function AdminMatchesClient({
                       const pending = all.filter((id) => !voted.has(id));
                       if (!pending.length || session.mvpResolved) return null;
                       return (
-                        <p className="text-xs text-[var(--text-4)]">
+                        <p className="text-xs text-[var(--text-3)]">
                           Ещё не голосовали:{" "}
                           {pending
                             .map((id) =>
@@ -1293,15 +1371,15 @@ function RsvpList({
 }) {
   return (
     <div>
-      <p className="mb-1 text-xs uppercase tracking-wide text-[var(--text-4)]">{title}</p>
+      <p className="mb-1 text-xs uppercase tracking-wide text-[var(--text-3)]">{title}</p>
       <ul className="space-y-1">
         {items.map((r, idx) => (
           <li key={r.id} className="flex flex-wrap items-center gap-2">
             {showQueueIndex && (
-              <span className="font-mono-num text-xs text-[var(--text-4)]">#{idx + 1}</span>
+              <span className="font-mono-num text-xs text-[var(--text-3)]">#{idx + 1}</span>
             )}
             <PlayerLink user={r.user} className="inline" />
-            <span className="text-xs text-[var(--text-4)]">
+            <span className="text-xs text-[var(--text-3)]">
               {MATCH_RSVP_LABELS[r.status]}
             </span>
             {canRemove && onRemove && (r.status === "JOINED" || r.status === "QUEUED") && (
@@ -1366,7 +1444,7 @@ function TeamBlock({
               className="flex flex-col gap-1 border-b border-[var(--border-soft)] pb-2 last:border-0 last:pb-0"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex h-6 min-w-[4.5rem] shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 font-mono-num text-[10px] text-[var(--text-2)]">
+                <span className="inline-flex h-6 min-w-[4.5rem] shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 font-mono-num text-[11px] text-[var(--text-2)]">
                   {POSITION_LABELS[slot.position] ?? `поз. ${slot.position}`}
                 </span>
                 {student ? (
@@ -1385,51 +1463,192 @@ function TeamBlock({
   );
 }
 
-function EditTeamBlock({
-  title,
+function slotDragId(team: "RADIANT" | "DIRE", position: number) {
+  return `${team}:${position}`;
+}
+
+function parseSlotDragId(id: string): { team: "RADIANT" | "DIRE"; position: number } | null {
+  const [team, pos] = id.split(":");
+  if (team !== "RADIANT" && team !== "DIRE") return null;
+  const position = Number(pos);
+  if (!Number.isFinite(position) || position < 1 || position > 5) return null;
+  return { team, position };
+}
+
+function SortablePlayerSlot({
   team,
-  slots,
+  position,
+  userId,
   pool,
   map,
   onAssign,
 }: {
-  title: string;
   team: "RADIANT" | "DIRE";
-  slots: DraftSlot[];
+  position: number;
+  userId: string;
   pool: DraftSlot[];
   map: Record<string, Student>;
   onAssign: (team: "RADIANT" | "DIRE", position: number, userId: string) => void;
 }) {
-  const byPos = Object.fromEntries(slots.map((s) => [s.position, s]));
+  const id = slotDragId(team, position);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const student = map[userId];
+  const power = student?.profile?.finalRating ?? 0;
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition ?? "transform 160ms cubic-bezier(0.23, 1, 0.32, 1)",
+    opacity: isDragging ? 0.45 : 1,
+  };
 
   return (
-    <div className="rounded-[var(--radius-control)] border border-[var(--admin-border)] bg-[var(--admin-bg)] p-3">
-      <p className="mb-2 font-semibold text-[var(--admin)]">{title}</p>
-      <ul className="space-y-2">
-        {[1, 2, 3, 4, 5].map((pos) => {
-          const slot = byPos[pos];
-          return (
-            <li key={pos} className="flex items-center gap-2">
-              <span className="w-[4.5rem] shrink-0 font-mono-num text-[10px] text-[var(--text-3)]">
-                {POSITION_LABELS[pos]}
-              </span>
-              <select
-                className="flex h-9 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 text-sm text-[var(--text)]"
-                value={slot?.userId ?? ""}
-                onChange={(e) => {
-                  if (e.target.value) onAssign(team, pos, e.target.value);
-                }}
-              >
-                {pool.map((p) => (
-                  <option key={p.userId} value={p.userId}>
-                    {map[p.userId] ? displayName(map[p.userId]) : p.userId}
-                  </option>
-                ))}
-              </select>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-col gap-1.5 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-2"
+    >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="flex h-9 w-8 shrink-0 touch-manipulation cursor-grab items-center justify-center rounded border border-[var(--border)] bg-[var(--control)] text-[var(--text-3)] active:cursor-grabbing active:scale-[0.97]"
+          aria-label="Перетащить"
+          {...attributes}
+          {...listeners}
+        >
+          ⋮⋮
+        </button>
+        <span className="inline-flex h-7 min-w-[4.5rem] shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--control)] px-1.5 font-mono-num text-[11px] text-[var(--text-2)]">
+          {POSITION_LABELS[position] ?? `поз. ${position}`}
+        </span>
+        <select
+          className="flex h-9 min-w-0 flex-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 text-sm text-[var(--text)]"
+          value={userId}
+          onChange={(e) => {
+            if (e.target.value) onAssign(team, position, e.target.value);
+          }}
+        >
+          {pool.map((p) => (
+            <option key={p.userId} value={p.userId}>
+              {map[p.userId] ? displayName(map[p.userId]) : p.userId}
+            </option>
+          ))}
+        </select>
+        <PowerPill value={power} />
+      </div>
+      <PlayerRolesDisplay profile={student?.profile} className="pl-10" />
+    </li>
+  );
+}
+
+function DraggableLineupEditor({
+  radiantTitle,
+  direTitle,
+  radiant,
+  dire,
+  map,
+  onSwapSlots,
+  onAssign,
+}: {
+  radiantTitle: string;
+  direTitle: string;
+  radiant: DraftSlot[];
+  dire: DraftSlot[];
+  map: Record<string, Student>;
+  onSwapSlots: (
+    fromTeam: "RADIANT" | "DIRE",
+    fromPos: number,
+    toTeam: "RADIANT" | "DIRE",
+    toPos: number
+  ) => void;
+  onAssign: (team: "RADIANT" | "DIRE", position: number, userId: string) => void;
+}) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } })
+  );
+  const pool = [...radiant, ...dire];
+  const radiantByPos = Object.fromEntries(radiant.map((s) => [s.position, s]));
+  const direByPos = Object.fromEntries(dire.map((s) => [s.position, s]));
+  const itemIds = [
+    ...[1, 2, 3, 4, 5].map((p) => slotDragId("RADIANT", p)),
+    ...[1, 2, 3, 4, 5].map((p) => slotDragId("DIRE", p)),
+  ];
+
+  const activeParsed = activeId ? parseSlotDragId(activeId) : null;
+  const activeSlot =
+    activeParsed &&
+    (activeParsed.team === "RADIANT"
+      ? radiantByPos[activeParsed.position]
+      : direByPos[activeParsed.position]);
+
+  function onDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+
+  function onDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = parseSlotDragId(String(active.id));
+    const to = parseSlotDragId(String(over.id));
+    if (!from || !to) return;
+    onSwapSlots(from.team, from.position, to.team, to.position);
+  }
+
+  function teamCol(
+    title: string,
+    team: "RADIANT" | "DIRE",
+    byPos: Record<number, DraftSlot>
+  ) {
+    return (
+      <div className="rounded-[var(--radius-control)] border border-[var(--admin-border)] bg-[var(--admin-bg)] p-3">
+        <p className="mb-2 font-semibold text-[var(--admin)]">{title}</p>
+        <ul className="space-y-2">
+          {[1, 2, 3, 4, 5].map((pos) => (
+            <SortablePlayerSlot
+              key={slotDragId(team, pos)}
+              team={team}
+              position={pos}
+              userId={byPos[pos]?.userId ?? ""}
+              pool={pool}
+              map={map}
+              onAssign={onAssign}
+            />
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+        <div className="grid gap-4 md:grid-cols-2">
+          {teamCol(radiantTitle, "RADIANT", radiantByPos)}
+          {teamCol(direTitle, "DIRE", direByPos)}
+        </div>
+      </SortableContext>
+      <DragOverlay>
+        {activeSlot && activeParsed ? (
+          <div className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--surface)] px-3 py-2 shadow-[var(--shadow-popover)]">
+            <span className="font-mono-num text-[11px] text-[var(--text-3)]">
+              {POSITION_LABELS[activeParsed.position]}
+            </span>{" "}
+            <span className="text-sm font-medium text-[var(--text)]">
+              {map[activeSlot.userId]
+                ? displayName(map[activeSlot.userId])
+                : activeSlot.userId}
+            </span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }

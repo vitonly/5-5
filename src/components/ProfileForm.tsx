@@ -268,7 +268,7 @@ export function ProfileForm({ user }: { user: UserWithProfile }) {
           <div className="space-y-2">
             {secondaryRoles.map((role, index) => (
               <div key={`${role}-${index}`} className="flex items-center gap-2">
-                <span className="w-6 shrink-0 font-mono-num text-xs text-[var(--text-4)]">
+                <span className="w-6 shrink-0 font-mono-num text-xs text-[var(--text-3)]">
                   #{index + 1}
                 </span>
                 <select

@@ -29,7 +29,7 @@ export function SchoolPointsTile({
 
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--points-border)] bg-[var(--points-bg)] p-5">
-      <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--points)]">
+      <p className="eyebrow text-[var(--points-ink)]">
         Очки платформы
       </p>
       <div className="mt-3">

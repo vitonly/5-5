@@ -81,7 +81,7 @@ export function RatingBreakdown({
             <PowerPill value={profile.finalRating} />
           </div>
           <span
-            className={`text-[var(--text-4)] transition-transform ${open ? "rotate-180" : ""}`}
+            className={`text-[var(--text-3)] transition-transform ${open ? "rotate-180" : ""}`}
             aria-hidden
           >
             ▼
@@ -109,7 +109,7 @@ export function RatingBreakdown({
                   <span className="ml-2 text-[var(--danger)]">голосование не завершено</span>
                 )}
               </p>
-              <p className="mt-1 text-xs text-[var(--text-4)]">
+              <p className="mt-1 text-xs text-[var(--text-3)]">
                 Это не то же самое, что список ниже: ниже — кто оценил <b>этого</b> игрока.
               </p>
             </div>
@@ -127,14 +127,14 @@ export function RatingBreakdown({
                   vibeMod > 0
                     ? "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]"
                     : vibeMod < 0
-                      ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success)]"
+                      ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-ink)]"
                       : "border-[var(--border)] bg-[var(--control)] text-[var(--text-2)]"
                 }`}
               >
                 {vibeMod > 0 ? `+${vibeMod}` : String(vibeMod)}
               </span>
             </div>
-            <p className="text-xs text-[var(--text-4)]">
+            <p className="text-xs text-[var(--text-3)]">
               Не подвержен тильту даёт минус (до −5), подвержен — плюс (до +5).
             </p>
             <p className="pt-1 font-display text-lg font-bold text-[var(--power)]">

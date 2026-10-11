@@ -143,7 +143,7 @@ async function notifyTeamsFormed(sessionId: string) {
       })
       .join("\n");
 
-  const header = `⚔️ <b>Составы 5v5 утверждены</b>\n${formatDate(session.date)}\n\n<b>${radiantName}</b>\n${lineFor(radiantIds)}\n\n<b>${direName}</b>\n${lineFor(direIds)}`;
+  const header = `⚔️ <b>Состав на игру №1 утверждён</b>\n${formatDate(session.date)}\n\n<b>${radiantName}</b>\n${lineFor(radiantIds)}\n\n<b>${direName}</b>\n${lineFor(direIds)}`;
 
   for (const userId of allIds) {
     const user = userMap[userId];
@@ -168,6 +168,17 @@ async function notifyTeamsFormed(sessionId: string) {
   }
 
   await refreshQueueMessages(sessionId);
+}
+
+export function game2LineupComplete(teamAssignmentsGame2: string | null | undefined): boolean {
+  try {
+    const g2 = JSON.parse(teamAssignmentsGame2 || "{}") as TeamAssignment;
+    const r2 = Object.values(g2).filter((a) => a.team === "RADIANT").length;
+    const d2 = Object.values(g2).filter((a) => a.team === "DIRE").length;
+    return r2 === 5 && d2 === 5;
+  } catch {
+    return false;
+  }
 }
 
 /** Уведомить игроков о составе на игру №2 */
@@ -239,6 +250,7 @@ async function notifyTeamsFormedGame2(sessionId: string) {
     const text = `${header}\n\nВы: <b>${side}</b>, ${pos}`;
     const rsvp = rsvpMap[userId];
     const chatId = rsvp?.tgChatId || notifyChatId(user);
+    if (!chatId) continue;
     await sendTelegramMessage(chatId, text);
   }
 }
@@ -263,12 +275,24 @@ export async function confirmLineups(sessionId: string) {
     throw new Error("В каждой команде должно быть 5 игроков");
   }
 
-  const updated = await prisma.matchSession.update({
+  let updated = await prisma.matchSession.update({
     where: { id: sessionId },
     data: { status: "LINEUPS_CONFIRMED" },
   });
 
+  // Отдельное сообщение про игру №1
   await notifyTeamsFormed(sessionId);
+
+  // Если уже есть состав №2 — отдельным сообщением про игру №2
+  const game2Ready = game2LineupComplete(session.teamAssignmentsGame2);
+  if (game2Ready && !session.lineupsGame2Confirmed) {
+    updated = await prisma.matchSession.update({
+      where: { id: sessionId },
+      data: { lineupsGame2Confirmed: true },
+    });
+    await notifyTeamsFormedGame2(sessionId);
+  }
+
   return updated;
 }
 

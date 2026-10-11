@@ -12,14 +12,14 @@ type Tab = {
 };
 
 function TabIcon({ name, active }: { name: Tab["icon"]; active: boolean }) {
-  const stroke = active ? "var(--points)" : "var(--text-3)";
+  const stroke = active ? "var(--nav-accent)" : "var(--text-3)";
   const common = {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke,
-    strokeWidth: 1.75,
+    strokeWidth: active ? 2 : 1.75,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     "aria-hidden": true as const,
@@ -110,30 +110,35 @@ export function MobileTabBar({
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur min-[720px]:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md backdrop-saturate-150 min-[720px]:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       aria-label="Основная навигация"
     >
-      <ul className="mx-auto flex max-w-lg items-stretch">
+      <ul className="mx-auto flex max-w-lg items-stretch px-1">
         {resolved.map((tab) => {
           const active = tab.match(pathname);
           return (
             <li key={tab.href} className="flex-1">
               <Link
                 href={tab.href}
-                className={`relative flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 pt-1.5 text-[11px] font-medium ${
-                  active ? "text-[var(--points)]" : "text-[var(--text-3)]"
+                aria-current={active ? "page" : undefined}
+                className={`press relative flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 pt-1 text-[11px] font-medium transition-colors duration-[160ms] ${
+                  active ? "text-[var(--nav-accent)]" : "text-[var(--text-3)]"
                 }`}
               >
-                <span className="relative">
+                <span
+                  className={`relative flex h-7 w-14 items-center justify-center rounded-full transition-colors duration-[200ms] ${
+                    active ? "bg-[var(--nav-accent-bg)]" : "bg-transparent"
+                  }`}
+                >
                   <TabIcon name={tab.icon} active={active} />
                   {tab.badge != null && tab.badge > 0 && (
-                    <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono-num text-[9px] font-bold text-white">
+                    <span className="absolute right-1.5 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono-num text-[10px] font-bold leading-none text-white ring-2 ring-[var(--surface)]">
                       {tab.badge > 9 ? "9+" : tab.badge}
                     </span>
                   )}
                 </span>
-                <span className="truncate">{tab.label}</span>
+                <span className="max-w-full truncate">{tab.label}</span>
               </Link>
             </li>
           );

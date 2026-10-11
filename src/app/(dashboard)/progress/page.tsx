@@ -9,7 +9,7 @@ export default async function ProgressPage() {
 
   return (
     <div>
-      <h1 className="mb-2 text-3xl font-bold">Мой прогресс</h1>
+      <h1 className="mb-2">Мой прогресс</h1>
       <p className="mb-6 text-sm text-[var(--text-3)]">
         Отмечайте игры и реплеи за день. Тренер видит ваш дневник в профиле. Баллы за это пока не
         начисляются.

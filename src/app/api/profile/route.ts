@@ -8,10 +8,15 @@ import {
   serializeSecondaryRoles,
 } from "@/lib/secondary-roles";
 import type { DotaRole } from "@prisma/client";
+import { resolveVkInput } from "@/lib/vk-auth";
+import { hashPassword } from "@/lib/password";
 
 export async function GET() {
   const user = await requireUser();
-  return NextResponse.json({ user });
+  const { passwordHash: _ph, loginPasswordTemp: _pt, ...safe } = user;
+  return NextResponse.json({
+    user: { ...safe, hasPassword: Boolean(_ph) },
+  });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -113,6 +118,9 @@ export async function POST(request: NextRequest) {
     firstName,
     lastName,
     photoUrl,
+    vkInput,
+    login,
+    password,
   } = body;
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -120,6 +128,39 @@ export async function POST(request: NextRequest) {
 
   const profile = await prisma.playerProfile.findUnique({ where: { userId } });
   if (!profile) return NextResponse.json({ error: "Профиль не найден" }, { status: 404 });
+
+  let nextVkId: string | null | undefined;
+  let nextVkScreenName: string | null | undefined;
+  if (vkInput !== undefined) {
+    const raw = vkInput === null || vkInput === "" ? "" : String(vkInput).trim();
+    if (!raw) {
+      nextVkId = null;
+      nextVkScreenName = null;
+    } else {
+      try {
+        const resolved = await resolveVkInput(raw);
+        const conflict = await prisma.user.findFirst({
+          where: { vkId: resolved.vkId, id: { not: userId } },
+          select: { id: true, firstName: true },
+        });
+        if (conflict) {
+          return NextResponse.json(
+            {
+              error: `Этот VK уже привязан к «${conflict.firstName}»`,
+            },
+            { status: 400 }
+          );
+        }
+        nextVkId = resolved.vkId;
+        nextVkScreenName = resolved.screenName;
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Некорректный VK профиль" },
+          { status: 400 }
+        );
+      }
+    }
+  }
 
   const nextMmr = mmr !== undefined ? (mmr === null || mmr === "" ? null : Number(mmr)) : profile.mmr;
   const nextRankTier =
@@ -151,7 +192,16 @@ export async function POST(request: NextRequest) {
     profile.vibeMod ?? 0
   );
 
-  const userData: { firstName?: string; lastName?: string | null; photoUrl?: string | null } = {};
+  const userData: {
+    firstName?: string;
+    lastName?: string | null;
+    photoUrl?: string | null;
+    vkId?: string | null;
+    vkScreenName?: string | null;
+    login?: string | null;
+    passwordHash?: string;
+    loginPasswordTemp?: string | null;
+  } = {};
   if (firstName !== undefined) {
     const trimmed = String(firstName).trim();
     if (!trimmed) return NextResponse.json({ error: "Имя обязательно" }, { status: 400 });
@@ -162,6 +212,45 @@ export async function POST(request: NextRequest) {
   }
   if (photoUrl !== undefined) {
     userData.photoUrl = photoUrl || null;
+  }
+  if (nextVkId !== undefined) {
+    userData.vkId = nextVkId;
+    userData.vkScreenName = nextVkScreenName ?? null;
+  }
+  if (login !== undefined) {
+    const loginTrim = login === null || login === "" ? "" : String(login).trim();
+    if (!loginTrim) {
+      userData.login = null;
+    } else {
+      const conflict = await prisma.user.findFirst({
+        where: { login: loginTrim, id: { not: userId } },
+        select: { id: true },
+      });
+      if (conflict) {
+        return NextResponse.json({ error: "Такой логин уже занят" }, { status: 400 });
+      }
+      userData.login = loginTrim;
+    }
+  }
+  if (password !== undefined && password !== null && String(password).length > 0) {
+    const pwd = String(password);
+    if (pwd.length < 4) {
+      return NextResponse.json({ error: "Пароль слишком короткий (мин. 4)" }, { status: 400 });
+    }
+    userData.passwordHash = hashPassword(pwd);
+    userData.loginPasswordTemp = pwd;
+  }
+
+  const finalLogin =
+    userData.login !== undefined ? userData.login : targetUser.login;
+  const finalHasPassword = Boolean(
+    userData.passwordHash || targetUser.passwordHash
+  );
+  if (finalLogin && !finalHasPassword) {
+    return NextResponse.json(
+      { error: "Для входа задайте пароль вместе с логином" },
+      { status: 400 }
+    );
   }
 
   const updated = await prisma.$transaction(async (tx) => {

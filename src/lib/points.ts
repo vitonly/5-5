@@ -14,7 +14,18 @@ export const POINT_VALUES = {
   LESSON_ATTEND: 0.5,
 } as const;
 
-/** Множитель к базовым очкам победы по приоритету ролей профиля */
+/**
+ * Бонус к базовым очкам победы по приоритету ролей профиля (аддитивно).
+ * Основная +0 · 2-я +0.1 · 3-я +0.2 · не своя +0.5
+ */
+export const ROLE_WIN_BONUS = {
+  PRIMARY: 0,
+  SECOND: 0.1,
+  THIRD: 0.2,
+  OFF: 0.5,
+} as const satisfies Record<string, number>;
+
+/** @deprecated было множителем; оставлен для совместимости импортов */
 export const ROLE_WIN_MULT = {
   PRIMARY: 1.0,
   SECOND: 1.1,
@@ -229,7 +240,7 @@ function naturalPositions(role: DotaRole): number[] {
   }
 }
 
-/** Приоритетный список ролей: основная + доп. (до 3 слотов для множителей). */
+/** Приоритетный список ролей: основная + доп. (до 3). */
 export function rolePriorityList(
   primaryRole: DotaRole | null | undefined,
   secondaryRoles: DotaRole[] = []
@@ -243,24 +254,37 @@ export function rolePriorityList(
   return list;
 }
 
-/** Множитель 1.0 / 1.1 / 1.2 / 1.5 по позиции в lineup. */
+/** Бонус 0 / 0.1 / 0.2 / 0.5 по позиции в lineup. */
+export function roleWinBonus(
+  primaryRole: DotaRole | null | undefined,
+  secondaryRoles: DotaRole[],
+  position: number
+): { bonus: number; label: string } {
+  if (!position) {
+    return { bonus: ROLE_WIN_BONUS.PRIMARY, label: "основная роль" };
+  }
+  const list = rolePriorityList(primaryRole, secondaryRoles);
+  for (let i = 0; i < list.length; i++) {
+    if (naturalPositions(list[i]).includes(position)) {
+      if (i === 0) return { bonus: ROLE_WIN_BONUS.PRIMARY, label: "основная роль" };
+      if (i === 1) return { bonus: ROLE_WIN_BONUS.SECOND, label: "2-я роль" };
+      return { bonus: ROLE_WIN_BONUS.THIRD, label: "3-я роль" };
+    }
+  }
+  return { bonus: ROLE_WIN_BONUS.OFF, label: "не на своей роли" };
+}
+
+/** @deprecated используй roleWinBonus */
 export function roleWinMultiplier(
   primaryRole: DotaRole | null | undefined,
   secondaryRoles: DotaRole[],
   position: number
 ): { mult: number; label: string } {
-  if (!position) {
-    return { mult: ROLE_WIN_MULT.PRIMARY, label: "основная роль" };
-  }
-  const list = rolePriorityList(primaryRole, secondaryRoles);
-  for (let i = 0; i < list.length; i++) {
-    if (naturalPositions(list[i]).includes(position)) {
-      if (i === 0) return { mult: ROLE_WIN_MULT.PRIMARY, label: "основная роль" };
-      if (i === 1) return { mult: ROLE_WIN_MULT.SECOND, label: "2-я роль" };
-      return { mult: ROLE_WIN_MULT.THIRD, label: "3-я роль" };
-    }
-  }
-  return { mult: ROLE_WIN_MULT.OFF, label: "не на своей роли" };
+  const { bonus, label } = roleWinBonus(primaryRole, secondaryRoles, position);
+  if (bonus === ROLE_WIN_BONUS.PRIMARY) return { mult: 1.0, label };
+  if (bonus === ROLE_WIN_BONUS.SECOND) return { mult: 1.1, label };
+  if (bonus === ROLE_WIN_BONUS.THIRD) return { mult: 1.2, label };
+  return { mult: 1.5, label };
 }
 
 export function isOffRole(primaryRole: DotaRole | null | undefined, position: number): boolean {
@@ -304,6 +328,7 @@ export function calcMatchWinPoints(options: {
       ? ["Победа в 5v5 (2 победы подряд за день)"]
       : ["Победа в 5v5"];
 
+  // База: 1 за победу / строго 2 за 2-ю подряд. Апсет только к первой победе дня.
   let base: number = streakBase;
   if (winStreak < 2) {
     const upset = upsetMultiplier(winnerAvgRating, loserAvgRating);
@@ -313,22 +338,23 @@ export function calcMatchWinPoints(options: {
     }
   }
 
-  let roleMult: number = ROLE_WIN_MULT.PRIMARY;
+  let roleBonus: number = ROLE_WIN_BONUS.PRIMARY;
   let roleLabel = "основная роль";
   if (position || primaryRole || secondaryRoles.length) {
-    const r = roleWinMultiplier(primaryRole, secondaryRoles, position);
-    roleMult = r.mult;
+    const r = roleWinBonus(primaryRole, secondaryRoles, position);
+    roleBonus = r.bonus;
     roleLabel = r.label;
   } else if (offRole) {
-    roleMult = ROLE_WIN_MULT.OFF;
+    roleBonus = ROLE_WIN_BONUS.OFF;
     roleLabel = "не на своей роли";
   }
 
-  if (roleMult !== ROLE_WIN_MULT.PRIMARY) {
+  if (roleBonus !== ROLE_WIN_BONUS.PRIMARY) {
     parts.push(roleLabel);
   }
 
-  const delta = roundPoints(base * roleMult);
+  // 2 (стрик) + 0.1/0.2/0.5 — не умножение
+  const delta = roundPoints(base + roleBonus);
   return { delta, reason: parts.join(", ") };
 }
 
@@ -365,15 +391,46 @@ export async function applyMatchWinPointsForPlayer(
   return delta;
 }
 
+function parseAssignmentsBlob(
+  raw: string | null | undefined
+): Record<string, { team?: string; position?: number }> {
+  try {
+    const parsed = JSON.parse(raw || "{}") as Record<
+      string,
+      { team?: string; position?: number }
+    >;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Позиция игрока в конкретной игре (состав №2 для gameNumber ≥ 2). */
+export function positionForMatchGame(
+  session: {
+    teamAssignments: string;
+    teamAssignmentsGame2?: string | null;
+  },
+  userId: string,
+  gameNumber: number
+): number {
+  const g1 = parseAssignmentsBlob(session.teamAssignments);
+  const g2 = parseAssignmentsBlob(session.teamAssignmentsGame2);
+  if (gameNumber >= 2 && g2[userId]?.position) {
+    return Number(g2[userId].position) || 0;
+  }
+  return Number(g1[userId]?.position) || 0;
+}
+
 /**
- * Перерасчёт старых начислений за 2-ю победу дня: было +3 (+0.1 офф), стало +2 × roleMult.
- * Корректирует PointLog + totalPoints + MatchParticipant.pointsAwarded.
+ * Пересчитать все победы 5v5: база 1/2 + бонус роли 0/0.1/0.2/0.5,
+ * позиция из состава нужной игры (не всегда из №1).
  */
-export async function recalculateStreakWinPoints() {
+export async function recalculateAllMatchWinPoints() {
   const logs = await prisma.pointLog.findMany({
     where: {
       sourceType: "MATCH_GAME",
-      reason: { contains: "2 победы подряд" },
+      reason: { startsWith: "Победа в 5v5" },
     },
   });
 
@@ -383,24 +440,43 @@ export async function recalculateStreakWinPoints() {
     const participant = await prisma.matchParticipant.findFirst({
       where: { gameId: log.sourceId, userId: log.userId, won: true },
       include: {
-        game: { include: { session: true } },
+        game: {
+          include: {
+            session: {
+              include: {
+                games: {
+                  include: { participants: true },
+                  orderBy: { gameNumber: "asc" },
+                },
+              },
+            },
+          },
+        },
         user: { include: { profile: true } },
       },
     });
     if (!participant?.user.profile) continue;
 
-    const session = participant.game.session;
-    const assignments = (() => {
-      try {
-        return JSON.parse(session.teamAssignments || "{}") as Record<
-          string,
-          { position?: number }
-        >;
-      } catch {
-        return {};
+    const game = participant.game;
+    const session = game.session;
+    const position = positionForMatchGame(session, log.userId, game.gameNumber);
+
+    // Стрик внутри сессии до этой игры + 1
+    let streakBefore = 0;
+    for (const g of session.games) {
+      if (g.gameNumber >= game.gameNumber) break;
+      const part = g.participants.find((p) => p.userId === log.userId);
+      if (!part) continue;
+      if (g.winnerTeam === "DRAW") {
+        streakBefore = 0;
+      } else if (part.won) {
+        streakBefore += 1;
+      } else {
+        streakBefore = 0;
       }
-    })();
-    const position = assignments[log.userId]?.position ?? 0;
+    }
+    const winStreak = streakBefore + 1;
+
     const secondaryRoles = (() => {
       try {
         const raw = participant.user.profile!.secondaryRoles;
@@ -410,34 +486,73 @@ export async function recalculateStreakWinPoints() {
         return [] as DotaRole[];
       }
     })();
+    if (
+      secondaryRoles.length === 0 &&
+      participant.user.profile.secondaryRole
+    ) {
+      secondaryRoles.push(participant.user.profile.secondaryRole);
+    }
 
-    const { delta: correct } = calcMatchWinPoints({
-      winStreak: 2,
-      winnerAvgRating: 50,
-      loserAvgRating: 50,
+    // Апсет: средние силы команд на момент игры (по текущим рейтингам — лучшее доступное)
+    const assignments =
+      game.gameNumber >= 2 && Object.keys(parseAssignmentsBlob(session.teamAssignmentsGame2)).length
+        ? parseAssignmentsBlob(session.teamAssignmentsGame2)
+        : parseAssignmentsBlob(session.teamAssignments);
+    const radiantIds = Object.entries(assignments)
+      .filter(([, a]) => a.team === "RADIANT")
+      .map(([id]) => id);
+    const direIds = Object.entries(assignments)
+      .filter(([, a]) => a.team === "DIRE")
+      .map(([id]) => id);
+    const winnerIds =
+      game.winnerTeam === "RADIANT"
+        ? radiantIds
+        : game.winnerTeam === "DIRE"
+          ? direIds
+          : [];
+    const loserIds =
+      game.winnerTeam === "RADIANT"
+        ? direIds
+        : game.winnerTeam === "DIRE"
+          ? radiantIds
+          : [];
+
+    const profiles = await prisma.playerProfile.findMany({
+      where: { userId: { in: [...winnerIds, ...loserIds] } },
+      select: { userId: true, finalRating: true },
+    });
+    const rating = Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating]));
+    const avg = (ids: string[]) =>
+      ids.length
+        ? ids.reduce((s, id) => s + (rating[id] ?? 0), 0) / ids.length
+        : 50;
+
+    const computed = calcMatchWinPoints({
+      winStreak,
+      winnerAvgRating: avg(winnerIds),
+      loserAvgRating: avg(loserIds),
       primaryRole: participant.user.profile.primaryRole,
       secondaryRoles,
       position,
     });
 
     const old = roundPoints(log.delta);
-    if (old === correct) continue;
+    const correct = computed.delta;
+    if (old === correct && log.reason === computed.reason) {
+      if (roundPoints(participant.pointsAwarded) !== correct) {
+        await prisma.matchParticipant.update({
+          where: { id: participant.id },
+          data: { pointsAwarded: correct },
+        });
+      }
+      continue;
+    }
     const diff = roundPoints(correct - old);
 
     await prisma.$transaction([
       prisma.pointLog.update({
         where: { id: log.id },
-        data: {
-          delta: correct,
-          reason: calcMatchWinPoints({
-            winStreak: 2,
-            winnerAvgRating: 50,
-            loserAvgRating: 50,
-            primaryRole: participant.user.profile.primaryRole,
-            secondaryRoles,
-            position,
-          }).reason,
-        },
+        data: { delta: correct, reason: computed.reason },
       }),
       prisma.playerProfile.update({
         where: { userId: log.userId },
@@ -451,6 +566,11 @@ export async function recalculateStreakWinPoints() {
     fixed++;
   }
   return fixed;
+}
+
+/** @deprecated → recalculateAllMatchWinPoints */
+export async function recalculateStreakWinPoints() {
+  return recalculateAllMatchWinPoints();
 }
 
 

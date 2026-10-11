@@ -9,7 +9,7 @@ type ProfileRoles = {
   secondaryRoles?: string | null;
 };
 
-/** Основная + до 2 доп. роли иконками; без ролей — «позорник». */
+/** Основная + до 3 доп. ролей иконками; без ролей — «позорник». */
 export function PlayerRolesDisplay({
   profile,
   className = "",
@@ -25,10 +25,8 @@ export function PlayerRolesDisplay({
     );
   }
 
-  const secondary = parseSecondaryRoles(profile.secondaryRoles, profile.secondaryRole).slice(
-    0,
-    2
-  );
+  // Показываем все доп. роли (до 3) — иначе балансер ставит на скрытую 3-ю, а в UI её нет
+  const secondary = parseSecondaryRoles(profile.secondaryRoles, profile.secondaryRole);
   const primary = profile.primaryRole;
 
   if (!primary && secondary.length === 0) {
@@ -60,7 +58,7 @@ export function PlayerRolesDisplay({
         </span>
       ))}
       {!primary && secondary.length > 0 && (
-        <span className="text-[10px] text-[var(--danger)]">нет основной — позорник</span>
+        <span className="text-[11px] text-[var(--danger)]">нет основной — позорник</span>
       )}
     </span>
   );

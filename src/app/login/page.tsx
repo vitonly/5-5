@@ -50,15 +50,16 @@ function LoginForm() {
     const err = searchParams.get("error");
     if (!err) return;
     const map: Record<string, string> = {
+      pd_required: "Отметьте согласие на обработку персональных данных.",
       bot_not_configured: "Telegram-бот не настроен на сервере.",
       telegram_cancelled: "Вход через Telegram отменён.",
       telegram_invalid: "Неверная подпись Telegram. Проверьте токен бота.",
       telegram_failed: "Не удалось войти через Telegram.",
+      vk_not_configured: "Вход через VK ID пока недоступен.",
     };
-    setError(map[err] || "Ошибка входа через Telegram.");
+    setError(map[err] || "Ошибка входа.");
   }, [searchParams]);
 
-  // Восстановить ожидание после возврата из Telegram
   useEffect(() => {
     try {
       const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
@@ -73,7 +74,6 @@ function LoginForm() {
     }
   }, []);
 
-  // Если пользователь вернулся на вкладку — продолжаем ждать
   useEffect(() => {
     function onVisible() {
       if (document.visibilityState !== "visible") return;
@@ -139,14 +139,14 @@ function LoginForm() {
           setBotToken(null);
           setBotUrl(null);
           clearPendingLogin();
-          setError("Ссылка входа истекла. Нажмите «Войти через Telegram» ещё раз.");
+          setError("Ссылка входа истекла. Раскройте «Войти через Telegram» ещё раз.");
         } else if (data.status === "USED") {
           clearInterval(id);
           setBotWaiting(false);
           setBotToken(null);
           setBotUrl(null);
           clearPendingLogin();
-          setError("Этот вход уже использован. Нажмите «Войти через Telegram» ещё раз.");
+          setError("Этот вход уже использован. Раскройте «Войти через Telegram» ещё раз.");
         }
       } catch {
         /* ignore transient poll errors */
@@ -173,7 +173,8 @@ function LoginForm() {
     });
     setLoading(false);
     if (res.ok) {
-      router.push("/");
+      const data = await res.json().catch(() => ({}));
+      router.push(data.role === "ADMIN" ? "/admin" : "/");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -212,8 +213,6 @@ function LoginForm() {
       setBotUrl(data.botUrl);
       setBotWaiting(true);
 
-      // Уходим на страницу нашего домена → она откроет Telegram.
-      // После возврата из TG Safari снова покажет наш сайт, а не about:blank.
       const bridge = `/login/tg?token=${encodeURIComponent(data.token)}&to=${encodeURIComponent(data.botUrl)}`;
       window.location.assign(bridge);
     } finally {
@@ -232,10 +231,16 @@ function LoginForm() {
   }, [router]);
 
   return (
-    <Card className="w-full max-w-[420px]">
-      <CardHeader className="text-center">
-        <CardTitle className="font-display text-3xl text-[var(--points)]">Dota 5x5</CardTitle>
-        <CardDescription>Платформа обучения Dota. Войдите, чтобы продолжить.</CardDescription>
+    <Card className="rise-in w-full max-w-[420px] shadow-[var(--shadow-raised)]">
+      <CardHeader className="items-center pb-5 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/start-plus.png?v=2" alt="" className="mb-3 h-[72px] w-[72px] object-contain" />
+        <CardTitle className="text-[28px] font-bold leading-tight tracking-[-0.015em]">
+          СТАРТ<span className="text-[var(--points)]">+</span>
+        </CardTitle>
+        <CardDescription className="max-w-[300px]">
+          Платформа обучения Dota. Войдите по логину и паролю от тренера.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <label className="flex cursor-pointer items-start gap-3 text-[13px] leading-snug text-[var(--text-2)]">
@@ -253,66 +258,6 @@ function LoginForm() {
           </span>
         </label>
 
-        <button
-          type="button"
-          onClick={handleBotLogin}
-          disabled={loading || botWaiting || !botUsername || !pdConsent}
-          className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#54A9EB] px-4 text-[15px] font-medium text-white transition-colors hover:bg-[#4B9AD6] disabled:pointer-events-none disabled:opacity-50 min-[720px]:h-11"
-        >
-          <TelegramIcon />
-          {botWaiting ? "Ждём подтверждение…" : "Войти через Telegram"}
-        </button>
-
-        {botWaiting && (
-          <div className="space-y-2 text-center text-[13px] text-[var(--text-2)]">
-            <p>
-              В Telegram нажмите <b>Start</b> / <b>Запустить</b>, затем вернитесь сюда — страница
-              обновится сама.
-            </p>
-            {botUrl && (
-              <a
-                href={botUrl}
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Deep link приложения, иначе https://t.me (как на /login/tg)
-                  try {
-                    const u = new URL(botUrl);
-                    const domain = u.pathname.replace(/^\//, "").split("/")[0];
-                    const start = u.searchParams.get("start");
-                    if (domain && (u.hostname === "t.me" || u.hostname === "telegram.me")) {
-                      const deep = start
-                        ? `tg://resolve?domain=${encodeURIComponent(domain)}&start=${encodeURIComponent(start)}`
-                        : `tg://resolve?domain=${encodeURIComponent(domain)}`;
-                      window.location.assign(deep);
-                      window.setTimeout(() => {
-                        if (document.visibilityState === "visible") {
-                          window.location.assign(botUrl);
-                        }
-                      }, 400);
-                      return;
-                    }
-                  } catch {
-                    /* fall through */
-                  }
-                  window.location.assign(botUrl);
-                }}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-[8px] border border-[var(--points-border)] bg-[var(--points-bg)] px-4 font-medium text-[var(--points)]"
-              >
-                Открыть Telegram
-              </a>
-            )}
-            <p className="text-[12px] text-[var(--text-3)]">
-              Если открылась пустая страница — закройте её и вернитесь на сайт входа.
-            </p>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 text-[13px] text-[var(--text-4)]">
-          <div className="h-px flex-1 bg-[var(--border)]" />
-          ИЛИ
-          <div className="h-px flex-1 bg-[var(--border)]" />
-        </div>
-
         <div className="space-y-3">
           <div>
             <Label htmlFor="login">Логин</Label>
@@ -320,7 +265,8 @@ function LoginForm() {
               id="login"
               value={login}
               onChange={(e) => setLogin(e.target.value)}
-              placeholder="Ваш логин"
+              placeholder="Логин от тренера"
+              autoComplete="username"
             />
           </div>
           <div>
@@ -331,7 +277,8 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handlePasswordLogin()}
-              placeholder="Ваш пароль"
+              placeholder="Пароль от тренера"
+              autoComplete="current-password"
             />
           </div>
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
@@ -344,8 +291,78 @@ function LoginForm() {
           </Button>
         </div>
 
+        <details className="group rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
+          <summary className="flex cursor-pointer select-none list-none items-center justify-between text-[13px] font-medium text-[var(--text-2)] [&::-webkit-details-marker]:hidden">
+            Другие способы входа
+            <span
+              aria-hidden
+              className="text-[var(--text-3)] transition-transform duration-[200ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-open:rotate-180"
+            >
+              ▾
+            </span>
+          </summary>
+          <div className="mt-3 space-y-3 border-t border-[var(--border-soft)] pt-3">
+            <button
+              type="button"
+              onClick={handleBotLogin}
+              disabled={loading || botWaiting || !botUsername || !pdConsent}
+              className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[#1f78bd] px-4 text-[15px] font-medium text-white transition-[background-color,transform] duration-[160ms] hover:bg-[#1a69a6] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 min-[720px]:h-11"
+            >
+              <TelegramIcon />
+              {botWaiting ? "Ждём подтверждение…" : "Войти через Telegram"}
+            </button>
+
+            {botWaiting && (
+              <div className="space-y-2 text-center text-[13px] text-[var(--text-2)]">
+                <p>
+                  В Telegram нажмите <b>Start</b> / <b>Запустить</b>, затем вернитесь сюда — страница
+                  обновится сама.
+                </p>
+                {botUrl && (
+                  <a
+                    href={botUrl}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      try {
+                        const u = new URL(botUrl);
+                        const domain = u.pathname.replace(/^\//, "").split("/")[0];
+                        const start = u.searchParams.get("start");
+                        if (domain && (u.hostname === "t.me" || u.hostname === "telegram.me")) {
+                          const deep = start
+                            ? `tg://resolve?domain=${encodeURIComponent(domain)}&start=${encodeURIComponent(start)}`
+                            : `tg://resolve?domain=${encodeURIComponent(domain)}`;
+                          window.location.assign(deep);
+                          window.setTimeout(() => {
+                            if (document.visibilityState === "visible") {
+                              window.location.assign(botUrl);
+                            }
+                          }, 400);
+                          return;
+                        }
+                      } catch {
+                        /* fall through */
+                      }
+                      window.location.assign(botUrl);
+                    }}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--points-bg)] px-4 font-medium text-[var(--points-ink)]"
+                  >
+                    Открыть Telegram
+                  </a>
+                )}
+              </div>
+            )}
+
+            {!botUsername && (
+              <p className="text-center text-[12px] text-[var(--text-3)]">
+                Telegram-бот не настроен.
+              </p>
+            )}
+          </div>
+        </details>
+
         <p className="text-center text-[13px] text-[var(--text-3)]">
-          Логин и пароль выдаёт тренер, если нет Telegram.
+          Основной вход — логин и пароль от тренера. Telegram также можно привязать в профиле для
+          уведомлений.
         </p>
 
         {isDev && (
@@ -362,7 +379,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--bg)] p-4">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-[var(--bg)] p-4">
       <Suspense fallback={<p className="text-[var(--text-2)]">Загрузка…</p>}>
         <LoginForm />
       </Suspense>

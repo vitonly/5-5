@@ -159,7 +159,7 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
                   onClick={() => setType(t)}
                   className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm ${
                     type === t
-                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                   }`}
                 >
@@ -190,7 +190,7 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
                   onClick={() => togglePosition(r)}
                   className={`rounded-full border px-3 py-1 text-xs ${
                     positions.includes(r)
-                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                   }`}
                 >
@@ -210,7 +210,7 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
                     onClick={() => toggleSkillLevel(level)}
                     className={`rounded-full border px-3 py-1 text-xs ${
                       skillLevels.includes(level)
-                        ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                        ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                         : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                     }`}
                   >
@@ -307,7 +307,7 @@ export function AdminMaterialsClient({ materials }: { materials: LearningMateria
                     {levels.map((l) => (
                       <span
                         key={l}
-                        className="rounded border border-[var(--admin-border)] bg-[var(--admin-bg)] px-2 py-0.5 text-xs text-[var(--admin)]"
+                        className="rounded border border-[var(--admin-border)] bg-[var(--admin-bg)] px-2 py-0.5 text-xs text-[var(--admin-ink)]"
                       >
                         {SKILL_LEVEL_LABELS[l]}
                       </span>

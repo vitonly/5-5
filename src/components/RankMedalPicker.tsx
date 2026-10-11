@@ -49,14 +49,14 @@ export function RankMedalPicker({
               onClick={() => selectMedal(m)}
               className={`rounded-[var(--radius-control)] border px-2 py-2.5 text-left text-sm transition-colors ${
                 active
-                  ? "border-[var(--points)] bg-[var(--points-bg)] text-[var(--points)]"
+                  ? "border-[var(--points)] bg-[var(--points-bg)] text-[var(--points-ink)]"
                   : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--points-border)]"
               }`}
             >
               <span className="block font-display text-[13px] font-bold uppercase tracking-wide">
                 {label}
               </span>
-              <span className="mt-0.5 block font-mono-num text-[10px] text-[var(--text-4)]">
+              <span className="mt-0.5 block font-mono-num text-[11px] text-[var(--text-3)]">
                 база {baseFor(m, m === 8 ? 0 : stars || 1)}
               </span>
             </button>
@@ -77,7 +77,7 @@ export function RankMedalPicker({
                   onClick={() => selectStars(s)}
                   className={`flex h-10 w-10 items-center justify-center rounded-[var(--radius-control)] border text-lg transition-colors ${
                     active
-                      ? "border-[var(--points)] bg-[var(--points-bg)] text-[var(--points)]"
+                      ? "border-[var(--points)] bg-[var(--points-bg)] text-[var(--points-ink)]"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] hover:border-[var(--points-border)]"
                   }`}
                   aria-label={`${s} звёзд`}

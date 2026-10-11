@@ -12,7 +12,7 @@ export default async function AdminPenaltiesPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Очки: штрафы и бонусы</h1>
+      <h1 className="mb-6">Очки: штрафы и бонусы</h1>
       <AdminPenaltiesClient penalties={penalties} students={students} />
     </div>
   );

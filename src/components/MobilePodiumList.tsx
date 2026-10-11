@@ -12,7 +12,7 @@ export function MobilePodiumList({
 }) {
   if (players.length === 0) {
     return (
-      <p className="text-center text-[var(--text-2)]">
+      <p className="surface-card px-4 py-8 text-center text-sm text-[var(--text-2)]">
         Игроки появятся здесь, как только добавятся ученики.
       </p>
     );
@@ -27,19 +27,21 @@ export function MobilePodiumList({
         const top =
           place === 1
             ? "border-[var(--points-border)] bg-[var(--points-bg)]"
-            : "border-[var(--border)] bg-[var(--surface)]";
+            : "border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]";
 
         return (
           <li key={player.id}>
             <Link
               href={playerProfilePath(player.id, viewer)}
-              className={`flex min-h-[56px] items-center gap-3 rounded-[var(--radius-card)] border px-3 py-2.5 ${top}`}
+              className={`press flex min-h-[60px] items-center gap-3 rounded-[var(--radius-card)] border px-3 py-2.5 ${top}`}
             >
               <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono-num text-sm font-bold ${
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono-num text-[13px] font-bold ${
                   place === 1
-                    ? "bg-[var(--points)] text-white"
-                    : "bg-[var(--control)] text-[var(--text-2)]"
+                    ? "bg-[var(--points)] text-[var(--on-points)]"
+                    : place <= 3
+                      ? "bg-[var(--surface)] text-[var(--text)] ring-1 ring-[var(--border)]"
+                      : "bg-[var(--control)] text-[var(--text-2)]"
                 }`}
               >
                 {place}
@@ -53,7 +55,7 @@ export function MobilePodiumList({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-[15px] font-bold uppercase tracking-wide text-[var(--text)]">
+                <p className="truncate text-[15px] font-semibold leading-tight text-[var(--text)]">
                   {name || player.username || "Игрок"}
                 </p>
               </div>

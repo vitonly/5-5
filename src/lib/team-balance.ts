@@ -143,7 +143,7 @@ function assignPositions(team: BalancePlayer[]): AssignedPlayer[] {
 
 /**
  * Назначение позиций только на строго указанные роли.
- * Если конфликт — игроки без подходящего слота уходят в оставшиеся (для фоллбека).
+ * Без фоллбека на чужие слоты: если не удалось — position = 0.
  */
 function assignPositionsStrict(team: BalancePlayer[]): AssignedPlayer[] {
   const taken = new Set<number>();
@@ -181,17 +181,29 @@ function assignPositionsStrict(team: BalancePlayer[]): AssignedPlayer[] {
     }
   }
 
+  // Игроки без указанной роли — на оставшиеся слоты (иначе состав не собрать).
+  // У кого роли есть, но слот занят — остаётся без позиции (кандидат отбрасывается).
   const freeSlots = [1, 2, 3, 4, 5].filter((s) => !taken.has(s));
   for (const p of team) {
-    if (!assigned.has(p.id)) {
-      const slot = freeSlots.shift();
-      if (slot) assigned.set(p.id, slot);
+    if (assigned.has(p.id)) continue;
+    if (strictListedPositions(p).length > 0) continue;
+    const slot = freeSlots.shift();
+    if (slot) {
+      taken.add(slot);
+      assigned.set(p.id, slot);
     }
   }
 
   return team
     .map((p) => ({ ...p, position: assigned.get(p.id) ?? 0 }))
     .sort((a, b) => a.position - b.position);
+}
+
+function assignmentComplete(assigned: AssignedPlayer[]): boolean {
+  if (assigned.length !== 5) return false;
+  const positions = assigned.map((p) => p.position);
+  if (positions.some((p) => p < 1 || p > 5)) return false;
+  return new Set(positions).size === 5;
 }
 
 function bestSubsetBalance(players: BalancePlayer[]): { radiant: BalancePlayer[]; dire: BalancePlayer[] } {
@@ -404,6 +416,14 @@ export function reshuffleForSecondGame(
     return pref.includes(position);
   }
 
+  function allOnListedRoles(r: Slot[], d: Slot[]): boolean {
+    return [...r, ...d].every((s) => {
+      if (s.position < 1 || s.position > 5) return false;
+      const p = byId[s.userId];
+      return p ? isListedRole(p, s.position) : false;
+    });
+  }
+
   const powerDiff = (r: Slot[], d: Slot[]) =>
     Math.abs(
       r.reduce((s, x) => s + x.rating, 0) - d.reduce((s, x) => s + x.rating, 0)
@@ -466,13 +486,16 @@ export function reshuffleForSecondGame(
     return out;
   }
 
-  function reassignRoles(r: Slot[], d: Slot[]): { r: Slot[]; d: Slot[] } {
+  function reassignRoles(r: Slot[], d: Slot[]): { r: Slot[]; d: Slot[] } | null {
     const radiantPlayers = r.map((s) => byId[s.userId]).filter(Boolean);
     const direPlayers = d.map((s) => byId[s.userId]).filter(Boolean);
     const assign = onlyListedRoles ? assignPositionsStrict : assignPositions;
     const rAssigned = assign(radiantPlayers);
     const dAssigned = assign(direPlayers);
-    return {
+    if (onlyListedRoles) {
+      if (!assignmentComplete(rAssigned) || !assignmentComplete(dAssigned)) return null;
+    }
+    const next = {
       r: rAssigned.map((p) => ({
         userId: p.id,
         position: p.position,
@@ -484,6 +507,8 @@ export function reshuffleForSecondGame(
         rating: p.finalRating,
       })),
     };
+    if (onlyListedRoles && !allOnListedRoles(next.r, next.d)) return null;
+    return next;
   }
 
   type Cand = {
@@ -607,7 +632,7 @@ export function reshuffleForSecondGame(
   // Для «сильно» — полный ребаланс как ещё одно семейство кандидатов
   if (intensity >= 4) {
     const full = balanceTeams(players);
-    raw.push({
+    const asSlots = {
       r: full.radiant.map((p) => ({
         userId: p.id,
         position: p.position,
@@ -618,7 +643,13 @@ export function reshuffleForSecondGame(
         position: p.position,
         rating: p.finalRating,
       })),
-    });
+    };
+    if (onlyListedRoles) {
+      const fixed = reassignRoles(asSlots.r, asSlots.d);
+      if (fixed) raw.push(fixed);
+    } else {
+      raw.push(asSlots);
+    }
   }
 
   const avoidKey =
@@ -638,9 +669,12 @@ export function reshuffleForSecondGame(
   }
 
   for (const base of raw) {
-    pushVariant(base);
+    if (!onlyListedRoles || allOnListedRoles(base.r, base.d)) {
+      pushVariant(base);
+    }
     if (forceRoleFit) {
-      pushVariant(reassignRoles(base.r, base.d));
+      const re = reassignRoles(base.r, base.d);
+      if (re) pushVariant(re);
     }
     // Локальные перестановки позиций — больше уникальных раскладок
     if (intensity >= 2 && !onlyListedRoles) {
@@ -649,51 +683,32 @@ export function reshuffleForSecondGame(
       for (let i = 0; i < local.length; i += step) {
         pushVariant(local[i]);
         if (forceRoleFit && i % 4 === 0) {
-          pushVariant(reassignRoles(local[i].r, local[i].d));
+          const re = reassignRoles(local[i].r, local[i].d);
+          if (re) pushVariant(re);
         }
       }
     } else if (onlyListedRoles && intensity >= 2) {
-      // Только те внутрикомандные свапы, где оба остаются на указанных ролях
+      // Только те внутрикомандные свапы, где все остаются на указанных ролях
       for (const local of withinTeamPosSwaps(base.r, base.d)) {
-        const ok = [...local.r, ...local.d].every((s) => {
-          const p = byId[s.userId];
-          return p ? isListedRole(p, s.position) : true;
-        });
-        if (ok) pushVariant(local);
+        if (allOnListedRoles(local.r, local.d)) pushVariant(local);
       }
     }
   }
 
   if (candidates.length === 0) {
-    // Фоллбек: если строго по ролям не набрали — берём минимум офф-ролей
     if (onlyListedRoles) {
-      const soft: Cand[] = [];
-      const softSeen = new Set<string>();
-      for (const base of raw) {
-        for (const v of [base, reassignRoles(base.r, base.d)]) {
-          const scored = scoreCandidate(v.r, v.d);
-          if (softSeen.has(scored.key)) continue;
-          softSeen.add(scored.key);
-          if (avoidKey && scored.key === avoidKey) continue;
-          if (scored.switches === 0 && scored.posChanges === 0) continue;
-          soft.push(scored);
-        }
-      }
-      soft.sort(
-        (a, b) => a.offRole - b.offRole || b.score - a.score || a.diff - b.diff
+      const offenders = players
+        .filter((p) => strictListedPositions(p).length === 0)
+        .map((p) => p.name);
+      const hint =
+        offenders.length > 0
+          ? ` У кого не указаны роли: ${offenders.join(", ")}.`
+          : " Слишком много претендентов на одни и те же позиции.";
+      throw new Error(
+        "Не удалось собрать 2-й состав строго по указанным ролям." +
+          hint +
+          " Снимите галочку или поправьте роли в профилях."
       );
-      const minOff = soft[0]?.offRole ?? 0;
-      const softPool = soft.filter((c) => c.offRole === minOff).slice(0, params.poolSize);
-      if (softPool.length) {
-        const pick = pickRandomWeighted(softPool);
-        const radiant = pick.r
-          .map((s) => ({ ...byId[s.userId], position: s.position }))
-          .sort((a, b) => a.position - b.position);
-        const dire = pick.d
-          .map((s) => ({ ...byId[s.userId], position: s.position }))
-          .sort((a, b) => a.position - b.position);
-        return { radiant, dire, ...teamTotals(radiant, dire) };
-      }
     }
     return balanceTeams(players);
   }

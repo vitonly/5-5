@@ -66,7 +66,7 @@ function ReviewAssignmentCard({
       <CardContent className="space-y-0 p-0">
         <section className="border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-5 py-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--admin)]">Задание</p>
-          <p className="text-xs text-[var(--text-4)]">Дедлайн: {formatDate(a.deadline)}</p>
+          <p className="text-xs text-[var(--text-3)]">Дедлайн: {formatDate(a.deadline)}</p>
           {a.homework.description && (
             <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text)]">
               {a.homework.description}
@@ -84,7 +84,7 @@ function ReviewAssignmentCard({
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--points)]">
                   Ответ ученика
                 </p>
-                <p className="text-xs text-[var(--text-4)]">
+                <p className="text-xs text-[var(--text-3)]">
                   Сдано: {formatDate(a.submission.submittedAt)}
                 </p>
               </div>
@@ -102,7 +102,7 @@ function ReviewAssignmentCard({
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--points-bg)] px-3 py-1.5 text-sm text-[var(--points)] underline-offset-2 hover:text-[var(--points-hover)] hover:underline"
+                          className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--points-bg)] px-3 py-1.5 text-sm text-[var(--points-ink)] underline-offset-2 hover:text-[var(--points-hover)] hover:underline"
                         >
                           {url.split("/").pop()}
                         </a>
@@ -345,7 +345,7 @@ export function AdminHomeworkClient({
           }}
           className={`rounded-[var(--radius-control)] border px-4 py-2 text-sm font-medium ${
             tab === "create"
-              ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+              ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
           }`}
         >
@@ -356,7 +356,7 @@ export function AdminHomeworkClient({
           onClick={() => setTab("review")}
           className={`relative rounded-[var(--radius-control)] border px-4 py-2 text-sm font-medium ${
             tab === "review"
-              ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+              ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
           }`}
         >
@@ -390,7 +390,7 @@ export function AdminHomeworkClient({
             <div>
               <Label>Материалы (необязательно)</Label>
               {materials.length === 0 ? (
-                <p className="mt-2 text-sm text-[var(--text-4)]">
+                <p className="mt-2 text-sm text-[var(--text-3)]">
                   Сначала добавьте материалы в разделе «Материалы».
                 </p>
               ) : (
@@ -402,7 +402,7 @@ export function AdminHomeworkClient({
                       onClick={() => toggleMaterial(m.id)}
                       className={`rounded-full border px-3 py-1 text-xs ${
                         selectedMaterials.includes(m.id)
-                          ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                          ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                           : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                       }`}
                     >
@@ -420,7 +420,7 @@ export function AdminHomeworkClient({
                   onClick={toggleAllStudents}
                   className={`rounded-full border px-3 py-1 text-xs font-medium ${
                     allSelected
-                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                   }`}
                 >
@@ -433,7 +433,7 @@ export function AdminHomeworkClient({
                     onClick={() => toggleStudent(s.id)}
                     className={`rounded-full border px-3 py-1 text-xs ${
                       selectedStudents.includes(s.id)
-                        ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin)]"
+                        ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
                         : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                     }`}
                   >
@@ -523,7 +523,7 @@ export function AdminHomeworkClient({
                             <span className="font-medium text-[var(--text)]">
                               {a.homework.title}
                             </span>
-                            <span className="ml-2 text-xs text-[var(--text-4)]">
+                            <span className="ml-2 text-xs text-[var(--text-3)]">
                               {isOpen ? "▾" : "▸"} подробнее
                             </span>
                           </button>
@@ -554,7 +554,7 @@ export function AdminHomeworkClient({
 
                         {isOpen && (
                           <div className="space-y-3 border-t border-[var(--border-soft)] px-3 py-3 text-[var(--text-2)]">
-                            <p className="text-xs text-[var(--text-4)]">
+                            <p className="text-xs text-[var(--text-3)]">
                               Дедлайн: {formatDate(a.deadline)}
                               {a.revisionDeadline && (
                                 <>
@@ -583,7 +583,7 @@ export function AdminHomeworkClient({
                                 <p className="mb-1 font-medium text-[var(--text)]">
                                   Ответ ученика
                                   {a.submission.submittedAt && (
-                                    <span className="ml-2 font-normal text-xs text-[var(--text-4)]">
+                                    <span className="ml-2 font-normal text-xs text-[var(--text-3)]">
                                       {formatDate(a.submission.submittedAt)}
                                     </span>
                                   )}
@@ -641,7 +641,7 @@ export function AdminHomeworkClient({
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-[var(--text)]">{displayName(s)}</span>
                     {total > 0 && (
-                      <span className="text-xs text-[var(--text-4)]">
+                      <span className="text-xs text-[var(--text-3)]">
                         {total} {total === 1 ? "задание" : total < 5 ? "задания" : "заданий"}
                       </span>
                     )}

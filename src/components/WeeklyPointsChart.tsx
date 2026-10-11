@@ -34,8 +34,8 @@ export function WeeklyPointsChart({ logs, weeks = 8 }: { logs: PointLog[]; weeks
   const maxAbs = Math.max(1, ...buckets.map((b) => Math.abs(b.total)));
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
-      <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+      <p className="eyebrow text-[var(--text-3)]">
         Очки по неделям
       </p>
       <div className="mt-4 flex h-36 items-end gap-2">
@@ -44,7 +44,7 @@ export function WeeklyPointsChart({ logs, weeks = 8 }: { logs: PointLog[]; weeks
           const positive = b.total >= 0;
           return (
             <div key={b.start.toISOString()} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-              <span className="font-mono-num text-[10px] text-[var(--text-4)]">
+              <span className="font-mono-num text-[11px] text-[var(--text-3)]">
                 {b.total === 0 ? "—" : formatPoints(b.total)}
               </span>
               <div className="flex h-24 w-full items-end justify-center">
@@ -56,7 +56,7 @@ export function WeeklyPointsChart({ logs, weeks = 8 }: { logs: PointLog[]; weeks
                   title={`${weekLabel(b.start)}: ${formatPoints(b.total)}`}
                 />
               </div>
-              <span className="font-mono-num text-[10px] text-[var(--text-3)]">{weekLabel(b.start)}</span>
+              <span className="font-mono-num text-[11px] text-[var(--text-3)]">{weekLabel(b.start)}</span>
             </div>
           );
         })}
@@ -75,8 +75,8 @@ export function MetricTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
-      <p className="font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)]">
+      <p className="eyebrow text-[var(--text-3)]">
         {label}
       </p>
       <p className="mt-2 font-mono-num text-2xl font-bold text-[var(--text)]">{value}</p>

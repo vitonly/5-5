@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSession } from "@/lib/session";
+import { setSessionCookieOnResponse } from "@/lib/session";
 import { verifyPassword } from "@/lib/password";
 import { recordPdConsent } from "@/lib/pd-consent";
 
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   await recordPdConsent(user.id);
-  await createSession(user.id);
-  return NextResponse.json({ success: true, role: user.role });
+  const response = NextResponse.json({ success: true, role: user.role });
+  await setSessionCookieOnResponse(response, user.id);
+  return response;
 }

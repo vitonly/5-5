@@ -28,25 +28,25 @@ export function PointsLeaderboard({
 
   return (
     <>
-      <div className="hidden overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] md:block">
+      <div className="surface-card hidden overflow-hidden md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[var(--surface-muted)] text-left">
-              <th className="px-4 py-3 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+              <th className="px-4 py-3 eyebrow text-[var(--text-3)]">
                 Место
               </th>
-              <th className="px-4 py-3 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+              <th className="px-4 py-3 eyebrow text-[var(--text-3)]">
                 Игрок
               </th>
-              <th className="px-4 py-3 text-right font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+              <th className="px-4 py-3 text-right eyebrow text-[var(--text-3)]">
                 {seasonColumnLabel}
               </th>
               {showLifetime && (
-                <th className="px-4 py-3 text-right font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                <th className="px-4 py-3 text-right eyebrow text-[var(--text-3)]">
                   За всё время
                 </th>
               )}
-              <th className="px-4 py-3 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+              <th className="px-4 py-3 eyebrow text-[var(--text-3)]">
                 Приз
               </th>
             </tr>
@@ -56,7 +56,7 @@ export function PointsLeaderboard({
               <tr
                 key={entry.userId}
                 className={`border-t border-[var(--border-soft)] ${
-                  index === 0 ? "bg-[#F2FBFB]" : "bg-[var(--surface)]"
+                  index === 0 ? "bg-[var(--points-bg)]/50" : "bg-[var(--surface)]"
                 }`}
               >
                 <td className="px-4 py-3 font-mono-num font-bold text-[var(--points)]">
@@ -94,8 +94,10 @@ export function PointsLeaderboard({
         {entries.map((entry, index) => (
           <div
             key={entry.userId}
-            className={`flex items-center justify-between rounded-[var(--radius-card)] border border-[var(--border)] px-4 py-3 ${
-              index === 0 ? "border-l-[3px] border-l-[var(--points)]" : ""
+            className={`flex items-center justify-between rounded-[var(--radius-card)] border px-4 py-3 ${
+              index === 0
+                ? "border-[var(--points-border)] bg-[var(--points-bg)]"
+                : "border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
             }`}
           >
             <div className="flex items-center gap-3">
@@ -113,7 +115,7 @@ export function PointsLeaderboard({
             <div className="text-right">
               <PointsPill value={entry.totalPoints} />
               {showLifetime && (
-                <p className="mt-0.5 font-mono-num text-[11px] text-[var(--text-4)]">
+                <p className="mt-0.5 font-mono-num text-[11px] text-[var(--text-3)]">
                   всего {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
                 </p>
               )}

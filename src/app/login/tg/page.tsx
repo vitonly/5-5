@@ -103,7 +103,7 @@ function OpenTelegram() {
       <a
         href={to || "/login"}
         onClick={openManual}
-        className="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-[8px] bg-[#54A9EB] px-5 text-sm font-medium text-white"
+        className="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-[var(--radius-control)] bg-[#1f78bd] px-5 text-sm font-medium text-white"
       >
         Открыть Telegram вручную
       </a>

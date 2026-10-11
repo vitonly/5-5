@@ -37,9 +37,48 @@ def run(c: paramiko.SSHClient, cmd: str, timeout: int = 600) -> tuple[int, str]:
     return code, text
 
 
+def read_existing_keys(c: paramiko.SSHClient) -> tuple[str, str] | None:
+    """Reuse keys from app .env if LiveKit already configured."""
+    _, o, _ = c.exec_command(
+        f"grep -E '^LIVEKIT_API_KEY=|^LIVEKIT_API_SECRET=' {REMOTE_APP}/.env 2>/dev/null || true",
+        timeout=30,
+    )
+    text = o.read().decode("utf-8", "replace")
+    key = secret = ""
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("LIVEKIT_API_KEY="):
+            key = line.split("=", 1)[1].strip().strip('"').strip("'")
+        elif line.startswith("LIVEKIT_API_SECRET="):
+            secret = line.split("=", 1)[1].strip().strip('"').strip("'")
+    if key and secret and len(secret) >= 16:
+        return key, secret
+    return None
+
+
 def main() -> None:
-    api_key = "spk_" + gen_secret(16)
-    api_secret = gen_secret(40)
+    c = paramiko.SSHClient()
+    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    c.connect(
+        HOST,
+        username="root",
+        password=PASSWORD,
+        timeout=60,
+        allow_agent=False,
+        look_for_keys=False,
+    )
+    t = c.get_transport()
+    if t:
+        t.set_keepalive(30)
+
+    existing = read_existing_keys(c)
+    if existing:
+        api_key, api_secret = existing
+        print(f"Reusing existing LIVEKIT_API_KEY={api_key[:12]}...", flush=True)
+    else:
+        api_key = "spk_" + gen_secret(16)
+        api_secret = gen_secret(40)
+        print(f"Generated new LIVEKIT_API_KEY={api_key}", flush=True)
 
     # Prefer pyyaml if available; else write YAML manually
     livekit_yaml = f"""port: 7880
@@ -65,23 +104,10 @@ room:
   empty_timeout: 3600
   max_participants: 5
   auto_create: true
+  enable_remote_unmute: true
 """
 
     compose = (ROOT / "deploy" / "livekit" / "docker-compose.yml").read_text(encoding="utf-8")
-
-    c = paramiko.SSHClient()
-    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    c.connect(
-        HOST,
-        username="root",
-        password=PASSWORD,
-        timeout=60,
-        allow_agent=False,
-        look_for_keys=False,
-    )
-    t = c.get_transport()
-    if t:
-        t.set_keepalive(30)
 
     run(c, f"mkdir -p {REMOTE_LK}")
 

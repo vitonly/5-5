@@ -19,7 +19,7 @@ export default async function AdminHomeworkPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Домашние задания</h1>
+      <h1 className="mb-6">Домашние задания</h1>
       <AdminHomeworkClient homeworks={homeworks} students={students} materials={materials} />
     </div>
   );

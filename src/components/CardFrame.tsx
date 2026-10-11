@@ -153,7 +153,7 @@ export function CardFrame({
       viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`}
       width={CARD_WIDTH}
       height={CARD_HEIGHT}
-      className="drop-shadow-2xl"
+      className="drop-shadow-[var(--shadow-popover)]"
       style={{ filter: `drop-shadow(0 12px 32px ${design.glow})` }}
     >
       <defs>

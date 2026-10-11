@@ -27,7 +27,7 @@ export default async function VideosPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Видео</h1>
+      <h1 className="mb-6">Видео</h1>
       <VideosClient videos={videos} initialViews={initialViews} />
     </div>
   );

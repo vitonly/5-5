@@ -8,7 +8,7 @@ export default async function AdminMaterialsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Обучающие материалы</h1>
+      <h1 className="mb-6">Обучающие материалы</h1>
       <AdminMaterialsClient materials={materials} />
     </div>
   );

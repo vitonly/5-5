@@ -26,7 +26,7 @@ const GROUP_TITLES: Record<string, string> = {
 };
 
 const chipActive =
-  "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]";
+  "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]";
 const chipInactive =
   "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]";
 
@@ -110,7 +110,7 @@ export function VideosClient({
         >
           Просмотренные материалы
           {viewedVideos.length > 0 && (
-            <span className="ml-1.5 font-mono-num text-[var(--text-4)]">{viewedVideos.length}</span>
+            <span className="ml-1.5 font-mono-num text-[var(--text-3)]">{viewedVideos.length}</span>
           )}
         </button>
       </div>

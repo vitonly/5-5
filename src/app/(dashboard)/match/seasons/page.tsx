@@ -45,7 +45,7 @@ export default async function MatchSeasonsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Субботние 5v5</h1>
+      <h1 className="mb-6">Субботние 5v5</h1>
       <MatchNav />
 
       {standings.length === 0 ? (
@@ -78,7 +78,7 @@ export default async function MatchSeasonsPage() {
                         className="flex items-center justify-between rounded-[var(--radius-control)] bg-[var(--control)] px-3 py-2 text-sm"
                       >
                         <span>
-                          <span className="mr-2 text-[var(--text-4)]">{i + 1}.</span>
+                          <span className="mr-2 text-[var(--text-3)]">{i + 1}.</span>
                           <PlayerLink user={r.user!} viewer={user} />
                         </span>
                         <PointsPill value={r.points} />

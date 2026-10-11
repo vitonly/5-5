@@ -1,5 +1,6 @@
 # LiveKit SFU for START+ voice rooms. No recording/egress.
-# Keys and redis are set for host-network compose (see docker-compose.yml).
+# Production keys are written by scripts/vps_livekit_up.py (do not commit real secrets).
+# Local template keys below are for docker compose smoke only.
 port: 7880
 bind_addresses:
   - ""
@@ -14,7 +15,8 @@ redis:
   address: 127.0.0.1:6379
 
 keys:
-  devkey: secret-at-least-32-chars-long!!!!
+  # replaced on VPS by vps_livekit_up.py
+  spk_local_dev_key_replace_me: local-dev-secret-at-least-32-chars!!!!
 
 logging:
   level: info
@@ -23,3 +25,5 @@ room:
   empty_timeout: 3600
   max_participants: 5
   auto_create: true
+  # Allow admin MutePublishedTrack(muted=false) — off by default in LiveKit
+  enable_remote_unmute: true

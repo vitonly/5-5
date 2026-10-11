@@ -30,7 +30,7 @@ export default async function VotePage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Субботние 5v5</h1>
+      <h1 className="mb-6">Субботние 5v5</h1>
       <MatchNav />
       <VotingClient openSeason={openSeason} students={students} currentUserId={user.id} />
     </div>

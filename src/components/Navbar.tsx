@@ -5,6 +5,7 @@ import { displayName, playerProfilePath } from "@/lib/utils";
 import { LogoutButton } from "@/components/LogoutButton";
 import { StopImpersonationButton } from "@/components/StopImpersonationButton";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { NavLinks } from "@/components/NavLinks";
 import { getVotingSeason } from "@/lib/seasons";
 
 const studentLinks = [
@@ -127,74 +128,83 @@ export async function Navbar() {
     },
   ];
 
+  const desktopItems = navLinks.map((link) => ({
+    ...link,
+    badge:
+      link.href === "/homework" || link.href === "/admin/homework"
+        ? pendingHomework
+        : link.href === "/match"
+          ? pendingVotes
+          : 0,
+  }));
+
+  const mobileStripItems = isAdmin
+    ? adminLinks.filter(
+        (l) =>
+          !["/admin", "/admin/students", "/admin/homework", "/admin/matches", "/admin/penalties"].includes(
+            l.href
+          )
+      )
+    : [
+        { href: "/progress", label: "Мой прогресс" },
+        { href: "/rules", label: "Rule book" },
+        { href: "/stats", label: "Статистика" },
+        { href: "/lessons", label: "Архив" },
+      ];
+
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur-md backdrop-saturate-150">
         {impersonatorId && (
-          <div className="flex items-center justify-center gap-3 bg-[var(--admin-bg)] px-4 py-2 text-sm text-[var(--admin)]">
-            <span>Вы вошли как ученик: {displayName(user)}</span>
+          <div className="flex items-center justify-center gap-3 bg-[var(--admin-bg)] px-4 py-2 text-sm text-[var(--admin-ink)]">
+            <span className="truncate">Вы вошли как ученик: {displayName(user)}</span>
             <StopImpersonationButton />
           </div>
         )}
-        <div className="page-shell flex items-center justify-between gap-3 py-2.5 min-[720px]:py-3">
+        <div className="page-shell flex h-14 items-center justify-between gap-4 min-[720px]:h-16">
           <Link
             href={isAdmin ? "/admin" : "/"}
-            className="flex min-w-0 items-center gap-2.5"
+            className="press flex min-w-0 shrink-0 items-center gap-2.5 rounded-[var(--radius-control)]"
             title="На главную"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/start-plus.png?v=2"
-              alt="СТАРТ+"
+              alt=""
               className="h-9 w-9 shrink-0 object-contain min-[720px]:h-10 min-[720px]:w-10"
             />
             <span className="min-w-0 leading-tight">
-              <span className="block truncate font-display text-[15px] font-bold text-[var(--points)] min-[720px]:text-lg">
-                СТАРТ+{" "}
-                <span className="font-medium text-[var(--text-2)]">dota2 education</span>
+              <span className="block truncate font-display text-[15px] font-bold tracking-[-0.01em] text-[var(--text)] min-[720px]:text-[17px]">
+                СТАРТ<span className="text-[var(--points)]">+</span>
+                <span className="ml-1.5 font-sans text-[12px] font-medium tracking-normal text-[var(--text-3)] min-[720px]:text-[13px]">
+                  dota2 education
+                </span>
               </span>
-              <span className="block truncate text-[10px] font-medium text-[var(--text-4)] min-[720px]:text-[11px]">
+              <span className="block truncate text-[11px] font-medium text-[var(--text-3)]">
                 сайт в разработке v1.02
               </span>
             </span>
           </Link>
 
           {/* desktop nav */}
-          <nav className="hidden flex-wrap gap-1 min-[720px]:flex">
-            {navLinks.map((link) => {
-              const badge =
-                link.href === "/homework" || link.href === "/admin/homework"
-                  ? pendingHomework
-                  : link.href === "/match"
-                    ? pendingVotes
-                    : 0;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="relative rounded-[var(--radius-control)] px-3 py-2 text-[14px] font-medium text-[var(--text-2)] transition-colors hover:bg-[var(--control)] hover:text-[var(--text)]"
-                >
-                  {link.label}
-                  {badge > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono-num text-[10px] font-bold text-white">
-                      {badge > 9 ? "9+" : badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+          <nav
+            aria-label="Разделы"
+            className="no-scrollbar hidden min-w-0 flex-1 items-center justify-center gap-0.5 overflow-x-auto px-1 py-1 min-[720px]:flex"
+          >
+            <NavLinks items={desktopItems} />
           </nav>
 
-          <div className="flex items-center gap-2 min-[720px]:gap-3">
+          <div className="flex shrink-0 items-center gap-2 min-[720px]:gap-3">
             <Link
               href={isAdmin ? "/admin" : playerProfilePath(user.id, user)}
-              className="hidden max-w-[140px] truncate text-sm font-medium text-[var(--text)] transition-colors hover:text-[var(--points)] min-[720px]:inline"
+              className="hidden max-w-[160px] truncate text-sm font-medium text-[var(--text)] transition-colors hover:text-[var(--points)] min-[1200px]:inline"
             >
               {displayName(user)}
             </Link>
             <Link
               href="/privacy"
-              className="hidden text-xs text-[var(--text-4)] hover:text-[var(--points)] min-[720px]:inline"
+              title="Политика обработки персональных данных"
+              className="hidden text-xs font-medium text-[var(--text-3)] transition-colors hover:text-[var(--points)] min-[1200px]:inline"
             >
               ПД
             </Link>
@@ -202,49 +212,13 @@ export async function Navbar() {
           </div>
         </div>
 
-        {/* mobile secondary links (stats etc.) — thin strip for students */}
-        {!isAdmin && (
-          <div className="flex gap-1 overflow-x-auto border-t border-[var(--border-soft)] px-3 py-1.5 min-[720px]:hidden">
-            <Link
-              href="/progress"
-              className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
-            >
-              Мой прогресс
-            </Link>
-            <Link
-              href="/rules"
-              className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
-            >
-              Rule book
-            </Link>
-            <Link
-              href="/stats"
-              className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
-            >
-              Статистика
-            </Link>
-          </div>
-        )}
-        {isAdmin && (
-          <div className="flex gap-1 overflow-x-auto border-t border-[var(--border-soft)] px-3 py-1.5 min-[720px]:hidden">
-            {adminLinks
-              .filter(
-                (l) =>
-                  !["/admin", "/admin/students", "/admin/homework", "/admin/matches", "/admin/penalties"].includes(
-                    l.href
-                  )
-              )
-              .map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-2)]"
-                >
-                  {l.label}
-                </Link>
-              ))}
-          </div>
-        )}
+        {/* mobile: второстепенные разделы — тонкая лента */}
+        <nav
+          aria-label="Дополнительные разделы"
+          className="no-scrollbar flex gap-1 overflow-x-auto border-t border-[var(--border-soft)] px-3 py-1.5 min-[720px]:hidden"
+        >
+          <NavLinks items={mobileStripItems} variant="strip" />
+        </nav>
       </header>
 
       <MobileTabBar tabs={isAdmin ? adminTabs : studentTabs} />

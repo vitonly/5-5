@@ -255,16 +255,16 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-[var(--text)]">{lesson.title}</p>
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
                           lesson.isOpen
-                            ? "bg-[var(--points-bg)] text-[var(--points)]"
+                            ? "bg-[var(--points-bg)] text-[var(--points-ink)]"
                             : "bg-[var(--control)] text-[var(--text-3)]"
                         }`}
                       >
                         {lesson.isOpen ? "Открыто" : "Закрыто"}
                       </span>
                     </div>
-                    <p className="font-mono-num text-xs text-[var(--text-4)]">
+                    <p className="font-mono-num text-xs text-[var(--text-3)]">
                       {formatDate(lesson.createdAt)}
                     </p>
                   </div>

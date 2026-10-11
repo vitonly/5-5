@@ -46,7 +46,7 @@ export function PointHistory({
               onClick={() => setFilter(key)}
               className={`h-9 rounded-[var(--radius-control)] border px-3 text-[13px] font-medium transition-colors ${
                 filter === key
-                  ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]"
+                  ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]"
                   : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]"
               }`}
             >
@@ -65,16 +65,16 @@ export function PointHistory({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[var(--surface-muted)] text-left">
-                    <th className="px-3 py-2.5 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                    <th className="px-3 py-2.5 eyebrow text-[var(--text-3)]">
                       Дата
                     </th>
-                    <th className="px-3 py-2.5 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                    <th className="px-3 py-2.5 eyebrow text-[var(--text-3)]">
                       Событие
                     </th>
-                    <th className="px-3 py-2.5 font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                    <th className="px-3 py-2.5 eyebrow text-[var(--text-3)]">
                       Источник
                     </th>
-                    <th className="px-3 py-2.5 text-right font-mono-num text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-4)]">
+                    <th className="px-3 py-2.5 text-right eyebrow text-[var(--text-3)]">
                       Очки
                     </th>
                   </tr>
@@ -119,7 +119,7 @@ export function PointHistory({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-[var(--text)]">{log.reason}</p>
-                    <p className="font-mono-num text-[12px] text-[var(--text-4)]">
+                    <p className="font-mono-num text-[12px] text-[var(--text-3)]">
                       {formatDate(log.createdAt)} · {POINT_CATEGORY_LABELS[categorizePointReason(log.reason)]}
                     </p>
                   </div>

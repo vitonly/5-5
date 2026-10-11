@@ -34,7 +34,7 @@ function materialMatchesRole(m: LearningMaterial, roleFilter: DotaRole | null) {
 }
 
 const chipActive =
-  "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points)]";
+  "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]";
 const chipInactive =
   "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]";
 
@@ -193,7 +193,7 @@ export function MaterialsClient({
         >
           Просмотренные материалы
           {viewedCount > 0 && (
-            <span className="ml-1.5 font-mono-num text-[var(--text-4)]">{viewedCount}</span>
+            <span className="ml-1.5 font-mono-num text-[var(--text-3)]">{viewedCount}</span>
           )}
         </button>
       </div>
@@ -374,7 +374,7 @@ function ArticleCard({
         <div className="flex items-start justify-between gap-2">
           <CardTitle className={viewed ? "text-[var(--text-3)]" : undefined}>{article.title}</CardTitle>
           {viewed && (
-            <span className="shrink-0 font-mono-num text-[10px] uppercase tracking-wide text-[var(--text-4)]">
+            <span className="shrink-0 font-mono-num text-[11px] uppercase tracking-wide text-[var(--text-3)]">
               Просмотрено
             </span>
           )}
@@ -463,7 +463,7 @@ function ViewedTab({
           </div>
         </section>
       )}
-      <p className="text-xs text-[var(--text-4)]">
+      <p className="text-xs text-[var(--text-3)]">
         Через 7 дней после отметки материал пропадает из основной ленты и остаётся только здесь.
       </p>
     </div>

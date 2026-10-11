@@ -32,7 +32,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold text-[var(--text)]">Админ-панель</h1>
+      <h1 className="text-[var(--text)]">Админ-панель</h1>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Учеников" value={students} />
@@ -49,11 +49,11 @@ export default async function AdminDashboardPage() {
           <CardTitle>Топ по очкам · {seasonTitle}</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2 text-sm">
+          <ul className="divide-y divide-[var(--border-soft)] text-sm">
             {topPlayers.map((p, i) => (
-              <li key={p.userId} className="flex justify-between">
-                <span>
-                  {i + 1}.{" "}
+              <li key={p.userId} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="w-5 shrink-0 font-mono-num font-bold text-[var(--text-3)]">{i + 1}</span>
                   <PlayerLink
                     user={{
                       id: p.userId,
@@ -64,7 +64,7 @@ export default async function AdminDashboardPage() {
                     viewer={viewer}
                   />
                 </span>
-                <span className="text-[var(--points)]">{formatPoints(p.totalPoints)} очк.</span>
+                <span className="shrink-0 font-mono-num font-semibold text-[var(--points)]">{formatPoints(p.totalPoints)} очк.</span>
               </li>
             ))}
             {topPlayers.length === 0 && (
@@ -75,7 +75,7 @@ export default async function AdminDashboardPage() {
       </Card>
 
       <OverdueCheckButton />
-      <p className="text-sm text-[var(--text-4)]">
+      <p className="text-sm text-[var(--text-3)]">
         Автопроверка просрочек (−0.5) и автозакрытие сезона по{" "}
         <code className="rounded border border-[var(--border)] bg-[var(--control)] px-1 text-[var(--text-2)]">
           closesAt
@@ -101,13 +101,9 @@ export default async function AdminDashboardPage() {
 
 function StatCard({ title, value }: { title: string; value: string | number }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-[var(--text-3)]">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold text-[var(--text)]">{value}</p>
-      </CardContent>
+    <Card className="p-4 sm:p-5">
+      <p className="text-[13px] font-medium leading-5 text-[var(--text-3)]">{title}</p>
+      <p className="mt-2 font-mono-num text-[28px] font-bold leading-8 text-[var(--text)]">{value}</p>
     </Card>
   );
 }

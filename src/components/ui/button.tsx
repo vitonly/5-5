@@ -3,29 +3,34 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/*
+ * Кнопка СТАРТ+. Одна primary (default) на экран, остальные — secondary / outline / ghost.
+ * Нажатие — scale(0.97) за 160ms ease-out; hover только на устройствах с мышью
+ * (custom-variant `hover` в globals.css); фокус — кольцо focus-ring 2px.
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--points)]/40 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex touch-manipulation select-none items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] border border-transparent text-[15px] font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 motion-reduce:active:scale-100 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "h-[46px] bg-[var(--points)] px-4 text-white hover:bg-[var(--points-hover)] min-[720px]:h-11",
+          "bg-[var(--points)] text-[var(--on-points)] shadow-[var(--shadow-xs)] hover:bg-[var(--points-hover)]",
         secondary:
-          "h-[46px] border border-[var(--border)] bg-[var(--control)] px-4 text-[var(--text)] hover:bg-[var(--border-soft)] min-[720px]:h-11",
+          "bg-[var(--control)] text-[var(--text)] hover:bg-[var(--border-soft)]",
         admin:
-          "h-[46px] bg-[var(--admin)] px-4 text-white hover:brightness-110 focus-visible:ring-[var(--admin)]/40 min-[720px]:h-11",
+          "bg-[var(--admin)] text-white shadow-[var(--shadow-xs)] hover:bg-[var(--admin-ink)]",
         destructive:
-          "h-[46px] border border-[var(--danger-border)] bg-transparent px-4 text-[var(--danger)] hover:bg-[var(--danger-bg)] min-[720px]:h-11",
+          "border-[var(--danger-border)] bg-[var(--surface)] text-[var(--danger)] hover:bg-[var(--danger-bg)]",
         outline:
-          "h-[46px] border border-[var(--border)] bg-[var(--surface)] px-4 text-[var(--text)] hover:bg-[var(--control)] min-[720px]:h-11",
+          "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)] hover:border-[var(--border-field)] hover:bg-[var(--surface-muted)]",
         ghost:
-          "h-[46px] px-4 text-[var(--text-2)] hover:bg-[var(--control)] hover:text-[var(--text)] min-[720px]:h-11",
+          "bg-transparent text-[var(--text-2)] hover:bg-[var(--control)] hover:text-[var(--text)]",
         success:
-          "h-[46px] bg-[var(--success)] px-4 text-white hover:brightness-110 min-[720px]:h-11",
+          "bg-[var(--success)] text-white shadow-[var(--shadow-xs)] hover:bg-[var(--success-ink)]",
       },
       size: {
         default: "h-[46px] px-4 min-[720px]:h-11",
-        sm: "h-9 rounded-[var(--radius-control)] px-3 text-[13px]",
+        sm: "h-9 px-3 text-[13px]",
         lg: "h-12 px-6 text-base",
       },
     },
@@ -48,3 +53,5 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   }
 );
 Button.displayName = "Button";
+
+export { buttonVariants };

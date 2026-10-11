@@ -133,7 +133,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{displayName(user)}</h1>
+          <h1>{displayName(user)}</h1>
           <p className="mt-1 text-sm text-[var(--text-2)]">
             {rankLabel(profile.rankTier)}
             {profile.primaryRole && ` · ${DOTA_ROLE_LABELS[profile.primaryRole]}`}

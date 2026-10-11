@@ -1,23 +1,27 @@
 import type { Metadata, Viewport } from "next";
-import { Chakra_Petch, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 
-const chakraPetch = Chakra_Petch({
-  variable: "--font-chakra-petch",
-  subsets: ["latin"],
+// Заголовки: Unbounded — с кириллицей (Chakra Petch её не поддерживал)
+const unbounded = Unbounded({
+  variable: "--font-unbounded",
+  subsets: ["latin", "cyrillic"],
   weight: ["600", "700"],
+  display: "swap",
 });
 
 const ibmPlex = IBM_Plex_Sans({
   variable: "--font-ibm-plex",
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["500", "700"],
+  subsets: ["latin", "cyrillic"],
+  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -38,7 +42,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f2f6f6",
+  themeColor: "#f3f6f6",
 };
 
 export default function RootLayout({
@@ -49,7 +53,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${chakraPetch.variable} ${ibmPlex.variable} ${jetbrains.variable} antialiased`}
+      className={`${unbounded.variable} ${ibmPlex.variable} ${jetbrains.variable} antialiased`}
     >
       <body className="min-h-screen bg-[var(--bg)] text-[var(--text)]">{children}</body>
     </html>

@@ -16,7 +16,12 @@ import {
   validateLineups,
 } from "@/lib/match-lineup";
 import type { TeamAssignment } from "@/lib/match-lineup";
-import { startMatchSession, confirmLineups, confirmLineupsGame2 } from "@/lib/match-signup";
+import {
+  startMatchSession,
+  confirmLineups,
+  confirmLineupsGame2,
+  game2LineupComplete,
+} from "@/lib/match-signup";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -162,7 +167,29 @@ export async function PATCH(request: NextRequest) {
       where: { id: sessionId },
       data: { status: "COMPLETED" },
     });
-    return NextResponse.json({ session: { id: sessionId, status: "COMPLETED" } });
+    // MVP-опрос только если были сыгранные игры (не «отмена без игр»)
+    let mvp: {
+      sent: number;
+      skippedNoTg: number;
+      skippedVoted: number;
+      failed: number;
+      total: number;
+    } | null = null;
+    let mvpError: string | null = null;
+    if (session.games.length > 0) {
+      try {
+        const { sendMvpVoteInvites } = await import("@/lib/match-mvp");
+        mvp = await sendMvpVoteInvites(sessionId);
+      } catch (e) {
+        mvpError = e instanceof Error ? e.message : "Не удалось отправить MVP в TG";
+        console.error("[completeSession] MVP invites:", e);
+      }
+    }
+    return NextResponse.json({
+      session: { id: sessionId, status: "COMPLETED" },
+      mvp,
+      mvpError,
+    });
   }
 
   if (body.action === "updateTeams") {
@@ -260,9 +287,13 @@ export async function PATCH(request: NextRequest) {
     }
     const assignments = parseAssignments(session.teamAssignments);
     let avoid: TeamAssignment | null = null;
+    let hadGame2Before = false;
     try {
       const prev = JSON.parse(session.teamAssignmentsGame2 || "{}") as TeamAssignment;
-      if (Object.keys(prev).length) avoid = prev;
+      if (Object.keys(prev).length) {
+        avoid = prev;
+        hadGame2Before = true;
+      }
     } catch {
       avoid = null;
     }
@@ -296,16 +327,30 @@ export async function PATCH(request: NextRequest) {
       for (const p of teams.dire) {
         map[p.id] = { team: "DIRE", position: p.position };
       }
-      const updated = await prisma.matchSession.update({
+      let updated = await prisma.matchSession.update({
         where: { id: sessionId },
         data: {
           teamAssignmentsGame2: JSON.stringify(map),
           lineupsGame2Confirmed: false,
         },
       });
+
+      const g1AlreadySent =
+        session.status === "LINEUPS_CONFIRMED" || session.status === "IN_PROGRESS";
+      let game2Notified = false;
+      if (g1AlreadySent && !hadGame2Before && game2LineupComplete(updated.teamAssignmentsGame2)) {
+        try {
+          updated = await confirmLineupsGame2(sessionId);
+          game2Notified = true;
+        } catch (e) {
+          console.error("[generateGame2] auto-notify game2 failed:", e);
+        }
+      }
+
       return NextResponse.json({
         session: updated,
         difference: teams.difference,
+        game2Notified,
       });
     } catch (e) {
       return NextResponse.json(
@@ -391,7 +436,7 @@ export async function PATCH(request: NextRequest) {
           ...parseJsonArray(session.direPlayerIds),
         ];
 
-  // Стрик для +3 — только в рамках этой сессии (одного дня), не между субботами
+  // Стрик для +2 — только в рамках этой сессии (одного дня), не между субботами
   const sessionStreakBefore: Record<string, number> = {};
   await Promise.all(
     allIds.map(async (userId) => {
@@ -467,7 +512,7 @@ export async function PATCH(request: NextRequest) {
     if (!profile) continue;
 
     if (won) {
-      // +3 только если это 2-я (и далее) победа подряд В ЭТОЙ сессии/день
+      // +2 только если это 2-я (и далее) победа подряд В ЭТОЙ сессии/день
       const dayWinStreak = (sessionStreakBefore[userId] ?? 0) + 1;
       const position = assignments[userId]?.position ?? 0;
       const secondaryRoles = parseSecondaryRoles(
