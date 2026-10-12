@@ -6,6 +6,7 @@ import { VideoCard } from "@/components/VideoCard";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { LastMatchCard } from "@/components/home/LastMatchCard";
 import { teamDisplayName } from "@/lib/team-names";
+import { seriesScoreByGame1Roster } from "@/lib/match-score";
 import { parseJsonArray } from "@/lib/utils";
 import { MotionChip } from "@/components/fx/MotionChip";
 import { extractTwitchLogin } from "@/lib/twitch";
@@ -34,7 +35,9 @@ export default async function HomePage() {
       prisma.matchSession.findFirst({
         where: { mvpResolved: true, mvpWinnerId: { not: null } },
         orderBy: { date: "desc" },
-        include: { games: { select: { winnerTeam: true } } },
+        include: {
+          games: { select: { gameNumber: true, winnerTeam: true }, orderBy: { gameNumber: "asc" } },
+        },
       }),
     ]);
 
@@ -92,10 +95,13 @@ export default async function HomePage() {
     const byId = Object.fromEntries(people.map((p) => [p.id, p]));
     const named = (ids: string[]) =>
       ids.map((id) => ({ ...byId[id], id, finalRating: byId[id]?.profile?.finalRating ?? 0 }));
-    const radiantWins = lastMvpSession.games.filter((g) => g.winnerTeam === "RADIANT").length;
-    const direWins = lastMvpSession.games.filter((g) => g.winnerTeam === "DIRE").length;
+    const { radiantWins, direWins } = seriesScoreByGame1Roster(lastMvpSession);
     const mvp = byId[lastMvpSession.mvpWinnerId];
-    const mvpSide = radiant.includes(lastMvpSession.mvpWinnerId) ? "RADIANT" : dire.includes(lastMvpSession.mvpWinnerId) ? "DIRE" : null;
+    const mvpSide = radiant.includes(lastMvpSession.mvpWinnerId)
+      ? "RADIANT"
+      : dire.includes(lastMvpSession.mvpWinnerId)
+        ? "DIRE"
+        : null;
     if (mvp) {
       lastMatch = {
         date: lastMvpSession.date,
@@ -105,7 +111,9 @@ export default async function HomePage() {
         direWins,
         mvp,
         mvpTeamWon:
-          mvpSide && radiantWins !== direWins ? (mvpSide === "RADIANT") === radiantWins > direWins : null,
+          mvpSide && radiantWins !== direWins
+            ? (mvpSide === "RADIANT") === radiantWins > direWins
+            : null,
       };
     }
   }

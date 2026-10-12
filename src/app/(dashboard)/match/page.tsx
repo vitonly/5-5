@@ -2,18 +2,16 @@ import { Star } from "lucide-react";
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
-import { MATCH_STATUS_LABELS, POSITION_LABELS } from "@/lib/labels";
+import { MATCH_STATUS_LABELS } from "@/lib/labels";
 import { cn, displayName, parseJsonArray } from "@/lib/utils";
 import { formatShortDate, formatShortDateTime } from "@/lib/format";
-import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
-import { CountUp } from "@/components/fx/CountUp";
-import { Avatar } from "@/components/home/Avatar";
-import { PositionBadge } from "@/components/RoleIcon";
-import { lineupForTeam, parseTeamAssignments, type LineupSlot } from "@/lib/match-lineup";
+import { MatchGameBoard, type MatchGameView } from "@/components/MatchGameBoard";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
 import { teamDisplayName } from "@/lib/team-names";
+import { parseTeamAssignments } from "@/lib/match-lineup";
+import { lineupsForGame, seriesScoreByGame1Roster } from "@/lib/match-score";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +49,14 @@ export default async function MatchPage() {
 
   const allIds = [
     ...new Set(
-      sessions.flatMap((s) => [...parseJsonArray(s.radiantPlayerIds), ...parseJsonArray(s.direPlayerIds)])
+      sessions.flatMap((s) => {
+        const g2 = parseTeamAssignments(s.teamAssignmentsGame2);
+        return [
+          ...parseJsonArray(s.radiantPlayerIds),
+          ...parseJsonArray(s.direPlayerIds),
+          ...Object.keys(g2),
+        ];
+      })
     ),
   ];
 
@@ -68,7 +73,6 @@ export default async function MatchPage() {
   });
   const userMap: Record<string, UserRow> = Object.fromEntries(users.map((u) => [u.id, u]));
 
-  // Главный матч — ближайший незавершённый, иначе последний сыгранный
   const featured = sessions.find((s) => s.status !== "COMPLETED") ?? sessions[0];
   const rest = sessions.filter((s) => s.id !== featured?.id);
   const numberOf = (s: SessionWithGames) => sessions.length - sessions.indexOf(s);
@@ -104,8 +108,6 @@ export default async function MatchPage() {
   );
 }
 
-/* ---------- данные матча ---------- */
-
 function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, viewer: Viewer) {
   const radiant = parseJsonArray(session.radiantPlayerIds);
   const dire = parseJsonArray(session.direPlayerIds);
@@ -119,10 +121,29 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
     }));
   const radiantName = teamDisplayName(named(radiant), "Team A");
   const direName = teamDisplayName(named(dire), "Team B");
-  const radiantWins = session.games.filter((g) => g.winnerTeam === "RADIANT").length;
-  const direWins = session.games.filter((g) => g.winnerTeam === "DIRE").length;
-  const lastGame = session.games[session.games.length - 1];
-  const assignments = parseTeamAssignments(session.teamAssignments);
+  const { radiantWins, direWins } = seriesScoreByGame1Roster(session);
+  const hasG2 = Object.keys(parseTeamAssignments(session.teamAssignmentsGame2)).length > 0;
+  const gameCount = Math.max(session.games.length, hasG2 ? 2 : 1, 1);
+
+  const games: MatchGameView[] = Array.from({ length: gameCount }, (_, i) => {
+    const gameNumber = i + 1;
+    const recorded = session.games.find((g) => g.gameNumber === gameNumber);
+    const L = lineupsForGame(session, gameNumber);
+    const rName = teamDisplayName(named(L.radiantIds), "Team A");
+    const dName = teamDisplayName(named(L.direIds), "Team B");
+    return {
+      gameNumber,
+      radiantName: rName,
+      direName: dName,
+      radiant: L.radiant,
+      dire: L.dire,
+      radiantPower: sumPower(L.radiantIds, userMap),
+      direPower: sumPower(L.direIds, userMap),
+      radiantPoints: recorded ? sumPoints(recorded.participants, L.radiantIds) : 0,
+      direPoints: recorded ? sumPoints(recorded.participants, L.direIds) : 0,
+      winnerTeam: recorded?.winnerTeam ?? null,
+    };
+  });
 
   return {
     radiant,
@@ -131,12 +152,7 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
     direName,
     radiantWins,
     direWins,
-    radiantPower: sumPower(radiant, userMap),
-    direPower: sumPower(dire, userMap),
-    radiantPoints: lastGame ? sumPoints(lastGame.participants, radiant) : 0,
-    direPoints: lastGame ? sumPoints(lastGame.participants, dire) : 0,
-    radiantLineup: lineupForTeam("RADIANT", radiant, assignments),
-    direLineup: lineupForTeam("DIRE", dire, assignments),
+    games,
     myTeam: radiant.includes(viewer.id) ? "RADIANT" : dire.includes(viewer.id) ? "DIRE" : null,
     lineupsVisible:
       (session.status === "LINEUPS_CONFIRMED" ||
@@ -145,8 +161,6 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
       (radiant.length > 0 || dire.length > 0),
   };
 }
-
-/* ---------- карточка матча (табло) ---------- */
 
 function MatchCard({
   session,
@@ -163,7 +177,6 @@ function MatchCard({
 }) {
   const d = matchData(session, userMap, viewer);
   const mvp = session.mvpResolved && session.mvpWinnerId ? userMap[session.mvpWinnerId] : null;
-  const hasGames = session.games.length > 0;
   const live = session.status === "IN_PROGRESS";
 
   return (
@@ -195,73 +208,19 @@ function MatchCard({
         </div>
       ) : null}
 
-      {/* Табло */}
       {d.lineupsVisible && (
-        <div className="mx-auto max-w-[820px] px-4 pb-5 pt-4 min-[720px]:px-6 min-[720px]:pb-6">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
-            <TeamHead name={d.radiantName} side="radiant" lineup={d.radiantLineup} userMap={userMap} />
-            <div className="text-center">
-              {hasGames ? (
-                <p className="font-display text-[30px] font-bold leading-none tracking-tight min-[720px]:text-[40px]">
-                  <CountUp value={d.radiantWins} />
-                  <span className="mx-1.5 text-[var(--text-3)]">:</span>
-                  <CountUp value={d.direWins} />
-                </p>
-              ) : (
-                <p className="font-display text-[20px] font-bold text-[var(--text-3)]">VS</p>
-              )}
-            </div>
-            <TeamHead name={d.direName} side="dire" lineup={d.direLineup} userMap={userMap} />
-          </div>
-
-          {/* Сравнение силы */}
-          <PowerCompare radiant={d.radiantPower} dire={d.direPower} />
-
-          {/* Составы зеркально по позициям */}
-          <RoomLineup
-            radiant={d.radiantLineup}
-            dire={d.direLineup}
-            userMap={userMap}
-            viewer={viewer}
-            mvpId={session.mvpWinnerId}
-          />
-
-          {hasGames && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border-soft)] pt-4 text-[13px]">
-              {session.games.map((g) => {
-                const winner =
-                  g.winnerTeam === "RADIANT" ? d.radiantName : g.winnerTeam === "DIRE" ? d.direName : "Ничья";
-                const dot =
-                  g.winnerTeam === "RADIANT"
-                    ? "bg-[var(--success)]"
-                    : g.winnerTeam === "DIRE"
-                      ? "bg-[var(--danger)]"
-                      : "bg-[var(--text-4)]";
-                return (
-                  <span
-                    key={g.id}
-                    className="inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--control)] px-2.5 py-1 text-[var(--text-2)]"
-                  >
-                    <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} aria-hidden />
-                    Игра {g.gameNumber}:
-                    <span className="min-w-0 truncate font-medium text-[var(--text)]">{winner}</span>
-                  </span>
-                );
-              })}
-              {(d.radiantPoints !== 0 || d.direPoints !== 0) && (
-                <span className="ml-auto text-[12px] text-[var(--text-3)]">
-                  очки за последнюю игру:{" "}
-                  <span className="font-mono-num text-[var(--points)]">{formatPoints(d.radiantPoints)}</span>
-                  {" / "}
-                  <span className="font-mono-num text-[var(--points)]">{formatPoints(d.direPoints)}</span>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        <MatchGameBoard
+          seriesRadiantName={d.radiantName}
+          seriesDireName={d.direName}
+          seriesRadiantWins={d.radiantWins}
+          seriesDireWins={d.direWins}
+          games={d.games}
+          userMap={userMap}
+          viewer={viewer}
+          mvpId={session.mvpWinnerId}
+        />
       )}
 
-      {/* Команды набраны, составы скрыты */}
       {session.status === "TEAMS_SET" && (d.radiant.length > 0 || d.dire.length > 0) && (
         <div className="px-4 py-4 min-[720px]:px-6">
           <p className="mb-3 text-sm text-[var(--text-3)]">
@@ -285,7 +244,6 @@ function MatchCard({
         </p>
       )}
 
-      {/* Голосование за MVP */}
       {(session.status === "COMPLETED" || session.mvpResolved) &&
         (d.radiant.includes(viewer.id) || d.dire.includes(viewer.id)) && (
           <div className="border-t border-[var(--border-soft)] px-4 py-4 min-[720px]:px-6">
@@ -307,146 +265,6 @@ function MatchCard({
     </article>
   );
 }
-
-function TeamHead({
-  name,
-  side,
-  lineup,
-  userMap,
-}: {
-  name: string;
-  side: "radiant" | "dire";
-  lineup: LineupSlot[];
-  userMap: Record<string, UserRow>;
-}) {
-  const right = side === "dire";
-  return (
-    <div className={cn("min-w-0", right && "text-right")}>
-      {/* «стопка» аватаров команды */}
-      <div className={cn("mb-2 flex", right && "justify-end")}>
-        {lineup.map((slot, i) => {
-          const u = userMap[slot.userId];
-          return (
-            <span
-              key={slot.userId}
-              className={cn("rounded-full ring-2 ring-[var(--surface)]", i > 0 && "-ml-2.5 min-[720px]:-ml-3")}
-              style={{ zIndex: lineup.length - i }}
-            >
-              <Avatar
-                photoUrl={u?.photoUrl}
-                firstName={u?.firstName}
-                lastName={u?.lastName}
-                size={28}
-                className="min-[720px]:!h-9 min-[720px]:!w-9"
-              />
-            </span>
-          );
-        })}
-      </div>
-      <p className={cn("flex items-center gap-2", right && "flex-row-reverse")}>
-        <span
-          className={cn(
-            "h-2.5 w-2.5 shrink-0 rounded-full",
-            side === "radiant" ? "bg-[var(--success)]" : "bg-[var(--danger)]"
-          )}
-          aria-hidden
-        />
-        <span className="truncate text-[14px] font-semibold text-[var(--text)] min-[720px]:text-[16px]">{name}</span>
-      </p>
-      <p className="mt-0.5 text-[11px] text-[var(--text-3)]">{side === "radiant" ? "Radiant" : "Dire"}</p>
-    </div>
-  );
-}
-
-function PowerCompare({ radiant, dire }: { radiant: number; dire: number }) {
-  const total = radiant + dire;
-  if (total <= 0) return null;
-  const left = Math.round((radiant / total) * 100);
-  return (
-    <div className="mt-4">
-      <div className="mb-1.5 flex items-center justify-between text-[12px] text-[var(--text-3)]">
-        <span>
-          сила <span className="font-mono-num font-semibold text-[var(--power)]">{Math.round(radiant)}</span>
-        </span>
-        <span>
-          <span className="font-mono-num font-semibold text-[var(--power)]">{Math.round(dire)}</span> сила
-        </span>
-      </div>
-      <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full" role="img" aria-label={`Сила команд: ${Math.round(radiant)} против ${Math.round(dire)}`}>
-        <span className="rounded-l-full bg-[var(--power)]" style={{ width: `${left}%` }} />
-        <span className="flex-1 rounded-r-full bg-[var(--power-border)]" />
-      </div>
-    </div>
-  );
-}
-
-/** Игроки плитками в две колонки (Radiant | Dire), отсортированы по позиции. */
-function RoomLineup({
-  radiant,
-  dire,
-  userMap,
-  viewer,
-  mvpId,
-}: {
-  radiant: LineupSlot[];
-  dire: LineupSlot[];
-  userMap: Record<string, UserRow>;
-  viewer: Viewer;
-  mvpId?: string | null;
-}) {
-  const showPower = viewer.role === "ADMIN";
-
-  const tile = (slot: LineupSlot) => {
-    const u = userMap[slot.userId];
-    const me = slot.userId === viewer.id;
-    const isMvp = Boolean(mvpId && slot.userId === mvpId);
-    return (
-      <li
-        key={slot.userId}
-        className={cn(
-          "flex min-h-[48px] items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 min-[720px]:gap-3 min-[720px]:px-3",
-          me ? "bg-[var(--points-bg)]" : "bg-[var(--surface-muted)]"
-        )}
-      >
-        <Avatar photoUrl={u?.photoUrl} firstName={u?.firstName} lastName={u?.lastName} size={30} className="min-[720px]:!h-9 min-[720px]:!w-9" />
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1">
-            {u ? (
-              <PlayerLink
-                user={u}
-                viewer={viewer}
-                className={cn("min-w-0 truncate text-[13px] min-[720px]:text-[14px]", me && "text-[var(--points-ink)]")}
-              >
-                {me ? "Ты" : undefined}
-              </PlayerLink>
-            ) : (
-              <span className="truncate text-[13px]">{slot.userId}</span>
-            )}
-            {isMvp && (
-              <Star className="h-3.5 w-3.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" aria-label="MVP" />
-            )}
-          </span>
-          <span className="block truncate text-[11px] text-[var(--text-3)]">
-            {POSITION_LABELS[slot.position]?.split("·")[1]?.trim()}
-            {showPower && u?.profile && (
-              <span className="ml-1.5 font-mono-num text-[var(--power)]">{u.profile.finalRating}</span>
-            )}
-          </span>
-        </span>
-        <PositionBadge position={slot.position} className="min-[720px]:h-6 min-[720px]:w-6 min-[720px]:text-[12px]" />
-      </li>
-    );
-  };
-
-  return (
-    <div className="mt-4 grid grid-cols-2 gap-2 min-[720px]:gap-3">
-      <ul className="space-y-1.5 min-[720px]:space-y-2">{radiant.map(tile)}</ul>
-      <ul className="space-y-1.5 min-[720px]:space-y-2">{dire.map(tile)}</ul>
-    </div>
-  );
-}
-
-/* ---------- прошлые матчи: строка, раскрывается по тапу ---------- */
 
 function PastMatchRow({
   session,
@@ -519,7 +337,10 @@ function sumPower(ids: string[], userMap: Record<string, UserRow>) {
   return ids.reduce((s, id) => s + (userMap[id]?.profile?.finalRating ?? 0), 0);
 }
 
-function sumPoints(participants: { userId: string; pointsAwarded: number }[], teamIds: string[]) {
+function sumPoints(
+  participants: { userId: string; pointsEarned: number }[],
+  teamIds: string[]
+) {
   const set = new Set(teamIds);
-  return participants.filter((p) => set.has(p.userId)).reduce((s, p) => s + p.pointsAwarded, 0);
+  return participants.filter((p) => set.has(p.userId)).reduce((s, p) => s + p.pointsEarned, 0);
 }
