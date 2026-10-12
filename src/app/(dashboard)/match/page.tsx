@@ -9,9 +9,12 @@ import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { MatchGameBoard, type MatchGameView } from "@/components/MatchGameBoard";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
+import { PageHeader } from "@/components/ui/page-header";
 import { teamDisplayName } from "@/lib/team-names";
 import { parseTeamAssignments } from "@/lib/match-lineup";
 import { lineupsForGame, seriesScoreByGame1Roster } from "@/lib/match-score";
+
+export const metadata = { title: "Субботние 5v5" };
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +82,7 @@ export default async function MatchPage() {
 
   return (
     <div>
-      <h1 className="mb-5">Субботние 5v5</h1>
+      <PageHeader eyebrow="Каждую субботу" title="Субботние 5v5" className="mb-5 min-[720px]:mb-6" />
       <MatchNav />
 
       {!featured ? (
@@ -338,9 +341,9 @@ function sumPower(ids: string[], userMap: Record<string, UserRow>) {
 }
 
 function sumPoints(
-  participants: { userId: string; pointsEarned: number }[],
+  participants: { userId: string; pointsAwarded: number }[],
   teamIds: string[]
 ) {
   const set = new Set(teamIds);
-  return participants.filter((p) => set.has(p.userId)).reduce((s, p) => s + p.pointsEarned, 0);
+  return participants.filter((p) => set.has(p.userId)).reduce((s, p) => s + p.pointsAwarded, 0);
 }
