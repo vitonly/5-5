@@ -53,8 +53,20 @@ export function HomeLiveStreams({
 
   return (
     <section>
-      <h3 className="mb-3 text-[var(--danger)]">Сейчас в эфире</h3>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{cards}</div>
+      <div className="mb-3 flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5" aria-hidden>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+        </span>
+        <h2 className="text-[17px] leading-snug min-[720px]:text-[20px]">Сейчас в эфире</h2>
+      </div>
+      <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+        {cards.map((c, i) => (
+          <div key={i} className="w-[78%] shrink-0 snap-start sm:w-auto">
+            {c}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

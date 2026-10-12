@@ -1,3 +1,4 @@
+import { ViewTransition } from "react";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { Navbar } from "@/components/Navbar";
@@ -25,7 +26,7 @@ export default async function AdminLayout({
         </div>
       </div>
       <main className="rise-in page-shell py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] min-[720px]:py-10 min-[720px]:pb-10">
-        {children}
+        <ViewTransition>{children}</ViewTransition>
       </main>
       <VoiceDock role={user.role} myId={user.id} />
       <ChatPanel role={user.role} myId={user.id} />

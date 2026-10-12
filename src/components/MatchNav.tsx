@@ -12,7 +12,7 @@ const TABS = [
 export function MatchNav() {
   const pathname = usePathname();
   return (
-    <div className="no-scrollbar mb-6 flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1">
+    <div className="no-scrollbar mb-6 flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1 min-[720px]:inline-flex">
       {TABS.map((t) => {
         const active = pathname === t.href;
         return (
@@ -20,7 +20,7 @@ export function MatchNav() {
             key={t.href}
             href={t.href}
             aria-current={active ? "page" : undefined}
-            className={`press min-h-[44px] flex-1 whitespace-nowrap rounded-[var(--radius-sm)] px-3 py-2.5 text-center text-sm font-medium transition-[background-color,color,box-shadow] duration-[200ms] min-[720px]:min-h-0 ${
+            className={`press min-h-[44px] flex-1 whitespace-nowrap rounded-[var(--radius-sm)] px-3 py-2.5 text-center text-sm font-medium transition-[background-color,color,box-shadow] duration-[200ms] min-[720px]:min-h-0 min-[720px]:flex-none min-[720px]:px-5 ${
               active
                 ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)]"
                 : "text-[var(--text-2)] hover:text-[var(--text)]"

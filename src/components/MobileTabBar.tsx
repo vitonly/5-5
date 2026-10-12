@@ -91,6 +91,7 @@ export function MobileTabBar({
     icon: Tab["icon"];
     badge?: number;
     matchPrefix?: string;
+    alsoMatch?: string[];
     exact?: boolean;
   }>;
 }) {
@@ -102,6 +103,7 @@ export function MobileTabBar({
     icon: t.icon,
     badge: t.badge,
     match: (path: string) => {
+      if (t.alsoMatch?.some((p) => path === p || path.startsWith(p + "/"))) return true;
       if (t.exact || t.href === "/") return path === t.href;
       const prefix = t.matchPrefix ?? t.href;
       return path === prefix || path.startsWith(prefix + "/");

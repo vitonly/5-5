@@ -103,6 +103,7 @@ export async function Navbar() {
       label: "Профиль",
       icon: "profile" as const,
       matchPrefix: "/profile",
+      alsoMatch: [`/player/${user.id}`],
     },
   ];
 

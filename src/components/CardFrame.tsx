@@ -126,12 +126,15 @@ export function CardFrame({
   firstName,
   lastName,
   photoUrl,
+  size = CARD_WIDTH,
 }: {
   design: CardDesign;
   rating: number;
   firstName: string;
   lastName?: string | null;
   photoUrl?: string | null;
+  /** ширина в px; высота масштабируется пропорционально */
+  size?: number;
 }) {
   const clipId = `clip-${design.id}`;
   const borderId = `border-${design.id}`;
@@ -151,9 +154,9 @@ export function CardFrame({
   return (
     <svg
       viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`}
-      width={CARD_WIDTH}
-      height={CARD_HEIGHT}
-      className="drop-shadow-[var(--shadow-popover)]"
+      width={size}
+      height={Math.round((size * CARD_HEIGHT) / CARD_WIDTH)}
+      className="block h-auto max-w-full drop-shadow-2xl"
       style={{ filter: `drop-shadow(0 12px 32px ${design.glow})` }}
     >
       <defs>
