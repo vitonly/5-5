@@ -1,8 +1,11 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
+import { confirmAction } from "@/components/ui/confirm";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvatarUpload } from "@/components/AvatarUpload";
@@ -17,6 +20,8 @@ import {
   parseSecondaryRoles,
 } from "@/lib/secondary-roles";
 import { displayName } from "@/lib/utils";
+import { Avatar } from "@/components/home/Avatar";
+import { LogIn, Trash2 } from "lucide-react";
 import type { User, PlayerProfile } from "@prisma/client";
 
 type Student = User & { profile: PlayerProfile | null };
@@ -40,6 +45,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const [reminding, setReminding] = useState(false);
+  const [query, setQuery] = useState("");
   const [notifyingCreds, setNotifyingCreds] = useState(false);
 
   const missingRoles = useMemo(
@@ -139,7 +145,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   }
 
   async function removeStudent(studentId: string) {
-    if (!confirm("Удалить ученика? Это действие нельзя отменить.")) return;
+    if (!(await confirmAction("Удалить ученика? Это действие нельзя отменить."))) return;
     await fetch("/api/students", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -166,14 +172,14 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
           Array.isArray(data.skippedNames) && data.skippedNames.length
             ? `\nБез TG: ${data.skippedNames.join(", ")}`
             : "";
-        alert(
+        toast.error(
           (typeof data.error === "string" ? data.error : "Не удалось отправить") +
             skip
         );
         return;
       }
       if (opts?.testToAdmin) {
-        alert("Тест отправлен вам в Telegram");
+        toast.success("Тест отправлен вам в Telegram");
         return;
       }
       const failNote =
@@ -184,7 +190,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         Array.isArray(data.skippedNames) && data.skippedNames.length
           ? `\nБез TG: ${data.skippedNames.join(", ")}`
           : "";
-      alert(`Отправлено: ${data.sent}.${skipNote}${failNote}`);
+      toast.success(`Отправлено: ${data.sent}.${skipNote}${failNote}`);
       router.refresh();
     } finally {
       setNotifyingCreds(false);
@@ -205,18 +211,18 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось отправить");
         return;
       }
       if (opts.testToAdmin) {
-        alert("Тест отправлен вам в Telegram");
+        toast.success("Тест отправлен вам в Telegram");
         return;
       }
       const failNote =
         Array.isArray(data.failed) && data.failed.length
           ? `\nБез TG / ошибка: ${data.failed.join(", ")}`
           : "";
-      alert(`Отправлено: ${data.sent}. Пропущено: ${data.skipped}.${failNote}`);
+      toast.success(`Отправлено: ${data.sent}. Пропущено: ${data.skipped}.${failNote}`);
     } finally {
       setReminding(false);
     }
@@ -234,7 +240,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {(pendingCredentials.length > 0 || pendingNoTg.length > 0) && (
         <Card>
           <CardHeader>
@@ -246,11 +252,11 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
               <Button
                 size="sm"
                 disabled={notifyingCreds || pendingCredentials.length === 0}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    !confirm(
+                    !(await confirmAction(
                       `Отправить каждому свой логин и пароль в Telegram?\nГотово: ${pendingCredentials.length}`
-                    )
+                    ))
                   ) {
                     return;
                   }
@@ -285,15 +291,12 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Добавить ученика (логин и пароль)</CardTitle>
-          <p className="text-sm text-[var(--text-3)]">
-            Ученик войдёт по логину и паролю. После сохранения пароля можно разослать доступы в
-            Telegram одной кнопкой выше.
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      <CollapsibleCard
+        variant="create"
+        title="Добавить ученика"
+        description="Вход по логину и паролю. Доступы потом можно разослать в Telegram."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label>Имя</Label>
             <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} />
@@ -324,44 +327,51 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
             </Button>
           </div>
           {createError && <p className="text-sm text-[var(--danger)] sm:col-span-2">{createError}</p>}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {missingRoles.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle>Не заполнены роли ({missingRoles.length})</CardTitle>
+        <CollapsibleCard
+          title={
+            <span className="inline-flex items-center gap-2">
+              Не заполнены роли
+              <span className="rounded-full bg-[var(--danger-bg)] px-2 py-0.5 font-mono-num text-[12px] font-bold text-[var(--danger)]">
+                {missingRoles.length}
+              </span>
+            </span>
+          }
+          description="Нет основной и/или дополнительных ролей — можно напомнить в Telegram"
+          headerExtra={
+            <>
               <Button
                 size="sm"
                 variant="secondary"
                 disabled={reminding}
                 onClick={() => remindRoles({ allIncomplete: true })}
               >
-                {reminding ? "Отправка…" : "Напомнить всем в TG"}
+                {reminding ? "Отправка…" : "Напомнить всем"}
               </Button>
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                className="hidden min-[560px]:inline-flex"
                 disabled={reminding}
                 onClick={() => remindRoles({ allIncomplete: true, testToAdmin: true })}
               >
                 Тест мне
               </Button>
-            </div>
-            <p className="text-sm text-[var(--text-3)]">
-              Нет основной и/или дополнительных ролей. Можно отправить напоминание в Telegram.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
+            </>
+          }
+        >
+          <div>
+            <ul className="divide-y divide-[var(--border-soft)]">
               {missingRoles.map((s) => (
                 <li
                   key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm"
+                  className="flex flex-wrap items-center gap-2 py-2.5 text-sm first:pt-0 last:pb-0"
                 >
-                  <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <PlayerLink user={s} className="font-medium" avatar={28} />
                       <span className="text-xs text-[var(--danger)]">
@@ -403,79 +413,92 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+          </div>
+        </CollapsibleCard>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <Card>
+      <div className="grid gap-4 pt-2 lg:grid-cols-2 lg:gap-6">
+        <Card className="lg:self-start">
           <CardHeader>
-            <CardTitle>Ученики ({students.length})</CardTitle>
+            <CardTitle className="flex items-baseline gap-2">
+              Ученики <span className="font-mono-num text-[14px] font-normal text-[var(--text-3)]">{students.length}</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {students.length === 0 ? (
               <p className="text-[var(--text-3)]">Учеников пока нет</p>
             ) : (
-              <ul className="space-y-2">
-                {students.map((s) => (
+              <>
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Поиск по имени или логину"
+                  className="mb-3"
+                />
+                <ul className="-mx-2 space-y-0.5">
+                {students
+                  .filter((s) => {
+                    const q = query.trim().toLowerCase();
+                    if (!q) return true;
+                    return [s.firstName, s.lastName, s.login, s.username]
+                      .filter(Boolean)
+                      .some((v) => String(v).toLowerCase().includes(q));
+                  })
+                  .map((s) => {
+                  const isSel = selected?.id === s.id;
+                  const hasLogin = Boolean(s.login && s.passwordHash);
+                  return (
                   <li
                     key={s.id}
-                    className={`flex items-center justify-between gap-2 rounded-[var(--radius-control)] px-3 py-2 text-sm ${
-                      selected?.id === s.id
-                        ? "border border-[var(--admin-border)] bg-[var(--admin-bg)]"
-                        : "hover:bg-[var(--control)]"
+                    className={`group flex items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-sm transition-colors ${
+                      isSel ? "bg-[var(--admin-bg)] ring-1 ring-[var(--admin-border)]" : "hover:bg-[var(--surface-muted)]"
                     }`}
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <PlayerLink user={s} className="shrink-0 font-medium" avatar={28} />
-                      <button
-                        type="button"
-                        onClick={() => selectStudent(s)}
-                        className="min-w-0 flex-1 truncate text-left text-[var(--text-3)]"
-                      >
-                        {s.login && <span> · @{s.login}</span>}
-                        <span> — {s.profile?.finalRating ?? "—"}</span>
-                        {hasIncompleteRoles(s.profile) && (
-                          <span className="ml-2 text-xs text-[var(--danger)]">роли!</span>
-                        )}
-                        <span
-                          className={`ml-2 text-xs ${
-                            s.login && s.passwordHash
-                              ? "text-[var(--success)]"
-                              : "text-[var(--text-3)]"
-                          }`}
-                        >
-                          {s.login && s.passwordHash ? "вход ✓" : "вход —"}
+                    <button
+                      type="button"
+                      onClick={() => selectStudent(s)}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                    >
+                      <Avatar photoUrl={s.photoUrl} firstName={s.firstName} lastName={s.lastName} size={32} />
+                      <span className="min-w-0 flex-1">
+                        <span className={`block truncate font-medium ${isSel ? "text-[var(--admin-ink)]" : "text-[var(--text)]"}`}>
+                          {[s.firstName, s.lastName].filter(Boolean).join(" ")}
                         </span>
-                        {s.loginPasswordTemp && (
-                          <span className="ml-2 text-xs text-[var(--points)]">
-                            → TG
-                          </span>
-                        )}
-                        <span
-                          className={`ml-2 text-xs ${
-                            s.telegramChatId ? "text-[var(--success)]" : "text-[var(--text-3)]"
-                          }`}
-                        >
-                          {s.telegramChatId ? "TG ✓" : "TG —"}
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[var(--text-3)]">
+                          {s.login && <span className="font-mono-num">@{s.login}</span>}
+                          <span className="font-mono-num">сила {s.profile?.finalRating ?? "—"}</span>
+                          <StatusDot ok={hasLogin} label="вход" />
+                          <StatusDot ok={Boolean(s.telegramChatId)} label="TG" />
+                          {hasIncompleteRoles(s.profile) && <span className="font-medium text-[var(--danger)]">роли!</span>}
+                          {s.loginPasswordTemp && <span className="text-[var(--points-ink)]">пароль → TG</span>}
                         </span>
-                      </button>
-                    </div>
-                    <Button size="sm" variant="secondary" onClick={() => impersonate(s.id)}>
-                      Зайти за него
+                      </span>
+                    </button>
+                    <Button size="sm" variant="ghost" onClick={() => impersonate(s.id)} title="Зайти за ученика">
+                      <LogIn aria-hidden />
+                      <span className="hidden min-[560px]:inline">Зайти</span>
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => removeStudent(s.id)}>
-                      ✕
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => removeStudent(s.id)}
+                      aria-label={`Удалить ${displayName(s)}`}
+                      className="px-2 text-[var(--text-3)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
+                    >
+                      <Trash2 aria-hidden />
                     </Button>
                   </li>
-                ))}
-              </ul>
+                  );
+                })}
+                </ul>
+              </>
             )}
           </CardContent>
         </Card>
 
         {selected?.profile && (
-          <div className="space-y-4">
+          <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
             <PlayerCard
               user={{
                 ...selected,
@@ -573,5 +596,14 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         )}
       </div>
     </div>
+  );
+}
+
+function StatusDot({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 ${ok ? "text-[var(--success-ink)]" : "text-[var(--text-3)]"}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-[var(--success)]" : "bg-[var(--border-field)]"}`} aria-hidden />
+      {label}
+    </span>
   );
 }

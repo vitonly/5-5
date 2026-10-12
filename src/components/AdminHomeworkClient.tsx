@@ -1,8 +1,10 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Segmented } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -290,18 +292,15 @@ export function AdminHomeworkClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Ошибка");
+      toast.error(typeof data.error === "string" ? data.error : "Ошибка");
       return;
     }
     if (testToAdmin) {
-      alert("Тест отправлен вам в Telegram");
+      toast.success("Тест отправлен вам в Telegram");
       return;
     }
-    alert(
-      data.delivered
-        ? "Напоминание отправлено в Telegram!"
-        : "Не удалось отправить: у ученика нет привязанного Telegram или он не запускал бота."
-    );
+    if (data.delivered) toast.success("Напоминание отправлено в Telegram");
+    else toast.error("Не удалось отправить: у ученика нет привязанного Telegram или он не запускал бота.");
   }
 
   function toggleStudent(id: string) {
@@ -336,38 +335,29 @@ export function AdminHomeworkClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setTab("create");
-            setReviewStudentId(null);
-          }}
-          className={`rounded-[var(--radius-control)] border px-4 py-2 text-sm font-medium ${
-            tab === "create"
-              ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
-              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
-          }`}
-        >
-          Выдать задание
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("review")}
-          className={`relative rounded-[var(--radius-control)] border px-4 py-2 text-sm font-medium ${
-            tab === "review"
-              ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
-              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
-          }`}
-        >
-          Проверить работы
-          {pendingReview.length > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">
-              {pendingReview.length > 9 ? "9+" : pendingReview.length}
-            </span>
-          )}
-        </button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={(v) => {
+          setTab(v);
+          if (v === "create") setReviewStudentId(null);
+        }}
+        items={[
+          { value: "create", label: "Выдать задание" },
+          {
+            value: "review",
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                Проверить работы
+                {pendingReview.length > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--danger)] px-1.5 text-[11px] font-bold text-white">
+                    {pendingReview.length > 9 ? "9+" : pendingReview.length}
+                  </span>
+                )}
+              </span>
+            ),
+          },
+        ]}
+      />
 
       {tab === "create" ? (
         <Card>

@@ -4,8 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
+import { PageHeader } from "@/components/ui/page-header";
 import { PointsPill } from "@/components/StatPills";
 import { SEASON_LABELS } from "@/lib/labels";
+
+export const metadata = { title: "Сезоны 5v5" };
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +48,7 @@ export default async function MatchSeasonsPage() {
 
   return (
     <div>
-      <h1 className="mb-6">Субботние 5v5</h1>
+      <PageHeader eyebrow="Каждую субботу" title="Субботние 5v5" className="mb-5 min-[720px]:mb-6" />
       <MatchNav />
 
       {standings.length === 0 ? (

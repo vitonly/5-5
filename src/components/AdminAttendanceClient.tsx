@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -190,7 +191,7 @@ export function AdminAttendanceClient() {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.error || "Ошибка");
+      toast.error(data.error || "Ошибка");
       return;
     }
     await load();

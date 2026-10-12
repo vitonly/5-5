@@ -1,3 +1,5 @@
+export const metadata = { title: "Правила" };
+
 export default function RulesPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">

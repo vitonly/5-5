@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
+import { confirmAction } from "@/components/ui/confirm";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -20,6 +22,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
+import { PositionBadge } from "@/components/RoleIcon";
+import { Segmented } from "@/components/ui/segmented";
+import { seriesScoreByGame1Roster } from "@/lib/match-score";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -84,6 +90,7 @@ export function AdminMatchesClient({
   sessions: Session[];
   students: Student[];
 }) {
+  const [createMode, setCreateMode] = useState<"open" | "manual">("open");
   const router = useRouter();
   const [sessions, setSessions] = useState(initial);
   const [date, setDate] = useState("");
@@ -122,7 +129,8 @@ export function AdminMatchesClient({
             onChange={(e) =>
               setReshuffleIntensity(Number(e.target.value) as ReshuffleIntensity)
             }
-            className="w-full accent-[var(--accent)]"
+            className="range-points w-full"
+            style={{ "--val": `${((reshuffleIntensity - 1) / 4) * 100}%` } as React.CSSProperties}
             disabled={saving}
           />
           <span className="flex justify-between text-[11px] text-[var(--text-3)]">
@@ -223,7 +231,7 @@ export function AdminMatchesClient({
         return;
       }
       if (testToAdmin) {
-        alert("Тест отправлен вам в Telegram");
+        toast.success("Тест отправлен вам в Telegram");
         return;
       }
       setOpenDate("");
@@ -275,11 +283,11 @@ export function AdminMatchesClient({
     const hasGames = (session?.games.length ?? 0) > 0;
     const willSendMvp = hasGames && !opts?.cancelWithoutGames;
     if (
-      !confirm(
+      !(await confirmAction(
         willSendMvp
           ? "Завершить сессию? Голосование MVP откроется, игрокам уйдёт опрос в Telegram."
           : "Завершить сессию без игр? Опрос MVP не отправится."
-      )
+      ))
     ) {
       return;
     }
@@ -290,13 +298,13 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Не удалось завершить");
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось завершить");
       return;
     }
     if (data.mvpError) {
-      alert(`Сессия завершена, но MVP в TG не ушёл: ${data.mvpError}`);
+      toast.error(`Сессия завершена, но MVP в TG не ушёл: ${data.mvpError}`);
     } else if (data.mvp) {
-      alert(
+      toast.success(
         `Сессия завершена. MVP в TG: отправлено ${data.mvp.sent ?? 0}/${data.mvp.total ?? "?"}` +
           (data.mvp.skippedNoTg ? `, без TG: ${data.mvp.skippedNoTg}` : "") +
           (data.mvp.skippedVoted ? `, уже голосовали: ${data.mvp.skippedVoted}` : "") +
@@ -308,9 +316,9 @@ export function AdminMatchesClient({
 
   async function deleteSession(sessionId: string, label: string) {
     if (
-      !confirm(
+      !(await confirmAction(
         `Удалить сессию «${label}» целиком?\nОчки и винрейт за сыгранные игры откатятся. Это нельзя отменить.`
-      )
+      ))
     ) {
       return;
     }
@@ -321,7 +329,7 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Не удалось удалить");
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось удалить");
       return;
     }
     router.refresh();
@@ -335,7 +343,7 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Не удалось стартовать");
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось стартовать");
       return;
     }
     router.refresh();
@@ -356,7 +364,7 @@ export function AdminMatchesClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.error || "Ошибка");
+        toast.error(data.error || "Ошибка");
         return;
       }
       if (data.session) {
@@ -374,7 +382,7 @@ export function AdminMatchesClient({
         );
       }
       if (data.game2Notified) {
-        alert("Состав на игру №2 собран и разослан в Telegram.");
+        toast.success("Состав на игру №2 собран и разослан в Telegram.");
       }
       router.refresh();
     } finally {
@@ -384,9 +392,9 @@ export function AdminMatchesClient({
 
   async function confirmLineupsGame2(sessionId: string) {
     if (
-      !confirm(
+      !(await confirmAction(
         "Утвердить состав на игру №2? Игрокам уйдёт уведомление в Telegram."
-      )
+      ))
     ) {
       return;
     }
@@ -399,7 +407,7 @@ export function AdminMatchesClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(typeof data.error === "string" ? data.error : "Не удалось утвердить");
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось утвердить");
         return;
       }
       if (data.session) {
@@ -425,10 +433,10 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || "Ошибка");
+      toast.error(data.error || "Ошибка");
       return;
     }
-    alert(
+    toast.success(
       `MVP в TG: отправлено ${data.sent ?? 0}/${data.total ?? "?"}` +
         (data.skippedNoTg ? `, без TG: ${data.skippedNoTg}` : "") +
         (data.skippedVoted ? `, уже голосовали: ${data.skippedVoted}` : "") +
@@ -438,9 +446,9 @@ export function AdminMatchesClient({
 
   async function confirmLineups(sessionId: string) {
     if (
-      !confirm(
+      !(await confirmAction(
         "Утвердить составы? Игрокам уйдёт уведомление в Telegram по игре №1. Если 2-й состав уже собран — уйдёт и по игре №2. Если соберёте 2-й состав позже — он разошлётся автоматически при сборке. После этого можно стартовать сессию."
-      )
+      ))
     ) {
       return;
     }
@@ -451,14 +459,14 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Не удалось утвердить");
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось утвердить");
       return;
     }
     router.refresh();
   }
 
   async function removeFromSignup(sessionId: string, userId: string, name: string) {
-    if (!confirm(`Убрать ${name} из 5v5? Место займёт первый из очереди, команды пересоберутся.`)) {
+    if (!(await confirmAction(`Убрать ${name} из 5v5? Место займёт первый из очереди, команды пересоберутся.`))) {
       return;
     }
     const res = await fetch("/api/matches/signup", {
@@ -468,14 +476,14 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Не удалось убрать");
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось убрать");
       return;
     }
     router.refresh();
   }
 
   async function reinvitePlayer(sessionId: string, userId: string, name: string) {
-    if (!confirm(`Отправить ${name} повторный запрос в Telegram?`)) return;
+    if (!(await confirmAction(`Отправить ${name} повторный запрос в Telegram?`))) return;
     const res = await fetch("/api/matches/signup", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -483,14 +491,14 @@ export function AdminMatchesClient({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось отправить");
       return;
     }
     router.refresh();
   }
 
   async function undoLastGame(sessionId: string, gameId: string) {
-    if (!confirm("Отменить последнюю игру? Очки и стрик откатятся.")) return;
+    if (!(await confirmAction("Отменить последнюю игру? Очки и стрик откатятся."))) return;
     await fetch("/api/matches", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -631,11 +639,23 @@ export function AdminMatchesClient({
 
   return (
     <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Свой состав (вручную)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <CollapsibleCard
+        variant="create"
+        title="Новый 5v5"
+        description="Открытая запись через Telegram или свой состав вручную"
+        defaultOpen={!sessions.some((x) => x.status !== "COMPLETED")}
+      >
+        <div className="space-y-4">
+          <Segmented
+            value={createMode}
+            onChange={setCreateMode}
+            items={[
+              { value: "open", label: "Открытая запись (Telegram)" },
+              { value: "manual", label: "Свой состав" },
+            ]}
+          />
+          {createMode === "manual" ? (
+            <div className="space-y-4">
           <div>
             <Label>Дата (суббота)</Label>
             <Input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -662,14 +682,9 @@ export function AdminMatchesClient({
           <Button onClick={createSession} disabled={!date || selectedPlayers.length !== 10}>
             Сформировать команды
           </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Открытая запись (Telegram)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+            </div>
+          ) : (
+            <div className="space-y-4">
           <p className="text-sm text-[var(--text-3)]">
             Ученикам уйдёт сообщение с кнопками «Я играю» / «Не играю». Первые 10 — в состав,
             остальные в очередь. С Telegram: {withTelegram.length} из {students.length}.
@@ -773,10 +788,13 @@ export function AdminMatchesClient({
               Тест мне
             </Button>
           </div>
-        </CardContent>
-      </Card>
+            </div>
+          )}
+        </div>
+      </CollapsibleCard>
 
-      {sessions.map((session) => {
+      {(() => {
+        const renderSession = (session: (typeof sessions)[number]) => {
         const radiantIds = parseJsonArray(session.radiantPlayerIds);
         const direIds = parseJsonArray(session.direPlayerIds);
         const assignments = parseTeamAssignments(session.teamAssignments);
@@ -858,8 +876,17 @@ export function AdminMatchesClient({
         const powerDiff = Math.abs(radiantPower - direPower);
 
         return (
-          <Card key={session.id}>
-            <CardHeader>
+          <SessionShell
+            key={session.id}
+            collapsible={session.status === "COMPLETED"}
+            title={formatDate(session.date)}
+            summary={(() => {
+              const sc = seriesScoreByGame1Roster(session);
+              return session.games.length
+                ? `${radiantName.replace(/^Team\s+/i, "")} ${sc.radiantWins}:${sc.direWins} ${direName.replace(/^Team\s+/i, "")}`
+                : null;
+            })()}
+            header={
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle>{formatDate(session.date)}</CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
@@ -898,8 +925,9 @@ export function AdminMatchesClient({
                   </Button>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            }
+          >
+
               {isOpen && beforeStart && (
                 <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3 text-sm">
                   <p className="font-medium text-[var(--text)]">
@@ -986,7 +1014,7 @@ export function AdminMatchesClient({
                     <p className="font-display text-base font-semibold text-[var(--text)]">
                       Состав на игру №1
                     </p>
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
                       <TeamBlock
                         title={radiantName}
                         lineup={radiantLineup}
@@ -1061,7 +1089,7 @@ export function AdminMatchesClient({
                         <Badge variant="warning">Черновик — утвердите</Badge>
                       )}
                     </div>
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
                       <TeamBlock
                         title={game2RadiantName}
                         lineup={game2RadiantLineup}
@@ -1160,6 +1188,7 @@ export function AdminMatchesClient({
                   {!hasGame2 && intensityControl()}
                   <div className="flex flex-wrap gap-2">
                     <Button
+                      className="h-auto min-h-[46px] max-w-full whitespace-normal py-2 text-left min-[720px]:min-h-11"
                       onClick={() =>
                         recordResult(session.id, "RADIANT", nextGameNumber)
                       }
@@ -1168,6 +1197,7 @@ export function AdminMatchesClient({
                     </Button>
                     <Button
                       variant="secondary"
+                      className="h-auto min-h-[46px] max-w-full whitespace-normal py-2 text-left min-[720px]:min-h-11"
                       onClick={() => recordResult(session.id, "DIRE", nextGameNumber)}
                     >
                       Победа {activeWinDireName}
@@ -1344,10 +1374,31 @@ export function AdminMatchesClient({
                   )}
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </SessionShell>
         );
-      })}
+        };
+        const active = sessions.filter((x) => x.status !== "COMPLETED");
+        const done = sessions.filter((x) => x.status === "COMPLETED");
+        return (
+          <>
+            {active.length > 0 && (
+              <section className="space-y-4">
+                <h2 className="text-[17px] min-[720px]:text-[20px]">Текущие</h2>
+                {active.map(renderSession)}
+              </section>
+            )}
+            {done.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-[17px] min-[720px]:text-[20px]">Архив</h2>
+                  <span className="font-mono-num text-[13px] text-[var(--text-3)]">{done.length}</span>
+                </div>
+                {done.map(renderSession)}
+              </section>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -1427,34 +1478,27 @@ function TeamBlock({
   teamPower: number;
 }) {
   return (
-    <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3">
+    <div className="min-w-0 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="font-semibold text-[var(--text)]">{title}</p>
+        <p className="min-w-0 truncate font-semibold text-[var(--text)]">{title}</p>
         <span className="font-mono-num text-xs text-[var(--text-3)]">
           Σ сила {teamPower}
         </span>
       </div>
-      <ul className="space-y-2 text-sm">
+      <ul className="divide-y divide-[var(--border-soft)] text-sm">
         {lineup.map((slot) => {
           const student = map[slot.userId];
           const power = student?.profile?.finalRating ?? 0;
           return (
-            <li
-              key={`${slot.team}-${slot.position}`}
-              className="flex flex-col gap-1 border-b border-[var(--border-soft)] pb-2 last:border-0 last:pb-0"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex h-6 min-w-[4.5rem] shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 font-mono-num text-[11px] text-[var(--text-2)]">
-                  {POSITION_LABELS[slot.position] ?? `поз. ${slot.position}`}
-                </span>
-                {student ? (
-                  <PlayerLink user={student} className="inline" />
-                ) : (
-                  slot.userId
-                )}
-                <PowerPill value={power} />
-              </div>
-              <PlayerRolesDisplay profile={student?.profile} className="pl-1" />
+            <li key={`${slot.team}-${slot.position}`} className="flex items-center gap-2 py-1.5">
+              <PositionBadge position={slot.position} title={POSITION_LABELS[slot.position]} />
+              <span className="min-w-0 flex-1 truncate">
+                {student ? <PlayerLink user={student} className="inline" avatar={24} /> : slot.userId}
+              </span>
+              <span className="hidden shrink-0 min-[1100px]:inline-flex">
+                <PlayerRolesDisplay profile={student?.profile} />
+              </span>
+              <PowerPill value={power} />
             </li>
           );
         })}
@@ -1650,5 +1694,37 @@ function DraggableLineupEditor({
         ) : null}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+/** Карточка сессии: текущие раскрыты, завершённые свёрнуты в строку со счётом */
+function SessionShell({
+  collapsible,
+  title,
+  summary,
+  header,
+  children,
+}: {
+  collapsible: boolean;
+  title: string;
+  summary?: string | null;
+  header: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  if (collapsible) {
+    return (
+      <CollapsibleCard title={title} description={summary ?? "Без результата"}>
+        <div className="space-y-4">
+          <div className="flex flex-wrap justify-end gap-2">{header}</div>
+          {children}
+        </div>
+      </CollapsibleCard>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader>{header}</CardHeader>
+      <CardContent className="space-y-4">{children}</CardContent>
+    </Card>
   );
 }

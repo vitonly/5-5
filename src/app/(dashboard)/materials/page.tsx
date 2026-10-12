@@ -2,6 +2,9 @@ import { prisma } from "@/lib/db";
 import { MaterialsClient } from "@/components/MaterialsClient";
 import { getSessionUser } from "@/lib/session";
 import type { ViewedMap } from "@/lib/materials";
+import { PageHeader } from "@/components/ui/page-header";
+
+export const metadata = { title: "Материалы" };
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +28,7 @@ export default async function MaterialsPage() {
 
   return (
     <div>
-      <h1 className="mb-6">Обучающие материалы</h1>
+      <PageHeader eyebrow="Учёба" title="Материалы" description="Эфиры тренеров, свежие видео и статьи. Фильтруйте по своей позиции." />
       <MaterialsClient
         materials={materials}
         liveLogins={[]}

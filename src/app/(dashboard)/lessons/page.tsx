@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { LessonsArchiveClient } from "@/components/LessonsArchiveClient";
 import type { LessonDto } from "@/components/AdminLessonsClient";
 
+export const metadata = { title: "Уроки" };
+
 export const dynamic = "force-dynamic";
 
 export default async function LessonsPage() {

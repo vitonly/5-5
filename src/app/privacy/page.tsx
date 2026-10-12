@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Политика конфиденциальности · СТАРТ+",
+  title: "Политика конфиденциальности",
   description: "Обработка персональных данных на платформе СТАРТ+ dota2 education",
 };
 

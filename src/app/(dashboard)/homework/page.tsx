@@ -1,8 +1,17 @@
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { StudentHomeworkList } from "@/components/StudentHomeworkList";
+import { PageHeader } from "@/components/ui/page-header";
+import { POINT_VALUES, formatPoints } from "@/lib/points";
+
+export const metadata = { title: "Домашние задания" };
 
 export const dynamic = "force-dynamic";
+
+/** Время рендера: серверный компонент рендерится на каждый запрос */
+function renderTime() {
+  return Date.now();
+}
 
 export default async function HomeworkPage() {
   const user = await getSessionUser();
@@ -19,8 +28,12 @@ export default async function HomeworkPage() {
 
   return (
     <div>
-      <h1 className="mb-6">Домашние задания</h1>
-      <StudentHomeworkList assignments={assignments} materials={materials} />
+      <PageHeader
+        eyebrow="Учёба"
+        title="Домашние задания"
+        description={`Сдавайте до дедлайна: за принятую работу +${formatPoints(POINT_VALUES.HOMEWORK_DONE)} очка, за отличную — +${formatPoints(POINT_VALUES.HOMEWORK_EXCELLENT)}.`}
+      />
+      <StudentHomeworkList assignments={assignments} materials={materials} now={renderTime()} />
     </div>
   );
 }

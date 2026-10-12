@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { ConsentClient } from "@/components/ConsentClient";
 
+export const metadata = { title: "Согласие на обработку данных" };
+
 export default async function ConsentPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");

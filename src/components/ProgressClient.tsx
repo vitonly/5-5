@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,9 +125,10 @@ export function ProgressClient({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "Не удалось сохранить");
+        toast.error(data.error || "Не удалось сохранить");
         return;
       }
+      toast.success("День сохранён");
       await load();
     } finally {
       setSaving(false);

@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/ui/page-header";
 import { AdminHomeworkClient } from "@/components/AdminHomeworkClient";
+
+export const metadata = { title: "Домашки · Админка" };
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +22,7 @@ export default async function AdminHomeworkPage() {
 
   return (
     <div>
-      <h1 className="mb-6">Домашние задания</h1>
+      <PageHeader eyebrow="Панель тренера" title="Домашние задания" description="Выдавайте задания и проверяйте работы учеников." />
       <AdminHomeworkClient homeworks={homeworks} students={students} materials={materials} />
     </div>
   );

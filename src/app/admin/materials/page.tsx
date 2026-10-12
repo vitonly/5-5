@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/ui/page-header";
 import { AdminMaterialsClient } from "@/components/AdminMaterialsClient";
+
+export const metadata = { title: "Материалы · Админка" };
 
 export default async function AdminMaterialsPage() {
   const materials = await prisma.learningMaterial.findMany({
@@ -8,7 +11,7 @@ export default async function AdminMaterialsPage() {
 
   return (
     <div>
-      <h1 className="mb-6">Обучающие материалы</h1>
+      <PageHeader eyebrow="Панель тренера" title="Материалы" description="Видео, эфиры и статьи для ленты учеников." />
       <AdminMaterialsClient materials={materials} />
     </div>
   );

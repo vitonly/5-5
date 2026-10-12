@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/ui/page-header";
 import { AdminSeasonsClient } from "@/components/AdminSeasonsClient";
 import { migrateLegacySeasonDeadlines } from "@/lib/seasons";
+
+export const metadata = { title: "Сезоны · Админка" };
 
 export default async function AdminSeasonsPage() {
   await migrateLegacySeasonDeadlines();
@@ -23,7 +26,7 @@ export default async function AdminSeasonsPage() {
 
   return (
     <div>
-      <h1 className="mb-6">Сезоны</h1>
+      <PageHeader eyebrow="Панель тренера" title="Сезоны" description="Голосование за силу и тильт, дедлайны и закрытие сезона." />
       <AdminSeasonsClient seasons={seasons} students={students} />
     </div>
   );

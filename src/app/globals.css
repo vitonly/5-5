@@ -158,6 +158,12 @@ html {
   text-size-adjust: 100%;
 }
 
+html,
+body {
+  /* выезжающие панели (чат, голос) не должны давать горизонтальный скролл */
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -354,7 +360,7 @@ h3,
 
 @media (max-width: 719px) {
   /* iOS не зумит поля с шрифтом от 16px */
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.input-display),
   textarea,
   select {
     font-size: 16px !important;
@@ -514,4 +520,140 @@ input[type="radio"] {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+/* ---------- Скелетоны загрузки ---------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--control);
+  border-radius: var(--radius-control);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: skeleton-shine 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shine {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---------- Всплывающие уведомления ---------- */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+.toast-item {
+  animation: toast-in var(--duration-drawer) var(--ease-out) both;
+}
+.toast-item[data-leaving="true"] {
+  animation: toast-out var(--duration-ui) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+  .toast-item,
+  .toast-item[data-leaving="true"] {
+    animation: none;
+  }
+}
+
+/* ---------- Ползунок оценки ---------- */
+.range-points {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+}
+.range-points::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--points) var(--val, 50%), var(--control) var(--val, 50%));
+}
+.range-points::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--control);
+}
+.range-points::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--points);
+}
+.range-points::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -9px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--points);
+  box-shadow: var(--shadow-raised);
+  transition: transform var(--duration-press) var(--ease-out);
+}
+.range-points::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--points);
+  box-shadow: var(--shadow-raised);
+}
+.range-points:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+.range-points:focus-visible {
+  outline: none;
+}
+.range-points:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--points-bg), var(--shadow-raised);
+}
+/* у числа оценки убираем стрелки */
+input[type="number"].appearance-none::-webkit-inner-spin-button,
+input[type="number"].appearance-none::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ---------- Окно подтверждения ---------- */
+@keyframes confirm-fade {
+  from { opacity: 0; }
+}
+@keyframes confirm-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+.confirm-backdrop {
+  animation: confirm-fade var(--duration-ui) var(--ease-out);
+}
+.confirm-panel {
+  animation: confirm-pop var(--duration-drawer) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .confirm-backdrop,
+  .confirm-panel {
+    animation: none;
+  }
 }

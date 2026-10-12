@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -67,9 +68,10 @@ export function MatchMvpClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.error || "Ошибка");
+        toast.error(data.error || "Не удалось проголосовать");
         return;
       }
+      toast.success("Голос за MVP учтён");
       router.refresh();
       const st = await fetch(`/api/matches/mvp?sessionId=${sessionId}`);
       const stData = await st.json().catch(() => ({}));

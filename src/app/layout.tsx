@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toast";
+import { ConfirmHost } from "@/components/ui/confirm";
 
 // Заголовки: Unbounded — с кириллицей (Chakra Petch её не поддерживал)
 const unbounded = Unbounded({
@@ -25,11 +27,15 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "СТАРТ+ dota2 education",
+  title: {
+    default: "СТАРТ+ · dota2 education",
+    template: "%s · СТАРТ+",
+  },
+  applicationName: "СТАРТ+",
   description: "СТАРТ+ — платформа обучения Dota 2: домашки, рейтинги, 5v5. Сайт в разработке v1.01",
   icons: {
     icon: [{ url: "/brand/start-plus.png?v=2", type: "image/png" }],
-    apple: [{ url: "/brand/start-plus.png?v=2", type: "image/png" }],
+    apple: [{ url: "/pwa/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   appleWebApp: {
     capable: true,
@@ -55,7 +61,11 @@ export default function RootLayout({
       lang="ru"
       className={`${unbounded.variable} ${ibmPlex.variable} ${jetbrains.variable} antialiased`}
     >
-      <body className="min-h-screen bg-[var(--bg)] text-[var(--text)]">{children}</body>
+      <body className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+        {children}
+        <Toaster />
+        <ConfirmHost />
+      </body>
     </html>
   );
 }

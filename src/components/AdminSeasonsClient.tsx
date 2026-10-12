@@ -1,8 +1,12 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
+import { confirmAction } from "@/components/ui/confirm";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
+import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -198,35 +202,32 @@ export function AdminSeasonsClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось отправить");
         return;
       }
       if (opts.testToAdmin) {
-        alert("Тест отправлен вам в Telegram");
+        toast.success("Тест отправлен вам в Telegram");
         return;
       }
       const failNote =
         Array.isArray(data.failed) && data.failed.length
           ? `\nБез TG / ошибка: ${data.failed.join(", ")}`
           : "";
-      alert(`Отправлено: ${data.sent}. Пропущено: ${data.skipped}.${failNote}`);
+      toast.success(`Отправлено: ${data.sent}. Пропущено: ${data.skipped}.${failNote}`);
     } finally {
       setReminding(false);
     }
   }
 
   return (
-    <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Открыть сезон</CardTitle>
-          <p className="text-sm text-[var(--text-3)]">
-            Новый сезон становится активным: в него идут очки платформы и голосование. Предыдущие
-            сезоны закрываются, текущие очки платформы обнуляются (история сохраняется в логах
-            сезонов).
-          </p>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-4">
+    <div className="space-y-4">
+      <CollapsibleCard
+        variant="create"
+        title="Открыть новый сезон"
+        description="Новый сезон станет активным, предыдущие закроются, очки платформы обнулятся (история сохранится)."
+        defaultOpen={!seasons.some((x) => x.isActive)}
+      >
+        <div className="flex flex-wrap items-end gap-4">
           <div>
             <Label>Сезон</Label>
             <select
@@ -263,9 +264,9 @@ export function AdminSeasonsClient({
             />
             <p className="mt-1 text-xs text-[var(--text-3)]">Необязательно · полная смена сезона</p>
           </div>
-          <Button onClick={handleCreateSeason}>Открыть сезон</Button>
-        </CardContent>
-      </Card>
+          <Button variant="admin" onClick={handleCreateSeason}>Открыть сезон</Button>
+        </div>
+      </CollapsibleCard>
 
       {seasons.map((season) => {
         const { skillDone, vibeDone, expected } = progress(season);
@@ -276,8 +277,13 @@ export function AdminSeasonsClient({
         const expandKey = expanded[season.id] ?? null;
 
         return (
-          <Card key={season.id}>
-            <CardHeader>
+          <SeasonShell
+            key={season.id}
+            collapsible={!season.isActive}
+            title={`${SEASON_LABELS[season.name]} ${season.year}`}
+            summary={`Сезон закрыт · очки за сезон: ${formatPoints(seasonTotal)}`}
+            header={
+              <>
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle>
                   {SEASON_LABELS[season.name]} {season.year}
@@ -317,8 +323,10 @@ export function AdminSeasonsClient({
                 В списке ниже «оценил» — сколько ученик сам поставил другим. «Получил» — сколько
                 оценок пришло ему (это видно в профиле как «кто оценил вас»).
               </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              </>
+            }
+          >
+
               {season.status === "OPEN" && incomplete.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -363,10 +371,10 @@ export function AdminSeasonsClient({
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok) {
-                      alert(data.error || "Ошибка");
+                      toast.error(data.error || "Ошибка");
                       return;
                     }
-                    alert(`Пересчитана сила у ${data.recalculated ?? 0} игроков`);
+                    toast.success(`Пересчитана сила у ${data.recalculated ?? 0} игроков`);
                     router.refresh();
                   }}
                 >
@@ -377,9 +385,9 @@ export function AdminSeasonsClient({
                   variant="outline"
                   onClick={async () => {
                     if (
-                      !confirm(
+                      !(await confirmAction(
                         "Сбросить все оценки силы/тильта и обнулить моды? Сила станет = только база ранга."
-                      )
+                      ))
                     )
                       return;
                     const res = await fetch("/api/ratings", {
@@ -389,10 +397,10 @@ export function AdminSeasonsClient({
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok) {
-                      alert(data.error || "Ошибка");
+                      toast.error(data.error || "Ошибка");
                       return;
                     }
-                    alert(`Сброшено профилей: ${data.reset ?? 0}`);
+                    toast.success(`Сброшено профилей: ${data.reset ?? 0}`);
                     router.refresh();
                   }}
                 >
@@ -400,7 +408,7 @@ export function AdminSeasonsClient({
                 </Button>
               </div>
 
-              <div className="space-y-2">
+              <div className="divide-y divide-[var(--border-soft)] overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)]">
                 {students.map((student) => {
                   const rows = votesFrom(season, student.id);
                   const receivedRows = votesReceived(season, student.id);
@@ -413,11 +421,8 @@ export function AdminSeasonsClient({
                   const tab = detailTab[dk] ?? "given";
 
                   return (
-                    <div
-                      key={student.id}
-                      className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)]"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    <div key={student.id} className={isOpen ? "bg-[var(--surface-muted)]" : undefined}>
+                      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
                         <button
                           type="button"
                           className="min-w-0 flex-1 text-left text-sm text-[var(--text)]"
@@ -445,9 +450,10 @@ export function AdminSeasonsClient({
                           ) : (
                             <span className="ml-2 text-xs text-[var(--success)]">всё оценил</span>
                           )}
-                          <span className="ml-2 text-xs text-[var(--text-3)]">
-                            {isOpen ? "▾" : "▸"} детали
-                          </span>
+                          <ChevronDown
+                            aria-hidden
+                            className={`ml-1 inline h-4 w-4 align-[-3px] text-[var(--text-3)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+                          />
                         </button>
                         {season.status === "OPEN" && missing.length > 0 && (
                           <>
@@ -485,7 +491,7 @@ export function AdminSeasonsClient({
                       </div>
 
                       {isOpen && (
-                        <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
+                        <div className="space-y-3 border-t border-[var(--border-soft)] px-3 py-3">
                           <div className="flex gap-1 rounded-[var(--radius-control)] bg-[var(--control)] p-1">
                             <button
                               type="button"
@@ -640,11 +646,11 @@ export function AdminSeasonsClient({
                   <>
                     <Button
                       variant="secondary"
-                      onClick={() => {
+                      onClick={async () => {
                         if (
-                          confirm(
+                          (await confirmAction(
                             "Закрыть голосование? Ученики больше не смогут ставить и менять оценки силы/тильта. Очки платформы не сбросятся."
-                          )
+                          ))
                         ) {
                           seasonAction(season.id, "closeVoting");
                         }
@@ -654,11 +660,11 @@ export function AdminSeasonsClient({
                     </Button>
                     <Button
                       variant="destructive"
-                      onClick={() => {
+                      onClick={async () => {
                         if (
-                          confirm(
+                          (await confirmAction(
                             "Закрыть сезон полностью? Очки платформы у всех сбросятся до 0. История начислений сохранится. Голосование тоже закроется."
-                          )
+                          ))
                         ) {
                           seasonAction(season.id, "close");
                         }
@@ -670,11 +676,11 @@ export function AdminSeasonsClient({
                 ) : (
                   <>
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         if (
-                          confirm(
+                          (await confirmAction(
                             "Открыть голосование на 24 часа?\n\nУченики снова смогут оценить тех, кого не успели (например, новичка). Очки платформы не сбросятся. Через сутки голосование закроется само."
-                          )
+                          ))
                         ) {
                           seasonAction(season.id, "reopenVoting24h");
                         }
@@ -684,12 +690,12 @@ export function AdminSeasonsClient({
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => {
+                      onClick={async () => {
                         const d = deadlinesFor(season);
                         if (
-                          confirm(
+                          (await confirmAction(
                             "Продолжить сезон? Голосование откроется снова, текущие очки платформы сохранятся. Можно заранее поправить дедлайны выше и нажать «Сохранить дедлайны»."
-                          )
+                          ))
                         ) {
                           seasonAction(season.id, "continue", {
                             votingClosesAt: d.voting || undefined,
@@ -704,12 +710,12 @@ export function AdminSeasonsClient({
                 )}
                 <Button
                   variant="destructive"
-                  onClick={() => {
+                  onClick={async () => {
                     const label = `${SEASON_LABELS[season.name]} ${season.year}`;
                     if (
-                      confirm(
+                      (await confirmAction(
                         `Удалить сезон «${label}»?\n\nГолоса скилла и вайба за этот сезон будут стёрты. Записи очков платформы останутся, но без привязки к сезону.`
-                      )
+                      ))
                     ) {
                       seasonAction(season.id, "delete");
                     }
@@ -718,10 +724,41 @@ export function AdminSeasonsClient({
                   Удалить сезон
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+          </SeasonShell>
         );
       })}
     </div>
+  );
+}
+
+/** Активный сезон раскрыт, закрытые — свёрнуты в строку */
+function SeasonShell({
+  collapsible,
+  title,
+  summary,
+  header,
+  children,
+}: {
+  collapsible: boolean;
+  title: string;
+  summary: string;
+  header: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  if (collapsible) {
+    return (
+      <CollapsibleCard title={title} description={summary}>
+        <div className="space-y-4">
+          <div className="space-y-1.5">{header}</div>
+          {children}
+        </div>
+      </CollapsibleCard>
+    );
+  }
+  return (
+    <Card className="ring-1 ring-[var(--admin-border)]">
+      <CardHeader>{header}</CardHeader>
+      <CardContent className="space-y-4">{children}</CardContent>
+    </Card>
   );
 }

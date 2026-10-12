@@ -2,7 +2,10 @@ import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { VotingClient } from "@/components/VotingClient";
 import { MatchNav } from "@/components/MatchNav";
+import { PageHeader } from "@/components/ui/page-header";
 import { getVotingSeason } from "@/lib/seasons";
+
+export const metadata = { title: "Голосование" };
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +33,7 @@ export default async function VotePage() {
 
   return (
     <div>
-      <h1 className="mb-6">Субботние 5v5</h1>
+      <PageHeader eyebrow="Каждую субботу" title="Субботние 5v5" className="mb-5 min-[720px]:mb-6" />
       <MatchNav />
       <VotingClient openSeason={openSeason} students={students} currentUserId={user.id} />
     </div>

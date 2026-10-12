@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
 import { useCallback, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export function ImageCropDialog({
       onClose();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "Не удалось обработать изображение");
+      toast.error(e instanceof Error ? e.message : "Не удалось обработать изображение");
     } finally {
       setProcessing(false);
     }

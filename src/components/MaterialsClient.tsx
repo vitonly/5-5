@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { StreamCard } from "@/components/StreamCard";
+import { BookOpen, Check, ChevronRight, ExternalLink, FileText, PlayCircle, RotateCcw } from "lucide-react";
+import { OfflineStreamRow, StreamCard } from "@/components/StreamCard";
 import { VideoCard } from "@/components/VideoCard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DOTA_ROLE_LABELS, MATERIAL_TYPE_LABELS } from "@/lib/labels";
+import { FilterChips, Segmented } from "@/components/ui/segmented";
+import { SectionHeader } from "@/components/home/SectionHeader";
+import { EmptyState, LiveDot, roleFilterItems } from "@/components/materials/shared";
+import { MATERIAL_TYPE_LABELS } from "@/lib/labels";
 import {
   getViewedAt,
   isArchivedViewed,
@@ -17,11 +20,9 @@ import {
 } from "@/lib/materials";
 import { useMaterialViews } from "@/hooks/useMaterialViews";
 import { extractTwitchLogin } from "@/lib/twitch";
-import { materialDisplayTitle, parseJsonArray } from "@/lib/utils";
-import type { LearningMaterial, MaterialType, DotaRole } from "@prisma/client";
+import { cn, materialDisplayTitle, parseJsonArray } from "@/lib/utils";
+import type { LearningMaterial, DotaRole } from "@prisma/client";
 import type { LiveStream } from "@/lib/twitch";
-
-const ROLES = Object.keys(DOTA_ROLE_LABELS) as DotaRole[];
 
 type Filter = "ALL" | "STREAM" | "ARTICLE";
 type Tab = "active" | "viewed";
@@ -32,11 +33,6 @@ function materialMatchesRole(m: LearningMaterial, roleFilter: DotaRole | null) {
   if (pos.length === 0) return true;
   return pos.includes(roleFilter);
 }
-
-const chipActive =
-  "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]";
-const chipInactive =
-  "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]";
 
 export function MaterialsClient({
   materials,
@@ -172,94 +168,68 @@ export function MaterialsClient({
 
   const viewedCount = viewedVideos.length + viewedArticles.length;
 
+  const sortedLive = [...liveStreamEntries]
+    .sort((a, b) => (liveByLogin.get(b.login)?.viewers ?? 0) - (liveByLogin.get(a.login)?.viewers ?? 0))
+    .slice(0, 6);
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap gap-2 border-b border-[var(--border-soft)] pb-3">
-        <button
-          type="button"
-          onClick={() => setTab("active")}
-          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "active" ? chipActive : chipInactive
-          }`}
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between">
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: "active", label: "Лента" },
+            { value: "viewed", label: "Просмотренные", count: viewedCount || undefined },
+          ]}
+        />
+        <Link
+          href="/materials/videos"
+          className="press inline-flex h-11 items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm font-medium text-[var(--text)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--points-border)] min-[720px]:h-10"
         >
-          Материалы
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("viewed")}
-          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "viewed" ? chipActive : chipInactive
-          }`}
-        >
-          Просмотренные материалы
-          {viewedCount > 0 && (
-            <span className="ml-1.5 font-mono-num text-[var(--text-3)]">{viewedCount}</span>
-          )}
-        </button>
+          <span className="inline-flex items-center gap-2">
+            <PlayCircle className="h-4 w-4 text-[var(--points)]" aria-hidden />
+            Видеотека по позициям
+          </span>
+          <ChevronRight className="h-4 w-4 text-[var(--text-3)]" aria-hidden />
+        </Link>
       </div>
 
       {tab === "viewed" ? (
-        <ViewedTab
-          videos={viewedVideos}
-          articles={viewedArticles}
-          onUnmark={unmarkViewed}
-        />
+        <ViewedTab videos={viewedVideos} articles={viewedArticles} onUnmark={unmarkViewed} />
       ) : (
         <>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex gap-2">
-              {(["ALL", "STREAM", "ARTICLE"] as Filter[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTypeFilter(t)}
-                  className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    typeFilter === t ? chipActive : chipInactive
-                  }`}
-                >
-                  {t === "ALL" ? "Все" : MATERIAL_TYPE_LABELS[t as MaterialType]}
-                </button>
-              ))}
-              <Link
-                href="/materials/videos"
-                className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-medium transition-colors ${chipInactive}`}
-              >
-                {MATERIAL_TYPE_LABELS.VIDEO}
-              </Link>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setRoleFilter(null)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  !roleFilter ? chipActive : chipInactive
-                }`}
-              >
-                Все позиции
-              </button>
-              {ROLES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRoleFilter(r)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    roleFilter === r ? chipActive : chipInactive
-                  }`}
-                >
-                  {DOTA_ROLE_LABELS[r]}
-                </button>
-              ))}
-            </div>
+          <div className="space-y-2.5">
+            <FilterChips
+              label="Тип"
+              value={typeFilter === "ALL" ? null : typeFilter}
+              onChange={(v) => setTypeFilter(v ?? "ALL")}
+              items={[
+                { value: null, label: "Всё" },
+                { value: "STREAM" as const, label: MATERIAL_TYPE_LABELS.STREAM },
+                { value: "ARTICLE" as const, label: MATERIAL_TYPE_LABELS.ARTICLE },
+              ]}
+            />
+            <FilterChips label="Позиция" value={roleFilter} onChange={setRoleFilter} items={roleFilterItems()} />
           </div>
+
+          {showStreams && sortedLive.length > 0 && (
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <LiveDot />
+                <h2 className="text-[17px] leading-snug min-[720px]:text-[20px]">Сейчас в эфире</h2>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {sortedLive.map(({ material, login }) => (
+                  <StreamCard key={material.id} material={material} login={login} live={liveByLogin.get(login)} />
+                ))}
+              </div>
+            </section>
+          )}
 
           {showVideos && recentVideos.length > 0 && (
             <section>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="text-xl font-bold text-[var(--text)]">Новые видео</h2>
-                <Link href="/materials/videos" className="text-sm text-[var(--points)] hover:underline">
-                  Все видео →
-                </Link>
-              </div>
+              <SectionHeader title="Новые видео" href="/materials/videos" linkLabel="Все видео" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recentVideos.map((v) => {
                   const viewed = Boolean(getViewedAt(views, v.id));
@@ -281,33 +251,10 @@ export function MaterialsClient({
             </section>
           )}
 
-          {showStreams && liveStreamEntries.length > 0 && (
-            <section>
-              <h2 className="mb-4 text-xl font-bold text-[var(--text)]">🔴 Сейчас в эфире</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[...liveStreamEntries]
-                  .sort((a, b) => {
-                    const va = liveByLogin.get(a.login)?.viewers ?? 0;
-                    const vb = liveByLogin.get(b.login)?.viewers ?? 0;
-                    return vb - va;
-                  })
-                  .slice(0, 6)
-                  .map(({ material, login }) => (
-                  <StreamCard
-                    key={material.id}
-                    material={material}
-                    login={login}
-                    live={liveByLogin.get(login)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
           {showArticles && activeArticles.length > 0 && (
             <section>
-              <h2 className="mb-4 text-xl font-bold text-[var(--text)]">Статьи</h2>
-              <div className="grid gap-4 md:grid-cols-2">
+              <SectionHeader title="Статьи" />
+              <div className="grid gap-3 md:grid-cols-2">
                 {activeArticles.map((a) => {
                   const viewed = Boolean(getViewedAt(views, a.id));
                   return (
@@ -326,30 +273,21 @@ export function MaterialsClient({
 
           {showStreams && offlineStreamEntries.length > 0 && (
             <section>
-              <h2 className="mb-4 text-xl font-bold text-[var(--text)]">Трансляции офлайн</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SectionHeader title="Каналы тренеров" />
+              <div className="surface-card divide-y divide-[var(--border-soft)] overflow-hidden">
                 {offlineStreamEntries.map(({ material, login }) => (
-                  <StreamCard key={material.id} material={material} login={login} />
+                  <OfflineStreamRow key={material.id} material={material} login={login} />
                 ))}
               </div>
             </section>
           )}
 
-          {showStreams &&
-            streamEntries.length > 0 &&
-            liveStreamEntries.length === 0 &&
-            offlineStreamEntries.length === 0 && (
-              <p className="text-sm text-[var(--text-3)]">
-                Сейчас никто из выбранных каналов не в эфире.
-              </p>
-            )}
-
           {!hasAnyContent && (
-            <p className="text-[var(--text-3)]">
-              {roleFilter || typeFilter !== "ALL"
-                ? "Нет материалов для выбранного фильтра."
-                : "Материалы скоро появятся."}
-            </p>
+            <EmptyState
+              icon={<BookOpen />}
+              title={roleFilter || typeFilter !== "ALL" ? "Ничего не нашлось" : "Материалы скоро появятся"}
+              text={roleFilter || typeFilter !== "ALL" ? "Попробуйте другой фильтр." : undefined}
+            />
           )}
         </>
       )}
@@ -369,42 +307,59 @@ function ArticleCard({
   onUnmark: () => void;
 }) {
   return (
-    <Card className={viewed ? "opacity-55 grayscale" : undefined}>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className={viewed ? "text-[var(--text-3)]" : undefined}>{article.title}</CardTitle>
-          {viewed && (
-            <span className="shrink-0 font-mono-num text-[11px] uppercase tracking-wide text-[var(--text-3)]">
-              Просмотрено
-            </span>
+    <article
+      className={cn(
+        "surface-card flex flex-col p-4",
+        viewed && "border-[var(--border-soft)]"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)]",
+            viewed ? "bg-[var(--control)] text-[var(--text-3)]" : "bg-[var(--points-bg)] text-[var(--points)]"
+          )}
+        >
+          <FileText className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3
+            className={cn(
+              "text-[15px] font-semibold leading-snug",
+              viewed ? "text-[var(--text-3)]" : "text-[var(--text)]"
+            )}
+          >
+            {article.title}
+          </h3>
+          {article.description && (
+            <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--text-2)]">
+              {article.description}
+            </p>
           )}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <p className="whitespace-pre-wrap text-sm text-[var(--text-2)]">{article.description}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          {article.url && (
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block rounded-[var(--radius-control)] bg-[var(--points)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--points-hover)]"
-            >
+      </div>
+      <div className="mt-3 flex items-center gap-2 pl-[52px]">
+        {article.url && (
+          <Button asChild size="sm" variant={viewed ? "outline" : "default"}>
+            <a href={article.url} target="_blank" rel="noopener noreferrer">
               Читать
+              <ExternalLink aria-hidden />
             </a>
-          )}
-          {viewed ? (
-            <Button type="button" variant="ghost" size="sm" onClick={onUnmark}>
-              Вернуть в ленту
-            </Button>
-          ) : (
-            <Button type="button" variant="secondary" size="sm" onClick={onMark}>
-              Просмотрено
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          </Button>
+        )}
+        {viewed ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onUnmark}>
+            <RotateCcw aria-hidden />
+            Вернуть в ленту
+          </Button>
+        ) : (
+          <Button type="button" variant="ghost" size="sm" onClick={onMark}>
+            <Check aria-hidden />
+            Прочитано
+          </Button>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -415,15 +370,15 @@ function ViewedTab({
 }: {
   videos: LearningMaterial[];
   articles: LearningMaterial[];
-  views?: ViewedMap;
   onUnmark: (id: string) => void;
 }) {
   if (videos.length === 0 && articles.length === 0) {
     return (
-      <p className="text-[var(--text-3)]">
-        Здесь появятся материалы, которые вы отметите как просмотренные. Через неделю они остаются
-        только в этой вкладке.
-      </p>
+      <EmptyState
+        icon={<Check />}
+        title="Пока ничего не отмечено"
+        text="Отмечайте видео и статьи просмотренными — через неделю они уходят из ленты и остаются здесь."
+      />
     );
   }
 
@@ -431,7 +386,7 @@ function ViewedTab({
     <div className="space-y-8">
       {videos.length > 0 && (
         <section>
-          <h2 className="mb-4 text-xl font-bold text-[var(--text)]">Видео</h2>
+          <SectionHeader title="Видео" />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {videos.map((v) => (
               <VideoCard
@@ -449,16 +404,10 @@ function ViewedTab({
       )}
       {articles.length > 0 && (
         <section>
-          <h2 className="mb-4 text-xl font-bold text-[var(--text)]">Статьи</h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <SectionHeader title="Статьи" />
+          <div className="grid gap-3 md:grid-cols-2">
             {articles.map((a) => (
-              <ArticleCard
-                key={a.id}
-                article={a}
-                viewed
-                onMark={() => {}}
-                onUnmark={() => onUnmark(a.id)}
-              />
+              <ArticleCard key={a.id} article={a} viewed onMark={() => {}} onUnmark={() => onUnmark(a.id)} />
             ))}
           </div>
         </section>

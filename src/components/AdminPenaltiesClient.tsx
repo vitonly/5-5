@@ -45,7 +45,7 @@ export function AdminPenaltiesClient({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-6">
       <Card>
         <CardHeader>
           <CardTitle>Корректировка очков</CardTitle>
@@ -110,16 +110,27 @@ export function AdminPenaltiesClient({
           {initial.length === 0 ? (
             <p className="text-[var(--text-3)]">Записей пока нет</p>
           ) : (
-            <ul className="space-y-2 text-sm">
+            <ul className="divide-y divide-[var(--border-soft)] text-sm">
               {initial.map((p) => (
-                <li key={p.id} className="border-b border-[var(--border-soft)] py-2">
-                  <span className={p.amount >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
+                <li key={p.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                  <span
+                    className={`mt-0.5 inline-flex h-7 min-w-[52px] shrink-0 items-center justify-center rounded-full px-2 font-mono-num text-[13px] font-bold ${
+                      p.amount >= 0
+                        ? "bg-[var(--success-bg)] text-[var(--success-ink)]"
+                        : "bg-[var(--danger-bg)] text-[var(--danger)]"
+                    }`}
+                  >
                     {p.amount >= 0 ? "+" : "−"}
                     {formatPoints(Math.abs(p.amount))}
-                  </span>{" "}
-                  · <PlayerLink user={p.target} className="inline" /> · {p.reason}
-                  <span className="block text-xs text-[var(--text-3)]">
-                    {formatDate(p.createdAt)} · <PlayerLink user={p.admin} className="inline text-xs" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block">
+                      <PlayerLink user={p.target} className="inline font-medium" />
+                      <span className="text-[var(--text-2)]"> · {p.reason}</span>
+                    </span>
+                    <span className="block text-xs text-[var(--text-3)]">
+                      {formatDate(p.createdAt)} · {p.admin?.firstName}
+                    </span>
                   </span>
                 </li>
               ))}

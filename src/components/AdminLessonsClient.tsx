@@ -1,8 +1,12 @@
 "use client";
 
+import { confirmAction } from "@/components/ui/confirm";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
+import { Eye, EyeOff, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +52,7 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
 
   function resetForm() {
     setEditingId(null);
@@ -59,6 +64,8 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
   }
 
   function startEdit(lesson: LessonDto) {
+    setFormOpen(true);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     setEditingId(lesson.id);
     setTitle(lesson.title);
     setDescription(lesson.description ?? "");
@@ -138,7 +145,7 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
   }
 
   async function remove(id: string) {
-    if (!confirm("Удалить занятие из архива?")) return;
+    if (!(await confirmAction("Удалить занятие из архива?"))) return;
     const res = await fetch(`/api/lessons?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
@@ -152,12 +159,18 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
   }
 
   return (
-    <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>{editingId ? "Редактировать занятие" : "Добавить занятие"}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <CollapsibleCard
+        variant="create"
+        title={editingId ? "Редактировать занятие" : "Добавить занятие"}
+        description="Презентации, документы и файлы к занятию"
+        open={formOpen || Boolean(editingId)}
+        onOpenChange={(v) => {
+          setFormOpen(v);
+          if (!v) resetForm();
+        }}
+      >
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="lesson-title">Название</Label>
             <Input
@@ -239,11 +252,13 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold text-[var(--text)]">В архиве ({lessons.length})</h2>
+        <h2 className="flex items-baseline gap-2 text-[17px] min-[720px]:text-[20px]">
+          В архиве <span className="font-mono-num text-[13px] font-normal text-[var(--text-3)]">{lessons.length}</span>
+        </h2>
         {lessons.length === 0 ? (
           <p className="text-sm text-[var(--text-3)]">Пока пусто — добавьте первое занятие выше.</p>
         ) : (
@@ -254,15 +269,9 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-[var(--text)]">{lesson.title}</p>
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                          lesson.isOpen
-                            ? "bg-[var(--points-bg)] text-[var(--points-ink)]"
-                            : "bg-[var(--control)] text-[var(--text-3)]"
-                        }`}
-                      >
-                        {lesson.isOpen ? "Открыто" : "Закрыто"}
-                      </span>
+                      <Badge variant={lesson.isOpen ? "success" : "default"} className="h-5 px-2 text-[11px]">
+                        {lesson.isOpen ? "Видно ученикам" : "Скрыто"}
+                      </Badge>
                     </div>
                     <p className="font-mono-num text-xs text-[var(--text-3)]">
                       {formatDate(lesson.createdAt)}
@@ -271,23 +280,26 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant={lesson.isOpen ? "outline" : "admin"}
                       size="sm"
                       onClick={() => void toggleOpen(lesson)}
                     >
-                      {lesson.isOpen ? "Закрыть" : "Открыть"}
+                      {lesson.isOpen ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                      {lesson.isOpen ? "Скрыть" : "Открыть"}
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => startEdit(lesson)}>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(lesson)}>
+                      <Pencil aria-hidden />
                       Изменить
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => void remove(lesson.id)}
-                      className="text-[var(--danger)]"
+                      aria-label="Удалить"
+                      className="px-2 text-[var(--text-3)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
                     >
-                      Удалить
+                      <Trash2 aria-hidden />
                     </Button>
                   </div>
                 </div>
@@ -297,16 +309,18 @@ export function AdminLessonsClient({ lessons }: { lessons: LessonDto[] }) {
                   </p>
                 )}
                 {lesson.files.length > 0 && (
-                  <ul className="space-y-1">
+                  <ul className="flex flex-wrap gap-1.5">
                     {lesson.files.map((f) => (
                       <li key={f.id ?? f.url}>
                         <a
                           href={f.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-[var(--points)] hover:underline"
+                          className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 py-1 text-[12px] text-[var(--text)] hover:border-[var(--admin-border)]"
                         >
-                          {fileLabel(f.name)} · {f.name}
+                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--text-3)]" aria-hidden />
+                          <span className="font-semibold text-[var(--admin-ink)]">{fileLabel(f.name)}</span>
+                          <span className="truncate">{f.name}</span>
                         </a>
                       </li>
                     ))}

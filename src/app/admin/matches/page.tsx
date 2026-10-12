@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/ui/page-header";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
 import { recalculateAllMatchWinPoints } from "@/lib/points";
+
+export const metadata = { title: "Матчи · Админка" };
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +52,7 @@ export default async function AdminMatchesPage() {
 
   return (
     <div>
-      <h1 className="mb-6">5v5 матчи</h1>
+      <PageHeader eyebrow="Панель тренера" title="Субботние 5v5" description="Запись, составы, результаты игр и MVP." />
       <AdminMatchesClient sessions={sessions} students={students} />
     </div>
   );

@@ -1,6 +1,8 @@
 import { getSessionUser } from "@/lib/session";
 import { ProgressClient } from "@/components/ProgressClient";
 
+export const metadata = { title: "Прогресс" };
+
 export const dynamic = "force-dynamic";
 
 export default async function ProgressPage() {

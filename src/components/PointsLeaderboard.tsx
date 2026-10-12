@@ -1,6 +1,6 @@
 import { PlayerLink } from "@/components/PlayerLink";
-import { PointsPill } from "@/components/StatPills";
 import { SEASON_PRIZES, formatPoints } from "@/lib/points";
+import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
   userId: string;
@@ -10,6 +10,40 @@ interface LeaderboardEntry {
   photoUrl?: string | null;
   totalPoints: number;
   lifetimePoints?: number;
+}
+
+const MEDAL: Record<number, { bg: string; color: string }> = {
+  0: { bg: "linear-gradient(180deg, var(--gold-light), var(--gold))", color: "#fff" },
+  1: { bg: "linear-gradient(180deg, var(--silver-light), var(--silver))", color: "#fff" },
+  2: { bg: "linear-gradient(180deg, var(--bronze-light), var(--bronze))", color: "#fff" },
+};
+
+/** Номер места: топ-3 — медаль, остальные — моноширинная цифра */
+function Place({ index }: { index: number }) {
+  const medal = MEDAL[index];
+  if (medal) {
+    return (
+      <span
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full font-mono-num text-[13px] font-bold shadow-[var(--shadow-xs)]"
+        style={{ background: medal.bg, color: medal.color }}
+      >
+        {index + 1}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex h-7 w-7 items-center justify-center font-mono-num text-[14px] font-semibold text-[var(--text-3)]">
+      {index + 1}
+    </span>
+  );
+}
+
+function You() {
+  return (
+    <span className="ml-1.5 shrink-0 rounded-full bg-[var(--points)] px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">
+      вы
+    </span>
+  );
 }
 
 export function PointsLeaderboard({
@@ -24,110 +58,85 @@ export function PointsLeaderboard({
   seasonColumnLabel?: string;
 }) {
   if (entries.length === 0) {
-    return <p className="text-[var(--text-2)]">Пока нет данных</p>;
+    return (
+      <p className="surface-card px-4 py-10 text-center text-sm text-[var(--text-3)]">Пока нет данных</p>
+    );
   }
 
-  return (
-    <>
-      <div className="surface-card hidden overflow-hidden md:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[var(--surface-muted)] text-left">
-              <th className="px-4 py-3 eyebrow text-[var(--text-3)]">
-                Место
-              </th>
-              <th className="px-4 py-3 eyebrow text-[var(--text-3)]">
-                Игрок
-              </th>
-              <th className="px-4 py-3 text-right eyebrow text-[var(--text-3)]">
-                {seasonColumnLabel}
-              </th>
-              {showLifetime && (
-                <th className="px-4 py-3 text-right eyebrow text-[var(--text-3)]">
-                  За всё время
-                </th>
-              )}
-              <th className="px-4 py-3 eyebrow text-[var(--text-3)]">
-                Приз
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry, index) => (
-              <tr
-                key={entry.userId}
-                className={`border-t border-[var(--border-soft)] ${
-                  index === 0 ? "bg-[var(--points-bg)]/50" : "bg-[var(--surface)]"
-                }`}
-              >
-                <td className="px-4 py-3 font-mono-num font-bold text-[var(--points)]">
-                  {index + 1}
-                </td>
-                <td className="px-4 py-3">
-                  <PlayerLink
-                    user={{
-                      id: entry.userId,
-                      firstName: entry.firstName,
-                      lastName: entry.lastName,
-                      username: entry.username,
-                      photoUrl: entry.photoUrl,
-                    }}
-                    viewer={viewer}
-                    avatar={28}
-                  />
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <PointsPill value={entry.totalPoints} showLabel={false} />
-                </td>
-                {showLifetime && (
-                  <td className="px-4 py-3 text-right font-mono-num text-[var(--text-3)]">
-                    {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
-                  </td>
-                )}
-                <td className="px-4 py-3 text-[var(--text-2)]">
-                  {index < SEASON_PRIZES.length ? SEASON_PRIZES[index] : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  const cols = showLifetime
+    ? "grid-cols-[32px_minmax(0,1fr)_auto] min-[720px]:grid-cols-[48px_minmax(0,1fr)_180px_120px_96px]"
+    : "grid-cols-[32px_minmax(0,1fr)_auto] min-[720px]:grid-cols-[48px_minmax(0,1fr)_180px_96px]";
 
-      <div className="space-y-2 md:hidden">
-        {entries.map((entry, index) => (
+  return (
+    <div className="surface-card overflow-hidden" role="table" aria-label="Таблица лидеров">
+      <div
+        role="row"
+        className={cn("hidden items-center gap-3 bg-[var(--surface-muted)] px-4 py-3 min-[720px]:grid", cols)}
+      >
+        <span role="columnheader" className="eyebrow">#</span>
+        <span role="columnheader" className="eyebrow">Игрок</span>
+        <span role="columnheader" className="eyebrow">Приз</span>
+        {showLifetime && <span role="columnheader" className="eyebrow text-right">За всё время</span>}
+        <span role="columnheader" className="eyebrow text-right">{seasonColumnLabel}</span>
+      </div>
+      {entries.map((entry, index) => {
+        const me = viewer?.id === entry.userId;
+        const prize = index < SEASON_PRIZES.length ? SEASON_PRIZES[index] : null;
+        return (
           <div
             key={entry.userId}
-            className={`flex items-center justify-between gap-3 rounded-[var(--radius-card)] border px-4 py-3 ${
-              index === 0
-                ? "border-[var(--points-border)] bg-[var(--points-bg)]"
-                : "border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
-            }`}
+            role="row"
+            className={cn(
+              "grid items-center gap-3 border-t border-[var(--border-soft)] px-3 py-2.5 first:border-t-0 min-[720px]:px-4 min-[720px]:py-3 min-[720px]:first:border-t",
+              cols,
+              me ? "bg-[var(--points-bg)]" : "bg-[var(--surface)]"
+            )}
           >
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="font-mono-num w-6 shrink-0 font-bold text-[var(--points)]">{index + 1}</span>
-              <PlayerLink
-                user={{
-                  id: entry.userId,
-                  firstName: entry.firstName,
-                  lastName: entry.lastName,
-                  username: entry.username,
-                  photoUrl: entry.photoUrl,
-                }}
-                viewer={viewer}
-                avatar={28}
-              />
+            <span role="cell">
+              <Place index={index} />
+            </span>
+            <div role="cell" className="min-w-0">
+              <div className="flex min-w-0 items-center">
+                <PlayerLink
+                  user={{
+                    id: entry.userId,
+                    firstName: entry.firstName,
+                    lastName: entry.lastName,
+                    username: entry.username,
+                    photoUrl: entry.photoUrl,
+                  }}
+                  viewer={viewer}
+                  avatar={30}
+                />
+                {me && <You />}
+              </div>
+              {prize && <p className="mt-0.5 pl-[38px] text-[11px] text-[var(--gold-ink)] min-[720px]:hidden">{prize}</p>}
             </div>
-            <div className="shrink-0 text-right">
-              <PointsPill value={entry.totalPoints} />
+            <span role="cell" className="hidden text-[13px] min-[720px]:block">
+              {prize ? (
+                <span className="font-medium text-[var(--gold-ink)]">{prize}</span>
+              ) : (
+                <span className="text-[var(--text-3)]">—</span>
+              )}
+            </span>
+            {showLifetime && (
+              <span role="cell" className="hidden text-right font-mono-num text-[var(--text-3)] min-[720px]:block">
+                {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
+              </span>
+            )}
+            <div role="cell" className="text-right">
+              <span className="font-mono-num text-[15px] font-bold text-[var(--points-ink)]">
+                {formatPoints(entry.totalPoints)}
+              </span>
               {showLifetime && (
-                <p className="mt-0.5 font-mono-num text-[11px] text-[var(--text-3)]">
+                <p className="whitespace-nowrap font-mono-num text-[11px] text-[var(--text-3)] min-[720px]:hidden">
                   всего {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
                 </p>
               )}
             </div>
           </div>
-        ))}
-      </div>
-    </>
+        );
+      })}
+    </div>
   );
 }

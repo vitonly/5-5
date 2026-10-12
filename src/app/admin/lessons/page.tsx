@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/ui/page-header";
 import { AdminLessonsClient, type LessonDto } from "@/components/AdminLessonsClient";
+
+export const metadata = { title: "Уроки · Админка" };
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +29,12 @@ export default async function AdminLessonsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[var(--text)]">Архив занятий</h1>
-        <p className="mt-1 text-sm text-[var(--text-3)]">
-          Добавляйте материалы и жмите «Открыть» — только тогда ученики увидят занятие.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Панель тренера"
+        title="Архив занятий"
+        description="Добавляйте материалы и жмите «Открыть» — только тогда ученики увидят занятие."
+        className="mb-0 min-[720px]:mb-0"
+      />
       <AdminLessonsClient lessons={lessons} />
     </div>
   );

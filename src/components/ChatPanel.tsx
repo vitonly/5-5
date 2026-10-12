@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/components/ui/toast";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate } from "@/lib/utils";
 import { usePasteImage } from "@/lib/use-paste-image";
@@ -121,7 +122,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
         setDraft(body);
         setPendingImage(imageUrl);
         const data = await res.json().catch(() => ({}));
-        alert(typeof data.error === "string" ? data.error : "Не удалось отправить");
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось отправить");
         return;
       }
       void loadMessages();
@@ -129,7 +130,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
     } catch {
       setDraft(body);
       setPendingImage(imageUrl);
-      alert("Не удалось отправить");
+      toast.error("Не удалось отправить");
     } finally {
       setSending(false);
     }

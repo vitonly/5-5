@@ -1,9 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Check, PlayCircle } from "lucide-react";
 import { VideoCard } from "@/components/VideoCard";
-import { DOTA_ROLE_LABELS, SKILL_LEVEL_LABELS } from "@/lib/labels";
+import { PositionBadge } from "@/components/RoleIcon";
+import { FilterChips, Segmented } from "@/components/ui/segmented";
+import { EmptyState, ROLES, roleFilterItems, roleName } from "@/components/materials/shared";
+import { DOTA_ROLE_POSITION, SKILL_LEVEL_LABELS } from "@/lib/labels";
 import {
   getViewedAt,
   groupVideosByPosition,
@@ -17,18 +20,7 @@ import { useMaterialViews } from "@/hooks/useMaterialViews";
 import { materialDisplayTitle, parseJsonArray } from "@/lib/utils";
 import type { DotaRole, LearningMaterial, SkillLevel } from "@prisma/client";
 
-const ROLES = Object.keys(DOTA_ROLE_LABELS) as DotaRole[];
 const LEVELS = Object.keys(SKILL_LEVEL_LABELS) as SkillLevel[];
-
-const GROUP_TITLES: Record<string, string> = {
-  GENERAL: "Общие видео",
-  ...DOTA_ROLE_LABELS,
-};
-
-const chipActive =
-  "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]";
-const chipInactive =
-  "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]";
 
 type Tab = "active" | "viewed";
 
@@ -83,44 +75,41 @@ export function VideosClient({
     ...(groups.has("GENERAL") ? (["GENERAL"] as const) : []),
   ];
 
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center gap-4">
-        <Link href="/materials" className="text-sm text-[var(--points)] hover:underline">
-          ← Все материалы
-        </Link>
-      </div>
+  const card = (v: LearningMaterial) => {
+    const viewed = Boolean(getViewedAt(views, v.id));
+    return (
+      <VideoCard
+        key={v.id}
+        title={materialDisplayTitle(v)}
+        url={v.url}
+        description={v.description || undefined}
+        isNew={isNewMaterial(v.createdAt) && !viewed}
+        skillLevels={parseSkillLevels(v.skillLevels)}
+        viewed={viewed}
+        onMarkViewed={() => markViewed(v.id)}
+        onUnmarkViewed={() => unmarkViewed(v.id)}
+      />
+    );
+  };
 
-      <div className="flex flex-wrap gap-2 border-b border-[var(--border-soft)] pb-3">
-        <button
-          type="button"
-          onClick={() => setTab("active")}
-          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "active" ? chipActive : chipInactive
-          }`}
-        >
-          Видео
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("viewed")}
-          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "viewed" ? chipActive : chipInactive
-          }`}
-        >
-          Просмотренные материалы
-          {viewedVideos.length > 0 && (
-            <span className="ml-1.5 font-mono-num text-[var(--text-3)]">{viewedVideos.length}</span>
-          )}
-        </button>
-      </div>
+  return (
+    <div className="space-y-6">
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: "active", label: "Видео", count: activeVideos.length },
+          { value: "viewed", label: "Просмотренные", count: viewedVideos.length || undefined },
+        ]}
+      />
 
       {tab === "viewed" ? (
         viewedVideos.length === 0 ? (
-          <p className="text-[var(--text-3)]">
-            Отмеченные как просмотренные видео появятся здесь. Через неделю они остаются только в
-            этой вкладке.
-          </p>
+          <EmptyState
+            icon={<Check />}
+            title="Пока ничего не отмечено"
+            text="Отмеченные видео через неделю уходят из ленты и остаются здесь."
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {viewedVideos.map((v) => (
@@ -138,62 +127,26 @@ export function VideosClient({
         )
       ) : (
         <>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setRoleFilter(null)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  !roleFilter ? chipActive : chipInactive
-                }`}
-              >
-                Все позиции
-              </button>
-              {ROLES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRoleFilter(r)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    roleFilter === r ? chipActive : chipInactive
-                  }`}
-                >
-                  {DOTA_ROLE_LABELS[r]}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setLevelFilter(null)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  !levelFilter ? chipActive : chipInactive
-                }`}
-              >
-                Все уровни
-              </button>
-              {LEVELS.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLevelFilter(l)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    levelFilter === l ? chipActive : chipInactive
-                  }`}
-                >
-                  {SKILL_LEVEL_LABELS[l]}
-                </button>
-              ))}
-            </div>
+          <div className="space-y-2.5">
+            <FilterChips label="Позиция" value={roleFilter} onChange={setRoleFilter} items={roleFilterItems()} />
+            <FilterChips
+              label="Уровень"
+              value={levelFilter}
+              onChange={setLevelFilter}
+              items={[
+                { value: null, label: "Все уровни" },
+                ...LEVELS.map((l) => ({ value: l, label: SKILL_LEVEL_LABELS[l] })),
+              ]}
+            />
           </div>
 
           {activeVideos.length === 0 ? (
-            <p className="text-[var(--text-3)]">Видео не найдены.</p>
+            <EmptyState icon={<PlayCircle />} title="Видео не найдены" text="Попробуйте другой фильтр." />
           ) : (
             orderedGroupKeys.map((key) => {
               const items = groups.get(key) ?? [];
               if (items.length === 0) return null;
-              // Within group: unviewed first, soft-viewed last
+              // внутри группы: непросмотренные сверху
               const sorted = [...items].sort((a, b) => {
                 const aSoft = isSoftViewed(getViewedAt(views, a.id)) ? 1 : 0;
                 const bSoft = isSoftViewed(getViewedAt(views, b.id)) ? 1 : 0;
@@ -201,25 +154,14 @@ export function VideosClient({
               });
               return (
                 <section key={key}>
-                  <h2 className="mb-4 text-xl font-bold text-[var(--text)]">{GROUP_TITLES[key]}</h2>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {sorted.map((v) => {
-                      const viewed = Boolean(getViewedAt(views, v.id));
-                      return (
-                        <VideoCard
-                          key={v.id}
-                          title={materialDisplayTitle(v)}
-                          url={v.url}
-                          description={v.description || undefined}
-                          isNew={isNewMaterial(v.createdAt) && !viewed}
-                          skillLevels={parseSkillLevels(v.skillLevels)}
-                          viewed={viewed}
-                          onMarkViewed={() => markViewed(v.id)}
-                          onUnmarkViewed={() => unmarkViewed(v.id)}
-                        />
-                      );
-                    })}
+                  <div className="mb-3 flex items-center gap-2">
+                    {key !== "GENERAL" && <PositionBadge position={DOTA_ROLE_POSITION[key as DotaRole]} />}
+                    <h2 className="text-[17px] leading-snug min-[720px]:text-[20px]">
+                      {key === "GENERAL" ? "Общие видео" : roleName(key as DotaRole)}
+                    </h2>
+                    <span className="font-mono-num text-[13px] text-[var(--text-3)]">{sorted.length}</span>
                   </div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{sorted.map(card)}</div>
                 </section>
               );
             })
