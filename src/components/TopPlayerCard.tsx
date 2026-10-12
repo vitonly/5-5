@@ -4,7 +4,7 @@ import { PowerPill } from "@/components/StatPills";
 import { CountUp } from "@/components/fx/CountUp";
 import { TiltCard } from "@/components/fx/TiltCard";
 import { PENNANT_CLIP } from "@/lib/fx";
-import { cn, playerProfilePath } from "@/lib/utils";
+import { cn, fullDisplayName, playerProfilePath } from "@/lib/utils";
 import type { DotaRole } from "@prisma/client";
 
 export interface TopPlayer {
@@ -125,7 +125,7 @@ export function TopPlayerCard({
     );
   }
 
-  const name = [player.firstName, player.lastName].filter(Boolean).join(" ");
+  const name = fullDisplayName(player);
   const canSeePower = viewer?.role === "ADMIN" || viewer?.id === player.id;
 
   return (
@@ -172,7 +172,7 @@ export function TopPlayerCard({
               <div className="mt-auto min-w-0 text-center">
                 <ViewTransition name={`player-name-${player.id}`} share="morph">
                   <p className="truncate font-display text-[11px] font-bold uppercase leading-tight text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.45)] min-[400px]:text-[12px] min-[720px]:text-[16px]">
-                    {name || player.username || "Игрок"}
+                    {name}
                   </p>
                 </ViewTransition>
                 <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[var(--points-border)] bg-[var(--points-bg)] px-2 py-0.5 text-[var(--points-ink)] min-[720px]:mt-3 min-[720px]:h-7 min-[720px]:px-2.5">

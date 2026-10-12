@@ -74,7 +74,17 @@ export function formatDateOnly(date: Date | string) {
   }).format(new Date(date));
 }
 
+/** Короткое имя для списков и карточек (без фамилии/ника). */
 export function displayName(user: {
+  firstName: string;
+  lastName?: string | null;
+  username?: string | null;
+}) {
+  return user.firstName?.trim() || user.username || "Игрок";
+}
+
+/** Полное имя: имя + фамилия — только для подиума лучших на главной. */
+export function fullDisplayName(user: {
   firstName: string;
   lastName?: string | null;
   username?: string | null;

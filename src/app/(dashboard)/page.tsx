@@ -4,6 +4,9 @@ import { TopPlayerCard } from "@/components/TopPlayerCard";
 import { HomeLiveStreams } from "@/components/HomeLiveStreams";
 import { VideoCard } from "@/components/VideoCard";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { LastMatchCard } from "@/components/home/LastMatchCard";
+import { teamDisplayName } from "@/lib/team-names";
+import { parseJsonArray } from "@/lib/utils";
 import { MotionChip } from "@/components/fx/MotionChip";
 import { extractTwitchLogin } from "@/lib/twitch";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
@@ -16,7 +19,7 @@ export default async function HomePage() {
   const viewer = await getSessionUser();
   const seasonId = await getActiveSeasonId();
 
-  const [activeSeason, leaderboard, latestVideos, streamMaterials] =
+  const [activeSeason, leaderboard, latestVideos, streamMaterials, lastMvpSession] =
     await Promise.all([
       seasonId ? prisma.ratingSeason.findUnique({ where: { id: seasonId } }) : null,
       getSeasonLeaderboard(seasonId),
@@ -27,6 +30,11 @@ export default async function HomePage() {
       }),
       prisma.learningMaterial.findMany({
         where: { type: "STREAM" },
+      }),
+      prisma.matchSession.findFirst({
+        where: { mvpResolved: true, mvpWinnerId: { not: null } },
+        orderBy: { date: "desc" },
+        include: { games: { select: { winnerTeam: true } } },
       }),
     ]);
 
@@ -72,6 +80,36 @@ export default async function HomePage() {
   const withPoints = players.filter((p) => p.totalPoints > 0);
   const top3 = [withPoints[0] ?? null, withPoints[1] ?? null, withPoints[2] ?? null];
 
+  /* --- итоги последнего 5v5 с MVP --- */
+  let lastMatch: React.ComponentProps<typeof LastMatchCard> | null = null;
+  if (lastMvpSession?.mvpWinnerId) {
+    const radiant = parseJsonArray(lastMvpSession.radiantPlayerIds);
+    const dire = parseJsonArray(lastMvpSession.direPlayerIds);
+    const people = await prisma.user.findMany({
+      where: { id: { in: [...radiant, ...dire, lastMvpSession.mvpWinnerId] } },
+      select: { id: true, firstName: true, lastName: true, username: true, photoUrl: true, profile: { select: { finalRating: true } } },
+    });
+    const byId = Object.fromEntries(people.map((p) => [p.id, p]));
+    const named = (ids: string[]) =>
+      ids.map((id) => ({ ...byId[id], id, finalRating: byId[id]?.profile?.finalRating ?? 0 }));
+    const radiantWins = lastMvpSession.games.filter((g) => g.winnerTeam === "RADIANT").length;
+    const direWins = lastMvpSession.games.filter((g) => g.winnerTeam === "DIRE").length;
+    const mvp = byId[lastMvpSession.mvpWinnerId];
+    const mvpSide = radiant.includes(lastMvpSession.mvpWinnerId) ? "RADIANT" : dire.includes(lastMvpSession.mvpWinnerId) ? "DIRE" : null;
+    if (mvp) {
+      lastMatch = {
+        date: lastMvpSession.date,
+        radiantName: teamDisplayName(named(radiant), "Team A"),
+        direName: teamDisplayName(named(dire), "Team B"),
+        radiantWins,
+        direWins,
+        mvp,
+        mvpTeamWon:
+          mvpSide && radiantWins !== direWins ? (mvpSide === "RADIANT") === radiantWins > direWins : null,
+      };
+    }
+  }
+
   const seasonTitle = activeSeason ? `${SEASON_LABELS[activeSeason.name]} ${activeSeason.year}` : null;
 
   return (
@@ -106,6 +144,8 @@ export default async function HomePage() {
           <MotionChip />
         </div>
       </section>
+
+      {lastMatch && <LastMatchCard {...lastMatch} />}
 
       {/* Медиа */}
       {(streamMaterials.length > 0 || latestVideos.length > 0) && (
