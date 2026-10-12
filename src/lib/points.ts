@@ -141,6 +141,7 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
         firstName: u.firstName,
         lastName: u.lastName,
         username: u.username,
+        photoUrl: u.photoUrl,
         totalPoints: roundPoints(u.profile!.totalPoints),
         lifetimePoints: lifetimeByUser[u.id] ?? roundPoints(u.profile!.totalPoints),
       }))
@@ -163,6 +164,7 @@ export async function getSeasonLeaderboard(seasonId: string | null) {
       firstName: u.firstName,
       lastName: u.lastName,
       username: u.username,
+      photoUrl: u.photoUrl,
       totalPoints: byUser[u.id] ?? 0,
       lifetimePoints: lifetimeByUser[u.id] ?? 0,
     }))

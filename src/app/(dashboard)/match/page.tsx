@@ -9,6 +9,8 @@ import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { CountUp } from "@/components/fx/CountUp";
+import { Avatar } from "@/components/home/Avatar";
+import { PositionBadge } from "@/components/RoleIcon";
 import { lineupForTeam, parseTeamAssignments, type LineupSlot } from "@/lib/match-lineup";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
 import { teamDisplayName } from "@/lib/team-names";
@@ -20,6 +22,7 @@ type UserRow = {
   firstName: string;
   lastName?: string | null;
   username?: string | null;
+  photoUrl?: string | null;
   profile: { finalRating: number } | null;
 };
 
@@ -59,6 +62,7 @@ export default async function MatchPage() {
       firstName: true,
       lastName: true,
       username: true,
+      photoUrl: true,
       profile: { select: { finalRating: true } },
     },
   });
@@ -194,8 +198,8 @@ function MatchCard({
       {/* Табло */}
       {d.lineupsVisible && (
         <div className="mx-auto max-w-[820px] px-4 pb-5 pt-4 min-[720px]:px-6 min-[720px]:pb-6">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-            <TeamHead name={d.radiantName} side="radiant" />
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+            <TeamHead name={d.radiantName} side="radiant" lineup={d.radiantLineup} userMap={userMap} />
             <div className="text-center">
               {hasGames ? (
                 <p className="font-display text-[30px] font-bold leading-none tracking-tight min-[720px]:text-[40px]">
@@ -207,14 +211,14 @@ function MatchCard({
                 <p className="font-display text-[20px] font-bold text-[var(--text-3)]">VS</p>
               )}
             </div>
-            <TeamHead name={d.direName} side="dire" />
+            <TeamHead name={d.direName} side="dire" lineup={d.direLineup} userMap={userMap} />
           </div>
 
           {/* Сравнение силы */}
           <PowerCompare radiant={d.radiantPower} dire={d.direPower} />
 
           {/* Составы зеркально по позициям */}
-          <MirrorLineup
+          <RoomLineup
             radiant={d.radiantLineup}
             dire={d.direLineup}
             userMap={userMap}
@@ -267,7 +271,7 @@ function MatchCard({
             {[...d.radiant, ...d.dire].map((id, i) => (
               <li key={id} className="flex items-center gap-2">
                 <span className="w-5 text-right font-mono-num text-[12px] text-[var(--text-3)]">{i + 1}</span>
-                {userMap[id] ? <PlayerLink user={userMap[id]} viewer={viewer} /> : id}
+                {userMap[id] ? <PlayerLink user={userMap[id]} viewer={viewer} avatar={24} /> : id}
               </li>
             ))}
           </ol>
@@ -304,10 +308,41 @@ function MatchCard({
   );
 }
 
-function TeamHead({ name, side }: { name: string; side: "radiant" | "dire" }) {
+function TeamHead({
+  name,
+  side,
+  lineup,
+  userMap,
+}: {
+  name: string;
+  side: "radiant" | "dire";
+  lineup: LineupSlot[];
+  userMap: Record<string, UserRow>;
+}) {
   const right = side === "dire";
   return (
     <div className={cn("min-w-0", right && "text-right")}>
+      {/* «стопка» аватаров команды */}
+      <div className={cn("mb-2 flex", right && "justify-end")}>
+        {lineup.map((slot, i) => {
+          const u = userMap[slot.userId];
+          return (
+            <span
+              key={slot.userId}
+              className={cn("rounded-full ring-2 ring-[var(--surface)]", i > 0 && "-ml-2.5 min-[720px]:-ml-3")}
+              style={{ zIndex: lineup.length - i }}
+            >
+              <Avatar
+                photoUrl={u?.photoUrl}
+                firstName={u?.firstName}
+                lastName={u?.lastName}
+                size={28}
+                className="min-[720px]:!h-9 min-[720px]:!w-9"
+              />
+            </span>
+          );
+        })}
+      </div>
       <p className={cn("flex items-center gap-2", right && "flex-row-reverse")}>
         <span
           className={cn(
@@ -345,7 +380,8 @@ function PowerCompare({ radiant, dire }: { radiant: number; dire: number }) {
   );
 }
 
-function MirrorLineup({
+/** Игроки плитками в две колонки (Radiant | Dire), отсортированы по позиции. */
+function RoomLineup({
   radiant,
   dire,
   userMap,
@@ -358,62 +394,54 @@ function MirrorLineup({
   viewer: Viewer;
   mvpId?: string | null;
 }) {
-  const positions = [1, 2, 3, 4, 5];
-  const byPos = (slots: LineupSlot[]) => Object.fromEntries(slots.map((s) => [s.position, s]));
-  const r = byPos(radiant);
-  const d = byPos(dire);
   const showPower = viewer.role === "ADMIN";
 
-  const cell = (slot: LineupSlot | undefined, align: "left" | "right") => {
-    if (!slot) return <span className="text-[13px] text-[var(--text-4)]">—</span>;
+  const tile = (slot: LineupSlot) => {
     const u = userMap[slot.userId];
     const me = slot.userId === viewer.id;
     const isMvp = Boolean(mvpId && slot.userId === mvpId);
     return (
-      <span
+      <li
+        key={slot.userId}
         className={cn(
-          "flex min-w-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-1",
-          align === "right" && "flex-row-reverse text-right",
-          me && "bg-[var(--points-bg)]"
+          "flex min-h-[48px] items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 min-[720px]:gap-3 min-[720px]:px-3",
+          me ? "bg-[var(--points-bg)]" : "bg-[var(--surface-muted)]"
         )}
       >
-        <span className="min-w-0 truncate text-[13px] min-[720px]:text-[14px]">
-          {u ? (
-            <PlayerLink user={u} viewer={viewer} className={cn(me && "text-[var(--points-ink)]")}>
-              {me ? "Ты" : undefined}
-            </PlayerLink>
-          ) : (
-            slot.userId
-          )}
+        <Avatar photoUrl={u?.photoUrl} firstName={u?.firstName} lastName={u?.lastName} size={30} className="min-[720px]:!h-9 min-[720px]:!w-9" />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1">
+            {u ? (
+              <PlayerLink
+                user={u}
+                viewer={viewer}
+                className={cn("min-w-0 truncate text-[13px] min-[720px]:text-[14px]", me && "text-[var(--points-ink)]")}
+              >
+                {me ? "Ты" : undefined}
+              </PlayerLink>
+            ) : (
+              <span className="truncate text-[13px]">{slot.userId}</span>
+            )}
+            {isMvp && (
+              <Star className="h-3.5 w-3.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" aria-label="MVP" />
+            )}
+          </span>
+          <span className="block truncate text-[11px] text-[var(--text-3)]">
+            {POSITION_LABELS[slot.position]?.split("·")[1]?.trim()}
+            {showPower && u?.profile && (
+              <span className="ml-1.5 font-mono-num text-[var(--power)]">{u.profile.finalRating}</span>
+            )}
+          </span>
         </span>
-        {isMvp && <Star className="h-3.5 w-3.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" aria-label="MVP" />}
-        {showPower && u?.profile && (
-          <span className="shrink-0 font-mono-num text-[11px] text-[var(--power)]">{u.profile.finalRating}</span>
-        )}
-      </span>
+        <PositionBadge position={slot.position} className="min-[720px]:h-6 min-[720px]:w-6 min-[720px]:text-[12px]" />
+      </li>
     );
   };
 
   return (
-    <div className="mt-4 rounded-[var(--radius-control)] bg-[var(--surface-muted)] p-1.5">
-      {positions.map((p) => (
-        <div
-          key={p}
-          className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-[var(--border-soft)] last:border-b-0"
-        >
-          {cell(r[p], "left")}
-          <span
-            className="flex w-14 flex-col items-center leading-none"
-            title={POSITION_LABELS[p]}
-          >
-            <span className="font-mono-num text-[13px] font-bold text-[var(--text-2)]">{p}</span>
-            <span className="mt-0.5 text-[10px] uppercase tracking-[0.06em] text-[var(--text-3)]">
-              {POSITION_LABELS[p]?.split("·")[1]?.trim()}
-            </span>
-          </span>
-          {cell(d[p], "right")}
-        </div>
-      ))}
+    <div className="mt-4 grid grid-cols-2 gap-2 min-[720px]:gap-3">
+      <ul className="space-y-1.5 min-[720px]:space-y-2">{radiant.map(tile)}</ul>
+      <ul className="space-y-1.5 min-[720px]:space-y-2">{dire.map(tile)}</ul>
     </div>
   );
 }

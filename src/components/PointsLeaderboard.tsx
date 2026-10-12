@@ -7,6 +7,7 @@ interface LeaderboardEntry {
   firstName: string;
   lastName?: string | null;
   username?: string | null;
+  photoUrl?: string | null;
   totalPoints: number;
   lifetimePoints?: number;
 }
@@ -69,8 +70,10 @@ export function PointsLeaderboard({
                       firstName: entry.firstName,
                       lastName: entry.lastName,
                       username: entry.username,
+                      photoUrl: entry.photoUrl,
                     }}
                     viewer={viewer}
+                    avatar={28}
                   />
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -94,25 +97,27 @@ export function PointsLeaderboard({
         {entries.map((entry, index) => (
           <div
             key={entry.userId}
-            className={`flex items-center justify-between rounded-[var(--radius-card)] border px-4 py-3 ${
+            className={`flex items-center justify-between gap-3 rounded-[var(--radius-card)] border px-4 py-3 ${
               index === 0
                 ? "border-[var(--points-border)] bg-[var(--points-bg)]"
                 : "border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <span className="font-mono-num w-6 font-bold text-[var(--points)]">{index + 1}</span>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="font-mono-num w-6 shrink-0 font-bold text-[var(--points)]">{index + 1}</span>
               <PlayerLink
                 user={{
                   id: entry.userId,
                   firstName: entry.firstName,
                   lastName: entry.lastName,
                   username: entry.username,
+                  photoUrl: entry.photoUrl,
                 }}
                 viewer={viewer}
+                avatar={28}
               />
             </div>
-            <div className="text-right">
+            <div className="shrink-0 text-right">
               <PointsPill value={entry.totalPoints} />
               {showLifetime && (
                 <p className="mt-0.5 font-mono-num text-[11px] text-[var(--text-3)]">

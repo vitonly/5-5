@@ -19,7 +19,7 @@ export default async function MatchSeasonsPage() {
 
   const users = await prisma.user.findMany({
     where: { role: "STUDENT" },
-    select: { id: true, firstName: true, lastName: true, username: true },
+    select: { id: true, firstName: true, lastName: true, username: true, photoUrl: true },
   });
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
 
@@ -79,7 +79,7 @@ export default async function MatchSeasonsPage() {
                       >
                         <span>
                           <span className="mr-2 text-[var(--text-3)]">{i + 1}.</span>
-                          <PlayerLink user={r.user!} viewer={user} />
+                          <PlayerLink user={r.user!} viewer={user} avatar={24} />
                         </span>
                         <PointsPill value={r.points} />
                       </li>

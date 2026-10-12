@@ -173,7 +173,7 @@ export function RatingBreakdown({
                     key={i}
                     className="flex items-center justify-between rounded-[var(--radius-control)] bg-[var(--control)] px-3 py-2"
                   >
-                    <PlayerLink user={r.rater} viewer={viewer} />
+                    <PlayerLink user={r.rater} viewer={viewer} avatar={24} />
                     <span className="font-mono-num text-xs text-[var(--text-3)]">
                       {typeof r.score === "number"
                         ? `оценка ${r.score}/100`
@@ -196,7 +196,7 @@ export function RatingBreakdown({
                     key={i}
                     className="flex items-center justify-between rounded-[var(--radius-control)] bg-[var(--control)] px-3 py-2"
                   >
-                    <PlayerLink user={v.voter} viewer={viewer} />
+                    <PlayerLink user={v.voter} viewer={viewer} avatar={24} />
                     <span className="text-xs text-[var(--text-2)]">
                       {VIBE_LABELS[v.value as keyof typeof VIBE_LABELS] ?? v.value}
                     </span>

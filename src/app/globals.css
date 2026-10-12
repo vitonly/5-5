@@ -63,6 +63,17 @@
 
   --focus-ring: var(--points);
 
+  /* медали подиума (только карточки топ-3) */
+  --gold-light: #ffe48a;
+  --gold: #c9971c;
+  --gold-ink: #8a6508;
+  --silver-light: #eef2f4;
+  --silver: #8d98a0;
+  --silver-ink: #56616a;
+  --bronze-light: #f0c39c;
+  --bronze: #9a6438;
+  --bronze-ink: #7a4a24;
+
   /* скругления */
   --radius-sm: 6px;
   --radius-control: 10px;
@@ -474,6 +485,28 @@ input[type="radio"] {
   }
   .tilt-card {
     transform: none !important;
+  }
+}
+
+
+/* ---------- Выпадающие меню ---------- */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.menu-pop {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  animation: menu-in var(--duration-ui) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-pop {
+    animation: none;
   }
 }
 

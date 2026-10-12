@@ -2,10 +2,11 @@ import Link from "next/link";
 import { getSessionUser, getImpersonatorId } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { displayName, playerProfilePath } from "@/lib/utils";
-import { LogoutButton } from "@/components/LogoutButton";
 import { StopImpersonationButton } from "@/components/StopImpersonationButton";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { NavLinks } from "@/components/NavLinks";
+import { DesktopNav } from "@/components/DesktopNav";
+import { UserMenu } from "@/components/UserMenu";
 import { getVotingSeason } from "@/lib/seasons";
 
 const studentLinks = [
@@ -129,6 +130,10 @@ export async function Navbar() {
     },
   ];
 
+  const PRIMARY = isAdmin
+    ? ["/admin", "/admin/students", "/admin/homework", "/admin/matches", "/admin/penalties"]
+    : ["/homework", "/materials", "/match", "/stats"];
+
   const desktopItems = navLinks.map((link) => ({
     ...link,
     badge:
@@ -138,6 +143,9 @@ export async function Navbar() {
           ? pendingVotes
           : 0,
   }));
+
+  const primaryItems = PRIMARY.map((h) => desktopItems.find((i) => i.href === h)!).filter(Boolean);
+  const moreItems = desktopItems.filter((i) => !PRIMARY.includes(i.href));
 
   const mobileStripItems = isAdmin
     ? adminLinks.filter(
@@ -174,43 +182,27 @@ export async function Navbar() {
               alt=""
               className="h-9 w-9 shrink-0 object-contain min-[720px]:h-10 min-[720px]:w-10"
             />
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate font-display text-[15px] font-bold tracking-[-0.01em] text-[var(--text)] min-[720px]:text-[17px]">
-                СТАРТ<span className="text-[var(--points)]">+</span>
-                <span className="ml-1.5 font-sans text-[12px] font-medium tracking-normal text-[var(--text-3)] min-[720px]:text-[13px]">
-                  dota2 education
-                </span>
-              </span>
-              <span className="block truncate text-[11px] font-medium text-[var(--text-3)]">
-                сайт в разработке v1.02
+            <span className="truncate font-display text-[15px] font-bold tracking-[-0.01em] text-[var(--text)] min-[720px]:text-[17px]">
+              СТАРТ<span className="text-[var(--points)]">+</span>
+              <span className="ml-1.5 hidden font-sans text-[13px] font-medium tracking-normal text-[var(--text-3)] min-[1200px]:inline">
+                dota2 education
               </span>
             </span>
           </Link>
 
           {/* desktop nav */}
-          <nav
-            aria-label="Разделы"
-            className="no-scrollbar hidden min-w-0 flex-1 items-center justify-center gap-0.5 overflow-x-auto px-1 py-1 min-[720px]:flex"
-          >
-            <NavLinks items={desktopItems} />
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-2 min-[720px]:gap-3">
-            <Link
-              href={isAdmin ? "/admin" : playerProfilePath(user.id, user)}
-              className="hidden max-w-[160px] truncate text-sm font-medium text-[var(--text)] transition-colors hover:text-[var(--points)] min-[1200px]:inline"
-            >
-              {displayName(user)}
-            </Link>
-            <Link
-              href="/privacy"
-              title="Политика обработки персональных данных"
-              className="hidden text-xs font-medium text-[var(--text-3)] transition-colors hover:text-[var(--points)] min-[1200px]:inline"
-            >
-              ПД
-            </Link>
-            <LogoutButton />
+          <div className="hidden min-w-0 flex-1 justify-center min-[720px]:flex">
+            <DesktopNav primary={primaryItems} more={moreItems} />
           </div>
+
+          <UserMenu
+            name={displayName(user)}
+            firstName={user.firstName}
+            lastName={user.lastName}
+            photoUrl={user.photoUrl}
+            profileHref={isAdmin ? (user.profile ? playerProfilePath(user.id, user) : "/admin") : "/profile"}
+            profileLabel={isAdmin ? (user.profile ? "Мой профиль игрока" : "Панель тренера") : "Мой профиль"}
+          />
         </div>
 
         {/* mobile: второстепенные разделы — тонкая лента */}

@@ -29,22 +29,34 @@ const SIZE = {
   other: "w-[98px] min-[400px]:w-[110px] min-[720px]:w-[212px] aspect-[53/70]",
 };
 
-function Frame({
-  first,
-  children,
-}: {
-  first: boolean;
-  children: React.ReactNode;
-}) {
+const MEDAL = {
+  1: {
+    frame: "linear-gradient(180deg, var(--gold-light), var(--gold))",
+    numeral: "var(--gold-light)",
+    shadow: "drop-shadow(0 18px 36px rgba(201, 151, 28, 0.32))",
+  },
+  2: {
+    frame: "linear-gradient(180deg, var(--silver-light), var(--silver))",
+    numeral: "#ffffff",
+    shadow: "drop-shadow(0 10px 24px rgba(86, 97, 106, 0.22))",
+  },
+  3: {
+    frame: "linear-gradient(180deg, var(--bronze-light), var(--bronze))",
+    numeral: "#ffffff",
+    shadow: "drop-shadow(0 10px 24px rgba(154, 100, 56, 0.24))",
+  },
+} as const;
+
+function medalOf(rank: number) {
+  return MEDAL[(rank >= 1 && rank <= 3 ? rank : 3) as 1 | 2 | 3];
+}
+
+/** Рамка цвета медали: золото, серебро, бронза */
+function Frame({ rank, children }: { rank: number; children: React.ReactNode }) {
   return (
     <div
-      className="h-full p-[2px]"
-      style={{
-        clipPath: PENNANT_CLIP,
-        background: first
-          ? "linear-gradient(180deg, var(--points), var(--points-border))"
-          : "linear-gradient(180deg, var(--border-field), var(--border))",
-      }}
+      className="h-full p-[3px] min-[720px]:p-1"
+      style={{ clipPath: PENNANT_CLIP, background: medalOf(rank).frame }}
     >
       <div className="relative h-full overflow-hidden" style={{ clipPath: PENNANT_CLIP }}>
         {children}
@@ -53,17 +65,32 @@ function Frame({
   );
 }
 
-function RankChip({ rank, first }: { rank: number; first: boolean }) {
+/** Крупная цифра места в углу — как номер на спортивной карточке */
+function Numeral({ rank, first }: { rank: number; first: boolean }) {
   return (
     <span
-      className={cn(
-        "flex h-6 w-6 items-center justify-center rounded-full font-mono-num text-[12px] font-bold shadow-[var(--shadow-xs)] min-[720px]:h-8 min-[720px]:w-8 min-[720px]:text-sm",
-        first ? "bg-[var(--points)] text-[var(--on-points)]" : "bg-[var(--surface)] text-[var(--text)]"
-      )}
       aria-label={`Место ${rank}`}
+      className={cn(
+        "pointer-events-none select-none font-display font-bold leading-none tracking-[-0.04em] [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]",
+        first
+          ? "text-[44px] min-[400px]:text-[50px] min-[720px]:text-[88px]"
+          : "text-[34px] min-[400px]:text-[40px] min-[720px]:text-[68px]"
+      )}
+      style={{ color: medalOf(rank).numeral }}
     >
       {rank}
     </span>
+  );
+}
+
+function SeasonLeaderLabel() {
+  return (
+    <p
+      className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-[0.1em] min-[720px]:mb-2.5 min-[720px]:text-[12px]"
+      style={{ color: "var(--gold-ink)" }}
+    >
+      Лидер сезона
+    </p>
   );
 }
 
@@ -78,19 +105,22 @@ export function TopPlayerCard({
 }) {
   const first = rank === 1;
   const size = first ? SIZE.first : SIZE.other;
-  const shadow = first
-    ? "drop-shadow(0 16px 32px rgba(11, 122, 128, 0.24))"
-    : "drop-shadow(0 8px 20px rgba(15, 26, 25, 0.10))";
+  const medal = medalOf(rank);
 
   if (!player) {
     return (
-      <div className={cn("relative mx-auto", size)} style={{ filter: shadow }}>
-        <Frame first={first}>
-          <div className="flex h-full flex-col items-center justify-end bg-[var(--surface)] px-2 pb-[18%] text-center">
-            <RankChip rank={rank} first={first} />
-            <p className="mt-2 text-[11px] text-[var(--text-3)] min-[720px]:text-sm">Свободно</p>
-          </div>
-        </Frame>
+      <div>
+        {first && <SeasonLeaderLabel />}
+        <div className={cn("relative mx-auto", size)} style={{ filter: medal.shadow }}>
+          <Frame rank={rank}>
+            <div className="flex h-full flex-col bg-[var(--surface)] px-2 pb-[18%] pt-1 min-[720px]:px-4 min-[720px]:pt-2">
+              <span className="opacity-50">
+                <Numeral rank={rank} first={first} />
+              </span>
+              <p className="mt-auto text-center text-[11px] text-[var(--text-3)] min-[720px]:text-sm">Свободно</p>
+            </div>
+          </Frame>
+        </div>
       </div>
     );
   }
@@ -99,14 +129,16 @@ export function TopPlayerCard({
   const canSeePower = viewer?.role === "ADMIN" || viewer?.id === player.id;
 
   return (
+    <div>
+    {first && <SeasonLeaderLabel />}
     <Link
       href={playerProfilePath(player.id, viewer)}
       className={cn("press relative mx-auto block", size)}
-      style={{ filter: shadow }}
+      style={{ filter: medal.shadow }}
     >
       <TiltCard className="h-full" shape={PENNANT_CLIP}>
         <div className={cn("relative", size)}>
-          <Frame first={first}>
+          <Frame rank={rank}>
             <div className="absolute inset-0 bg-[var(--control)]">
               {player.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -127,18 +159,14 @@ export function TopPlayerCard({
               />
             </div>
 
-            <div className="relative z-[1] flex h-full flex-col px-2 pb-[17%] pt-2 min-[720px]:px-4 min-[720px]:pt-4">
+            <div className="relative z-[1] flex h-full flex-col px-2 pb-[17%] pt-1 min-[720px]:px-4 min-[720px]:pt-2">
               <div className="flex w-full items-start justify-between gap-1">
-                {canSeePower ? (
-                  <span className="hidden min-[720px]:inline-flex">
+                <Numeral rank={rank} first={first} />
+                {canSeePower && (
+                  <span className="mt-2 hidden min-[720px]:mt-3 min-[720px]:inline-flex">
                     <PowerPill value={player.finalRating} />
                   </span>
-                ) : (
-                  <span />
                 )}
-                <span className="ml-auto">
-                  <RankChip rank={rank} first={first} />
-                </span>
               </div>
 
               <div className="mt-auto min-w-0 text-center">
@@ -165,5 +193,6 @@ export function TopPlayerCard({
         </div>
       </TiltCard>
     </Link>
+    </div>
   );
 }

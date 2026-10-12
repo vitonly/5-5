@@ -41,20 +41,20 @@ export function PlayerRolesDisplay({
     <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
       {primary && (
         <span
-          className="inline-flex items-center gap-0.5 rounded border border-[var(--border)] bg-[var(--surface)] px-1 py-0.5 text-[var(--text-2)]"
+          className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] py-0.5 pl-0.5 pr-2 text-[var(--text-2)]"
           title={`Основная: ${DOTA_ROLE_LABELS[primary]}`}
         >
-          <RoleIcon role={primary} className="h-3.5 w-3.5" />
-          <span className="text-[9px] font-medium uppercase tracking-wide">осн</span>
+          <RoleIcon role={primary} title={`Основная: ${DOTA_ROLE_LABELS[primary]}`} className="rounded-full" />
+          <span className="text-[10px] font-semibold uppercase tracking-wide">осн</span>
         </span>
       )}
       {secondary.map((role) => (
         <span
           key={role}
-          className="inline-flex items-center rounded border border-[var(--border)] bg-[var(--surface)] px-1 py-0.5 text-[var(--text-3)]"
+          className="inline-flex items-center"
           title={`Доп: ${DOTA_ROLE_LABELS[role]}`}
         >
-          <RoleIcon role={role} className="h-3.5 w-3.5 opacity-80" />
+          <RoleIcon role={role} title={`Доп: ${DOTA_ROLE_LABELS[role]}`} className="opacity-75" />
         </span>
       ))}
       {!primary && secondary.length > 0 && (

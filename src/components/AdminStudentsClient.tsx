@@ -363,7 +363,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <PlayerLink user={s} className="font-medium" />
+                      <PlayerLink user={s} className="font-medium" avatar={28} />
                       <span className="text-xs text-[var(--danger)]">
                         не хватает: {rolesHint(s)}
                       </span>
@@ -427,7 +427,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                     }`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <PlayerLink user={s} className="shrink-0 font-medium" />
+                      <PlayerLink user={s} className="shrink-0 font-medium" avatar={28} />
                       <button
                         type="button"
                         onClick={() => selectStudent(s)}

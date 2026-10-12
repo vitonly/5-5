@@ -60,13 +60,7 @@ export function HomeLiveStreams({
         </span>
         <h2 className="text-[17px] leading-snug min-[720px]:text-[20px]">Сейчас в эфире</h2>
       </div>
-      <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3">
-        {cards.map((c, i) => (
-          <div key={i} className="w-[78%] shrink-0 snap-start sm:w-auto">
-            {c}
-          </div>
-        ))}
-      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{cards}</div>
     </section>
   );
 }

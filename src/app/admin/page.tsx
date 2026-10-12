@@ -60,8 +60,10 @@ export default async function AdminDashboardPage() {
                       firstName: p.firstName,
                       lastName: p.lastName,
                       username: p.username,
+                      photoUrl: p.photoUrl,
                     }}
                     viewer={viewer}
+                    avatar={26}
                   />
                 </span>
                 <span className="shrink-0 font-mono-num font-semibold text-[var(--points)]">{formatPoints(p.totalPoints)} очк.</span>

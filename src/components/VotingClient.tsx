@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "@/components/home/Avatar";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SEASON_LABELS, RATING_CRITERIA_HINTS, VIBE_LABELS } from "@/lib/labels";
@@ -234,6 +235,7 @@ export function VotingClient({
                     >
                       {done ? "✓" : partial ? "…" : i + 1}
                     </span>
+                    <Avatar photoUrl={s.photoUrl} firstName={s.firstName} lastName={s.lastName} size={24} />
                     <span className="max-w-[7rem] truncate font-medium lg:max-w-none">
                       {displayName(s)}
                     </span>
