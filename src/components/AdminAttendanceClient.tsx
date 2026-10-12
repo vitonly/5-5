@@ -52,7 +52,7 @@ export function AdminAttendanceClient() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [listOpen, setListOpen] = useState(true);
+  const [listOpen, setListOpen] = useState(false);
 
   /** Local checkbox overrides before/while server sync */
   const [localPresent, setLocalPresent] = useState<Record<string, boolean>>({});

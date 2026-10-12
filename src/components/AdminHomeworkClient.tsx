@@ -4,6 +4,7 @@ import { toast } from "@/components/ui/toast";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Segmented } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -377,14 +378,26 @@ export function AdminHomeworkClient({
               <Label>Дедлайн</Label>
               <Input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
             </div>
-            <div>
-              <Label>Материалы (необязательно)</Label>
+            <CollapsibleCard
+              title="Материалы (необязательно)"
+              description={
+                materials.length === 0
+                  ? "Сначала добавьте материалы в разделе «Материалы»"
+                  : selectedMaterials.length > 0
+                    ? `Выбрано: ${selectedMaterials.length}`
+                    : "Можно прикрепить материалы к заданию"
+              }
+              summary={
+                selectedMaterials.length > 0 ? `${selectedMaterials.length} выбр.` : undefined
+              }
+              defaultOpen={false}
+            >
               {materials.length === 0 ? (
-                <p className="mt-2 text-sm text-[var(--text-3)]">
+                <p className="text-sm text-[var(--text-3)]">
                   Сначала добавьте материалы в разделе «Материалы».
                 </p>
               ) : (
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                   {materials.map((m) => (
                     <button
                       key={m.id}
@@ -401,7 +414,7 @@ export function AdminHomeworkClient({
                   ))}
                 </div>
               )}
-            </div>
+            </CollapsibleCard>
             <div>
               <Label>Ученики</Label>
               <div className="mt-2 flex flex-wrap gap-2">

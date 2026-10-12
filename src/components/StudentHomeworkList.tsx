@@ -25,7 +25,7 @@ type AssignmentWithRelations = HomeworkAssignment & {
 type TabKey = "active" | "reviewed" | "all";
 type Tone = "points" | "warning" | "danger" | "success" | "default";
 
-const ACTIVE_STATUSES = new Set(["ASSIGNED", "SUBMITTED", "REVISION", "OVERDUE"]);
+const ACTIVE_STATUSES = new Set(["ASSIGNED", "SUBMITTED", "REVISION"]);
 const REVIEWED_STATUSES = new Set(["GRADED"]);
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -36,6 +36,16 @@ const STATUS_TONE: Record<string, Tone> = {
   GRADED: "success",
 };
 
+/** Просроченные (и просроченные доработки) ученику не показываем. */
+function isVisibleToStudent(a: AssignmentWithRelations, now: number) {
+  if (a.status === "OVERDUE") return false;
+  if (a.status === "REVISION") {
+    const due = a.revisionDeadline ?? a.deadline;
+    if (new Date(due).getTime() < now) return false;
+  }
+  return true;
+}
+
 const ACCENT: Record<Tone, string> = {
   points: "var(--points)",
   warning: "var(--warning)",
@@ -45,9 +55,7 @@ const ACCENT: Record<Tone, string> = {
 };
 
 function needsAction(a: AssignmentWithRelations) {
-  return (
-    (["ASSIGNED", "OVERDUE"].includes(a.status) && !a.submission) || a.status === "REVISION"
-  );
+  return (a.status === "ASSIGNED" && !a.submission) || a.status === "REVISION";
 }
 
 function deadlineOf(a: AssignmentWithRelations) {
@@ -89,27 +97,33 @@ export function StudentHomeworkList({
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("active");
 
+  const visible = useMemo(
+    () => assignments.filter((a) => isVisibleToStudent(a, now)),
+    [assignments, now]
+  );
+
   const summary = useMemo(() => {
-    const todo = assignments.filter(needsAction);
+    const todo = visible.filter(needsAction);
     const upcoming = todo
       .map((a) => new Date(deadlineOf(a)).getTime())
       .filter((t) => t >= now)
       .sort((a, b) => a - b)[0];
     return {
       todo: todo.length,
-      review: assignments.filter((a) => a.status === "SUBMITTED").length,
+      review: visible.filter((a) => a.status === "SUBMITTED").length,
       next: upcoming ? deadlineInfo(upcoming, now) : null,
-      earned: assignments.reduce((s, a) => s + earnedPoints(a), 0),
-      active: assignments.filter((a) => ACTIVE_STATUSES.has(a.status)).length,
-      reviewed: assignments.filter((a) => REVIEWED_STATUSES.has(a.status)).length,
+      earned: visible.reduce((s, a) => s + earnedPoints(a), 0),
+      active: visible.filter((a) => ACTIVE_STATUSES.has(a.status)).length,
+      reviewed: visible.filter((a) => REVIEWED_STATUSES.has(a.status)).length,
+      total: visible.length,
     };
-  }, [assignments, now]);
+  }, [visible, now]);
 
   const filtered = useMemo(() => {
     if (tab === "active") {
       const rank = (a: AssignmentWithRelations) =>
         a.status === "REVISION" ? 0 : needsAction(a) ? 1 : 2;
-      return assignments
+      return visible
         .filter((a) => ACTIVE_STATUSES.has(a.status))
         .sort(
           (a, b) =>
@@ -118,14 +132,14 @@ export function StudentHomeworkList({
         );
     }
     if (tab === "reviewed") {
-      return assignments
+      return visible
         .filter((a) => REVIEWED_STATUSES.has(a.status))
         .sort((a, b) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
     }
-    return assignments;
-  }, [assignments, tab]);
+    return visible;
+  }, [visible, tab]);
 
-  if (assignments.length === 0) {
+  if (visible.length === 0) {
     return (
       <div className="surface-card flex flex-col items-center px-6 py-14 text-center">
         <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--points-bg)] text-[var(--points)]">
@@ -161,7 +175,7 @@ export function StudentHomeworkList({
         items={[
           { value: "active", label: "Активные", count: summary.active },
           { value: "reviewed", label: "Проверенные", count: summary.reviewed },
-          { value: "all", label: "Все", count: assignments.length },
+          { value: "all", label: "Все", count: summary.total },
         ]}
       />
 

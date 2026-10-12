@@ -63,7 +63,16 @@ export async function Navbar() {
       prisma.homeworkAssignment.count({
         where: {
           studentId: user.id,
-          status: { in: ["ASSIGNED", "OVERDUE", "REVISION"] },
+          OR: [
+            { status: "ASSIGNED" },
+            {
+              status: "REVISION",
+              OR: [
+                { revisionDeadline: null },
+                { revisionDeadline: { gte: new Date() } },
+              ],
+            },
+          ],
         },
       }),
       openSeason

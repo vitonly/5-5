@@ -55,15 +55,15 @@ export function homeworkTodo(a: {
   deadline: Date;
   revisionDeadline: Date | null;
   homework: { title: string };
-}): TodoItem {
+}): TodoItem | null {
+  // Просроченные (и просроченные доработки) ученику не показываем
+  if (a.status === "OVERDUE") return null;
   const due = a.status === "REVISION" && a.revisionDeadline ? a.revisionDeadline : a.deadline;
-  const tone: TodoItem["tone"] =
-    a.status === "OVERDUE" ? "danger" : a.status === "REVISION" ? "warning" : "points";
+  if (a.status === "REVISION" && new Date(due).getTime() < Date.now()) return null;
+  const tone: TodoItem["tone"] = a.status === "REVISION" ? "warning" : "points";
   const meta =
-    a.status === "OVERDUE"
-      ? `Просрочено · дедлайн был ${formatShortDate(due)}`
-      : a.status === "REVISION"
-        ? `На доработке · до ${formatShortDate(due)}`
-        : `Домашка · до ${formatShortDate(due)}`;
+    a.status === "REVISION"
+      ? `На доработке · до ${formatShortDate(due)}`
+      : `Домашка · до ${formatShortDate(due)}`;
   return { key: a.id, href: "/homework", title: a.homework.title, meta, tone };
 }
