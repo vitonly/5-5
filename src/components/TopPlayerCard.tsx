@@ -4,7 +4,7 @@ import { PowerPill } from "@/components/StatPills";
 import { CountUp } from "@/components/fx/CountUp";
 import { TiltCard } from "@/components/fx/TiltCard";
 import { PENNANT_CLIP } from "@/lib/fx";
-import { cn, fullDisplayName, playerProfilePath } from "@/lib/utils";
+import { cn, shortDisplayName, playerProfilePath } from "@/lib/utils";
 import type { DotaRole } from "@prisma/client";
 
 export interface TopPlayer {
@@ -125,7 +125,7 @@ export function TopPlayerCard({
     );
   }
 
-  const name = fullDisplayName(player);
+  const name = shortDisplayName(player);
   const canSeePower = viewer?.role === "ADMIN" || viewer?.id === player.id;
 
   return (

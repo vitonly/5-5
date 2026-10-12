@@ -74,23 +74,23 @@ export function formatDateOnly(date: Date | string) {
   }).format(new Date(date));
 }
 
-/** Короткое имя для списков и карточек (без фамилии/ника). */
+/** Имя + фамилия для списков, ссылок и профилей. */
 export function displayName(user: {
-  firstName: string;
-  lastName?: string | null;
-  username?: string | null;
-}) {
-  return user.firstName?.trim() || user.username || "Игрок";
-}
-
-/** Полное имя: имя + фамилия — только для подиума лучших на главной. */
-export function fullDisplayName(user: {
   firstName: string;
   lastName?: string | null;
   username?: string | null;
 }) {
   const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
   return full || user.username || "Игрок";
+}
+
+/** Только имя — для узкого подиума лучших на главной. */
+export function shortDisplayName(user: {
+  firstName: string;
+  lastName?: string | null;
+  username?: string | null;
+}) {
+  return user.firstName?.trim() || user.username || "Игрок";
 }
 
 export function playerProfilePath(

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PointsPill, PowerPill } from "@/components/StatPills";
-import { fullDisplayName, playerProfilePath } from "@/lib/utils";
+import { shortDisplayName, playerProfilePath } from "@/lib/utils";
 import type { TopPlayer } from "@/components/TopPlayerCard";
 
 export function MobilePodiumList({
@@ -22,7 +22,7 @@ export function MobilePodiumList({
     <ol className="space-y-2">
       {players.map((player, i) => {
         const place = i + 1;
-        const name = fullDisplayName(player);
+        const name = shortDisplayName(player);
         const canSeePower = viewer?.role === "ADMIN" || viewer?.id === player.id;
         const top =
           place === 1
