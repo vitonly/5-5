@@ -9,7 +9,6 @@ import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { MatchGameBoard, type MatchGameView } from "@/components/MatchGameBoard";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
-import { MatchReplays } from "@/components/match/MatchReplays";
 import type { ReplayData } from "@/lib/replay";
 import { PageHeader } from "@/components/ui/page-header";
 import { teamDisplayName } from "@/lib/team-names";
@@ -133,12 +132,15 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
   const direName = teamDisplayName(named(dire), "Team B");
   const { radiantWins, direWins } = seriesScoreByGame1Roster(session);
   const hasG2 = Object.keys(parseTeamAssignments(session.teamAssignmentsGame2)).length > 0;
-  const gameCount = Math.max(session.games.length, hasG2 ? 2 : 1, 1);
+  const maxReplayGame = session.replays.reduce((m, r) => Math.max(m, r.gameNumber), 0);
+  const gameCount = Math.max(session.games.length, hasG2 ? 2 : 1, maxReplayGame, 1);
 
   const games: MatchGameView[] = Array.from({ length: gameCount }, (_, i) => {
     const gameNumber = i + 1;
     const recorded = session.games.find((g) => g.gameNumber === gameNumber);
     const L = lineupsForGame(session, gameNumber);
+    const rep = session.replays.find((r) => r.gameNumber === gameNumber);
+    const repData = rep ? ((rep.data as unknown as ReplayData) ?? null) : null;
     const rName = teamDisplayName(named(L.radiantIds), "Team A");
     const dName = teamDisplayName(named(L.direIds), "Team B");
     return {
@@ -152,6 +154,17 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
       radiantPoints: recorded ? sumPoints(recorded.participants, L.radiantIds) : 0,
       direPoints: recorded ? sumPoints(recorded.participants, L.direIds) : 0,
       winnerTeam: recorded?.winnerTeam ?? null,
+      replay: rep
+        ? {
+            gameNumber,
+            durationSec: rep.durationSec,
+            radiantWin: rep.radiantWin,
+            radiantScore: rep.radiantScore,
+            direScore: rep.direScore,
+            players: repData?.players ?? [],
+            draft: repData?.draft ?? [],
+          }
+        : null,
     };
   });
 
@@ -228,21 +241,6 @@ function MatchCard({
           userMap={userMap}
           viewer={viewer}
           mvpId={session.mvpWinnerId}
-        />
-      )}
-
-      {session.replays.length > 0 && (
-        <MatchReplays
-          viewer={viewer}
-          names={userMap}
-          replays={session.replays.map((r) => ({
-            gameNumber: r.gameNumber,
-            durationSec: r.durationSec,
-            radiantWin: r.radiantWin,
-            radiantScore: r.radiantScore,
-            direScore: r.direScore,
-            players: (r.data as unknown as ReplayData)?.players ?? [],
-          }))}
         />
       )}
 

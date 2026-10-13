@@ -2,16 +2,20 @@ package ru.startdota.parser;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import skadistats.clarity.model.CombatLogEntry;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
 import skadistats.clarity.processor.entities.Entities;
 import skadistats.clarity.processor.entities.UsesEntities;
+import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
+import skadistats.clarity.processor.reader.OnTickStart;
 import skadistats.clarity.processor.runner.Context;
 import skadistats.clarity.processor.runner.SimpleRunner;
 import skadistats.clarity.processor.stringtables.StringTables;
 import skadistats.clarity.processor.stringtables.UsesStringTable;
 import skadistats.clarity.source.InputStreamSource;
+import skadistats.clarity.wire.dota.common.proto.DOTACombatLog.DOTA_COMBATLOG_TYPES;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -21,7 +25,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Locale;
 
 /**
@@ -51,6 +59,79 @@ public class Main {
             System.exit(2);
         }
         System.out.println(parseFile(Path.of(args[0])));
+    }
+
+    /* ---------------- Сбор по ходу демки ---------------- */
+
+    /** Урон по героям / зданиям и лечение — из комбат-лога, ключ = имя юнита героя (npc_dota_hero_*) */
+    private final Map<String, Long> heroDamage = new HashMap<>();
+    private final Map<String, Long> towerDamage = new HashMap<>();
+    private final Map<String, Long> healing = new HashMap<>();
+
+    /** Драфт: порядок появления банов и пиков в правилах игры */
+    private final List<String> draft = new ArrayList<>();
+    private final Set<String> draftSeen = new HashSet<>();
+    private boolean draftDone = false;
+
+    @OnCombatLogEntry
+    public void onCombatLog(Context ctx, CombatLogEntry e) {
+        try {
+            DOTA_COMBATLOG_TYPES type = e.getType();
+            if (!e.isAttackerHero() || e.isAttackerIllusion()) return;
+            String attacker = e.getAttackerName();
+            String target = e.getTargetName();
+            if (attacker == null) return;
+            long v = Math.max(0, e.getValue());
+            if (type == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DAMAGE) {
+                if (e.isTargetHero() && !e.isTargetIllusion()) {
+                    heroDamage.merge(attacker, v, Long::sum);
+                } else if (target != null && isBuilding(target)) {
+                    towerDamage.merge(attacker, v, Long::sum);
+                }
+            } else if (type == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_HEAL) {
+                if (e.isTargetHero() && !e.isTargetIllusion() && !attacker.equals(target)) {
+                    healing.merge(attacker, v, Long::sum);
+                }
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private static boolean isBuilding(String name) {
+        return name.contains("tower") || name.contains("rax") || name.contains("barracks")
+                || name.contains("fort") || name.contains("_melee_rax") || name.contains("_range_rax")
+                || name.contains("filler") || name.contains("effigy") || name.contains("watch_tower");
+    }
+
+    @OnTickStart
+    @UsesEntities
+    public void onTick(Context ctx, boolean synthetic) {
+        if (draftDone) return;
+        try {
+            Entities entities = ctx.getProcessor(Entities.class);
+            if (entities == null) return;
+            Entity rules = entities.getByDtName("CDOTAGamerulesProxy");
+            if (rules == null) return;
+            Integer state = num(rules, "m_pGameRules.m_nGameState");
+            // 4+ = стратегия/подготовка/игра: драфт закончен (ещё пару секунд дочитываем)
+            Integer active = num(rules, "m_pGameRules.m_iActiveTeam");
+            for (int i = 0; i < 24; i++) {
+                String path = i < 14
+                        ? "m_pGameRules.m_BannedHeroes." + String.format(Locale.ROOT, "%04d", i)
+                        : "m_pGameRules.m_SelectedHeroes." + String.format(Locale.ROOT, "%04d", i - 14);
+                Integer hero = num(rules, path);
+                if (hero == null || hero <= 0) continue;
+                boolean pick = i >= 14;
+                String key = (pick ? "p" : "b") + hero;
+                if (!draftSeen.add(key)) continue;
+                draft.add(new Json()
+                        .put("order", draft.size() + 1)
+                        .put("heroId", hero)
+                        .put("pick", pick)
+                        .put("team", active != null && (active == 2 || active == 3) ? (active == 2 ? "RADIANT" : "DIRE") : null)
+                        .toString());
+            }
+            if (state != null && state >= 5) draftDone = true;
+        } catch (Exception ignored) { }
     }
 
     /* ---------------- HTTP ---------------- */
@@ -169,6 +250,7 @@ public class Main {
             String neutral = null;
             Integer heroHandle = num(pr, idx("m_vecPlayerTeamData.%i.m_hSelectedHero", i));
             Entity hero = heroHandle != null && heroHandle != INVALID_HANDLE ? entities.getByHandle(heroHandle) : null;
+            String heroUnit = hero != null ? entityName(names, hero) : null;
             if (hero != null) {
                 for (int s = 0; s < 17; s++) {
                     String item = itemName(entities, names, hero, s);
@@ -196,9 +278,10 @@ public class Main {
                     .put("denies", denies)
                     .put("totalGold", gold)
                     .put("totalXp", xp)
-                    .put("heroDamage", heroDamage)
-                    .put("towerDamage", towerDamage)
-                    .put("healing", healing != null ? Math.round(healing.doubleValue()) : null)
+                    .put("heroUnit", heroUnit)
+                    .put("heroDamage", pick(this.heroDamage, heroUnit, heroDamage))
+                    .put("towerDamage", pick(this.towerDamage, heroUnit, towerDamage))
+                    .put("healing", pick(this.healing, heroUnit, healing != null ? (int) Math.round(healing.doubleValue()) : null))
                     .putRaw("items", Json.arr(items))
                     .putRaw("backpack", Json.arr(backpack))
                     .put("neutralItem", neutral);
@@ -213,7 +296,28 @@ public class Main {
                 .put("radiantScore", radiantKills)
                 .put("direScore", direKills)
                 .putRaw("players", "[" + String.join(",", players) + "]")
+                .putRaw("draft", "[" + String.join(",", draft) + "]")
                 .toString();
+    }
+
+    /** Значение из комбат-лога, если есть, иначе из сущности */
+    private static Object pick(Map<String, Long> log, String unit, Integer fallback) {
+        if (unit != null) {
+            Long v = log.get(unit);
+            if (v != null && v > 0) return v;
+        }
+        return fallback;
+    }
+
+    private static String entityName(StringTable names, Entity e) {
+        Integer idx = num(e, "m_pEntity.m_nameStringTableIndex");
+        if (idx == null) idx = num(e, "m_pEntity.m_nameStringableIndex");
+        if (names != null && idx != null && idx >= 0) {
+            try {
+                return names.getNameByIndex(idx);
+            } catch (Exception ignored) { }
+        }
+        return null;
     }
 
     private static String itemName(Entities entities, StringTable names, Entity hero, int slot) {

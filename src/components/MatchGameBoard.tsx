@@ -11,6 +11,7 @@ import { POSITION_LABELS } from "@/lib/labels";
 import { formatPoints } from "@/lib/points";
 import { cn } from "@/lib/utils";
 import type { LineupSlot } from "@/lib/match-lineup";
+import { ReplayLanes, type ReplayView } from "@/components/match/ReplayLanes";
 
 type UserRow = {
   id: string;
@@ -34,6 +35,8 @@ export type MatchGameView = {
   radiantPoints: number;
   direPoints: number;
   winnerTeam: "RADIANT" | "DIRE" | "DRAW" | string | null;
+  /** Итоги из загруженной демки (если есть) */
+  replay?: ReplayView | null;
 };
 
 /** Табло + составы с перелистыванием игр (для решафла №2). */
@@ -67,9 +70,10 @@ export function MatchGameBoard({
   const [idx, setIdx] = useState(lastPlayedIdx);
   const game = games[Math.min(idx, games.length - 1)] ?? games[0];
   const multi = games.length > 1;
+  const anyReplay = games.some((g) => g.replay);
 
   return (
-    <div className="mx-auto max-w-[820px] px-4 pb-5 pt-4 min-[720px]:px-6 min-[720px]:pb-6">
+    <div className={cn("mx-auto px-4", anyReplay ? "max-w-[1120px]" : "max-w-[820px]", "pb-5 pt-4 min-[720px]:px-6 min-[720px]:pb-6")}>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
         <TeamHead name={game.radiantName} side="radiant" lineup={game.radiant} userMap={userMap} />
         <div className="text-center">
@@ -136,15 +140,29 @@ export function MatchGameBoard({
         </div>
       )}
 
-      <PowerCompare radiant={game.radiantPower} dire={game.direPower} />
-
-      <RoomLineup
-        radiant={game.radiant}
-        dire={game.dire}
-        userMap={userMap}
-        viewer={viewer}
-        mvpId={mvpId}
-      />
+      {game.replay ? (
+        <ReplayLanes
+          replay={game.replay}
+          leftSlots={game.radiant}
+          rightSlots={game.dire}
+          leftName={game.radiantName}
+          rightName={game.direName}
+          userMap={userMap}
+          viewer={viewer}
+          mvpId={mvpId}
+        />
+      ) : (
+        <>
+          <PowerCompare radiant={game.radiantPower} dire={game.direPower} />
+          <RoomLineup
+            radiant={game.radiant}
+            dire={game.dire}
+            userMap={userMap}
+            viewer={viewer}
+            mvpId={mvpId}
+          />
+        </>
+      )}
 
       {hasPlayed && (
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border-soft)] pt-4 text-[13px]">
