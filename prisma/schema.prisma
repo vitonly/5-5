@@ -126,6 +126,8 @@ model User {
   lessonAttendances   LessonAttendance[]
   progressLogs        ProgressLog[]
   lessonSessionsCreated LessonSession[]  @relation("LessonCreator")
+  achievements        UserAchievement[]
+  ratingSnapshots     RatingSnapshot[]
 }
 
 model LoginTicket {
@@ -393,6 +395,7 @@ model MatchSession {
   games                 MatchGame[]
   rsvps                 MatchRsvp[]
   mvpVotes              MatchDayMvpVote[]
+  replays               MatchReplay[]
 }
 
 model MatchDayMvpVote {
@@ -471,4 +474,56 @@ model LessonArchiveFile {
   createdAt DateTime      @default(now())
 
   @@index([lessonId])
+}
+
+/** Открытые ачивки: код + уровень (1 бронза, 2 серебро, 3 золото) */
+model UserAchievement {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code          String
+  tier          Int
+  pointsAwarded Float     @default(0)
+  unlockedAt    DateTime  @default(now())
+  /** Когда ученик увидел окно «Новая ачивка» */
+  seenAt        DateTime?
+
+  @@unique([userId, code, tier])
+  @@index([userId])
+}
+
+/** Ежедневный снимок силы и места — для графиков в профиле */
+model RatingSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** Календарный день (полночь МСК) */
+  date        DateTime
+  finalRating Int
+  /** Место в активном сезоне на этот день (null — нет сезона) */
+  place       Int?
+  points      Float    @default(0)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+/** Разобранная демка (.dem) одной игры 5v5 */
+model MatchReplay {
+  id           String       @id @default(cuid())
+  sessionId    String
+  session      MatchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  gameNumber   Int
+  /** ID матча в Dota (если есть в демке) */
+  dotaMatchId  String?
+  durationSec  Int          @default(0)
+  radiantWin   Boolean?
+  radiantScore Int          @default(0)
+  direScore    Int          @default(0)
+  /** JSON: игроки (герой, KDA, нетворс, предметы…), график нетворса */
+  data         Json
+  uploadedById String?
+  createdAt    DateTime     @default(now())
+
+  @@unique([sessionId, gameNumber])
 }

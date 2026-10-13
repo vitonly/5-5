@@ -57,3 +57,6 @@ next-env.d.ts
 workers/telegram-proxy/node_modules/
 workers/telegram-proxy/.proxy_secret
 workers/telegram-proxy/.wrangler/
+
+# парсер демок (сборка Maven)
+/parser/target/

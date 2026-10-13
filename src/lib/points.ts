@@ -43,6 +43,7 @@ export function categorizePointReason(reason: string): PointCategory {
   if (r.includes("домашка")) return "homework";
   if (r.includes("5v5") || r.includes("отмена игры")) return "match";
   if (r.includes("посещение")) return "bonus";
+  if (r.startsWith("ачивка:")) return "bonus";
   return "other";
 }
 

@@ -27,8 +27,9 @@ export function PlayerLink({ user, viewer, className, children, onClick, avatar 
       href={playerProfilePath(user.id, viewer)}
       className={cn(
         "font-medium text-[var(--points)] transition-colors hover:text-[var(--points-hover)] hover:underline",
-        size > 0 && "inline-flex min-w-0 max-w-full items-center gap-2 hover:no-underline",
-        className
+        className,
+        // после className: avatar-режим не ломается от `inline` / других display-классов
+        size > 0 && "inline-flex min-w-0 max-w-full items-center gap-2 hover:no-underline"
       )}
       onClick={onClick}
     >
@@ -36,7 +37,9 @@ export function PlayerLink({ user, viewer, className, children, onClick, avatar 
         <Avatar photoUrl={user.photoUrl} firstName={user.firstName} lastName={user.lastName} size={size} />
       )}
       {size > 0 ? (
-        <span className="min-w-0 truncate hover:underline">{children ?? displayName(user)}</span>
+        <span className="min-w-0 truncate leading-none hover:underline">
+          {children ?? displayName(user)}
+        </span>
       ) : (
         (children ?? displayName(user))
       )}

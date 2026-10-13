@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
+import type { ReplayData } from "@/lib/replay";
 import { recalculateAllMatchWinPoints } from "@/lib/points";
 
 export const metadata = { title: "Матчи · Админка" };
@@ -15,6 +16,15 @@ export default async function AdminMatchesPage() {
     prisma.matchSession.findMany({
       include: {
         games: true,
+        replays: {
+          select: {
+            gameNumber: true,
+            durationSec: true,
+            radiantScore: true,
+            direScore: true,
+            data: true,
+          },
+        },
         rsvps: {
           include: { user: true },
           orderBy: [{ status: "asc" }, { respondedAt: "asc" }],
@@ -53,7 +63,24 @@ export default async function AdminMatchesPage() {
   return (
     <div>
       <PageHeader eyebrow="Панель тренера" title="Субботние 5v5" description="Запись, составы, результаты игр и MVP." />
-      <AdminMatchesClient sessions={sessions} students={students} />
+      <AdminMatchesClient
+        sessions={sessions.map(({ replays, ...rest }) => ({
+          ...rest,
+          replays: replays.map((r) => {
+            const players = ((r.data as unknown as ReplayData)?.players ?? []) as ReplayData["players"];
+            return {
+              gameNumber: r.gameNumber,
+              durationSec: r.durationSec,
+              radiantScore: r.radiantScore,
+              direScore: r.direScore,
+              matched: players.filter((p) => p.userId).length,
+              total: players.length,
+              unmatched: players.filter((p) => !p.userId).map((p) => p.name ?? "без ника"),
+            };
+          }),
+        }))}
+        students={students}
+      />
     </div>
   );
 }

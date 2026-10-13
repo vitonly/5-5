@@ -146,7 +146,13 @@ def main():
                     or k == "NEXT_PUBLIC_LIVEKIT_URL"
                     or k == "NEXT_PUBLIC_VK_CLIENT_ID"
                     or k == "ADMIN_VK_IDS"
-                    or k in ("TELEGRAM_API_BASE", "TELEGRAM_PROXY_SECRET", "TELEGRAM_WEBHOOK_SECRET")
+                    or k
+                    in (
+                        "TELEGRAM_API_BASE",
+                        "TELEGRAM_PROXY_SECRET",
+                        "TELEGRAM_WEBHOOK_SECRET",
+                        "PARSER_URL",
+                    )
                 ):
                     prev_env[k] = v
     except OSError:
@@ -186,6 +192,8 @@ def main():
         or env.get("VK_CLIENT_ID")
         or prev_env.get("VK_CLIENT_ID", ""),
         "ADMIN_VK_IDS": env.get("ADMIN_VK_IDS") or prev_env.get("ADMIN_VK_IDS", ""),
+        "PARSER_URL": env.get("PARSER_URL")
+        or prev_env.get("PARSER_URL", "http://127.0.0.1:5600"),
     }
     body = "\n".join(f'{k}="{v}"' for k, v in remote_env.items()) + "\n"
     with sftp.file(f"{REMOTE_APP}/.env", "w") as f:
@@ -248,7 +256,7 @@ server {{
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name startdota.ru www.startdota.ru {HOST} _;
-    client_max_body_size 64m;
+    client_max_body_size 300m;
 
     location /.well-known/acme-challenge/ {{
         root /var/www/html;
@@ -264,7 +272,7 @@ server {{
     listen [::]:443 ssl;
     http2 on;
     server_name startdota.ru www.startdota.ru;
-    client_max_body_size 64m;
+    client_max_body_size 300m;
 
     ssl_certificate /etc/letsencrypt/live/startdota.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/startdota.ru/privkey.pem;
@@ -280,6 +288,8 @@ server {{
     location / {{
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;

@@ -1,6 +1,8 @@
 import { ViewTransition } from "react";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/session";
+import { getImpersonatorId, getSessionUser } from "@/lib/session";
+import { checkAchievementsThrottled, getUnseenAchievements, type UnlockedAchievement } from "@/lib/achievements";
+import { AchievementCelebration } from "@/components/achievements/AchievementCelebration";
 import { Navbar } from "@/components/Navbar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { VoiceDock } from "@/components/voice/VoiceDock";
@@ -14,6 +16,13 @@ export default async function DashboardLayout({
   if (!user) redirect("/login");
   if (!user.pdConsentAt) redirect("/consent");
 
+  // Ачивки: проверка не чаще раза в 2 минуты + окно с конфетти для новых
+  let unseen: UnlockedAchievement[] = [];
+  if (user.role === "STUDENT") {
+    await checkAchievementsThrottled(user.id);
+    if (!(await getImpersonatorId())) unseen = await getUnseenAchievements(user.id).catch(() => []);
+  }
+
   return (
     <>
       <Navbar />
@@ -22,6 +31,7 @@ export default async function DashboardLayout({
       </main>
       <VoiceDock role={user.role} myId={user.id} />
       <ChatPanel role={user.role} myId={user.id} />
+      {unseen.length > 0 && <AchievementCelebration items={unseen} />}
     </>
   );
 }

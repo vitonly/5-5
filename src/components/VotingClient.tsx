@@ -1,7 +1,8 @@
 "use client";
 
 import { Avatar } from "@/components/home/Avatar";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { fireConfetti } from "@/lib/confetti";
 import { useRouter } from "next/navigation";
 import { SEASON_LABELS, RATING_CRITERIA_HINTS, VIBE_LABELS } from "@/lib/labels";
 import { cn, displayName } from "@/lib/utils";
@@ -86,6 +87,16 @@ export function VotingClient({
   const doneCount = others.filter((s) => isComplete(s.id)).length;
   const total = others.length;
   const pct = total ? (doneCount / total) * 100 : 0;
+
+  // Праздник, когда ученик оценил последнего тиммейта
+  const prevDone = useRef(doneCount);
+  useEffect(() => {
+    if (total > 0 && doneCount === total && prevDone.current < total) {
+      fireConfetti({ count: 110 });
+      toast.success("Все оценки сохранены — спасибо!");
+    }
+    prevDone.current = doneCount;
+  }, [doneCount, total]);
   const active = others[Math.min(activeIndex, Math.max(others.length - 1, 0))];
 
   async function saveScore(targetId: string, score: number) {

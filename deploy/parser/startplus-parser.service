@@ -1,0 +1,17 @@
+[Unit]
+Description=START+ Dota 2 replay parser (clarity)
+After=network.target
+
+[Service]
+Type=simple
+# Поправьте путь и пользователя под свой сервер. Java именно 21 (clarity 4).
+WorkingDirectory=/var/www/startplus/parser
+ExecStart=/usr/lib/jvm/java-21-openjdk-amd64/bin/java -Xmx1g -jar /var/www/startplus/parser/target/startplus-parser.jar --serve 5600
+Restart=on-failure
+RestartSec=5
+User=www-data
+Group=www-data
+Environment=PARSER_HOST=127.0.0.1
+
+[Install]
+WantedBy=multi-user.target

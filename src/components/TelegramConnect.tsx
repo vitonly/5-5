@@ -14,11 +14,10 @@ export function TelegramConnect({
 }) {
   if (linked) {
     return (
-      <Card className="border-[var(--success-border)] bg-[var(--success-bg)]">
-        <CardContent className="py-4">
-          <p className="text-sm text-[var(--success)]">✅ Telegram подключён — уведомления включены</p>
-        </CardContent>
-      </Card>
+      <p className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2 text-sm leading-none text-[var(--success)]">
+        <span aria-hidden>✅</span>
+        Telegram подключён — уведомления включены
+      </p>
     );
   }
 

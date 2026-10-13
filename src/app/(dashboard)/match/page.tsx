@@ -9,6 +9,8 @@ import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { MatchGameBoard, type MatchGameView } from "@/components/MatchGameBoard";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
+import { MatchReplays } from "@/components/match/MatchReplays";
+import type { ReplayData } from "@/lib/replay";
 import { PageHeader } from "@/components/ui/page-header";
 import { teamDisplayName } from "@/lib/team-names";
 import { parseTeamAssignments } from "@/lib/match-lineup";
@@ -38,6 +40,7 @@ async function loadSessions() {
         include: { participants: true },
         orderBy: { gameNumber: "asc" },
       },
+      replays: { orderBy: { gameNumber: "asc" } },
     },
     orderBy: { date: "desc" },
     take: 10,
@@ -54,10 +57,14 @@ export default async function MatchPage() {
     ...new Set(
       sessions.flatMap((s) => {
         const g2 = parseTeamAssignments(s.teamAssignmentsGame2);
+        const fromReplays = s.replays.flatMap((r) =>
+          ((r.data as unknown as ReplayData)?.players ?? []).map((p) => p.userId).filter((x): x is string => Boolean(x))
+        );
         return [
           ...parseJsonArray(s.radiantPlayerIds),
           ...parseJsonArray(s.direPlayerIds),
           ...Object.keys(g2),
+          ...fromReplays,
         ];
       })
     ),
@@ -221,6 +228,21 @@ function MatchCard({
           userMap={userMap}
           viewer={viewer}
           mvpId={session.mvpWinnerId}
+        />
+      )}
+
+      {session.replays.length > 0 && (
+        <MatchReplays
+          viewer={viewer}
+          names={userMap}
+          replays={session.replays.map((r) => ({
+            gameNumber: r.gameNumber,
+            durationSec: r.durationSec,
+            radiantWin: r.radiantWin,
+            radiantScore: r.radiantScore,
+            direScore: r.direScore,
+            players: (r.data as unknown as ReplayData)?.players ?? [],
+          }))}
         />
       )}
 

@@ -4,6 +4,8 @@ import { finalizeSeason, closeVoting, migrateLegacySeasonDeadlines } from "@/lib
 import { formatDate } from "@/lib/utils";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { processMvpDeadlines } from "@/lib/match-mvp";
+import { checkAllAchievements } from "@/lib/achievements";
+import { snapshotRatings } from "@/lib/rating-history";
 
 export async function processOverdueHomework() {
   const now = new Date();
@@ -79,12 +81,22 @@ export async function runAutomation() {
   const votingClosed = await processExpiredVoting();
   const seasonsClosed = await processExpiredSeasons();
   const mvpClosed = await processMvpDeadlines();
+  const snapshots = await snapshotRatings().catch((e) => {
+    console.error("[automation] snapshots", e);
+    return 0;
+  });
+  const achievementsUnlocked = await checkAllAchievements().catch((e) => {
+    console.error("[automation] achievements", e);
+    return 0;
+  });
 
   return {
     overdueProcessed,
     votingClosed,
     seasonsClosed,
     mvpClosed,
+    snapshots,
+    achievementsUnlocked,
     ranAt: new Date().toISOString(),
   };
 }

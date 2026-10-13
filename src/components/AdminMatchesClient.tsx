@@ -23,6 +23,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsibleCard } from "@/components/ui/collapsible-card";
+import { ReplayUploads, type ReplaySummary } from "@/components/match/ReplayUploads";
 import { PositionBadge } from "@/components/RoleIcon";
 import { Segmented } from "@/components/ui/segmented";
 import { seriesScoreByGame1Roster } from "@/lib/match-score";
@@ -76,6 +77,7 @@ type MvpVoteRow = {
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
   games: MatchGame[];
+  replays?: ReplaySummary[];
   rsvps?: RsvpWithUser[];
   mvpVotes?: MvpVoteRow[];
 };
@@ -1374,6 +1376,13 @@ export function AdminMatchesClient({
                   )}
                 </div>
               )}
+              {session.games.length > 0 && (
+                <ReplayUploads
+                  sessionId={session.id}
+                  games={[...new Set(session.games.map((g) => g.gameNumber))].sort((a, b) => a - b)}
+                  replays={session.replays ?? []}
+                />
+              )}
           </SessionShell>
         );
         };
@@ -1492,10 +1501,10 @@ function TeamBlock({
           return (
             <li key={`${slot.team}-${slot.position}`} className="flex items-center gap-2 py-1.5">
               <PositionBadge position={slot.position} title={POSITION_LABELS[slot.position]} />
-              <span className="min-w-0 flex-1 truncate">
-                {student ? <PlayerLink user={student} className="inline" avatar={24} /> : slot.userId}
+              <span className="min-w-0 flex-1">
+                {student ? <PlayerLink user={student} avatar={24} /> : slot.userId}
               </span>
-              <span className="hidden shrink-0 min-[1100px]:inline-flex">
+              <span className="hidden shrink-0 items-center min-[1100px]:inline-flex">
                 <PlayerRolesDisplay profile={student?.profile} />
               </span>
               <PowerPill value={power} />

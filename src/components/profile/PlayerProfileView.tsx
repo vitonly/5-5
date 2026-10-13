@@ -23,6 +23,11 @@ import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { getVotingSeason } from "@/lib/seasons";
 import { ensureTelegramLinkToken, isTelegramLinked } from "@/lib/telegram-links";
 import type { VibeValue } from "@/lib/rating";
+import { getAchievementOverview } from "@/lib/achievements";
+import { getPowerHistory, getSeasonPlaceHistory } from "@/lib/rating-history";
+import { AchievementsTab } from "@/components/achievements/AchievementsTab";
+import { AchievementBadge } from "@/components/achievements/AchievementBadge";
+import { HistoryChart } from "@/components/profile/HistoryChart";
 import type { User, PlayerProfile } from "@prisma/client";
 
 type Viewer = (User & { profile: PlayerProfile | null }) | null;
@@ -61,7 +66,7 @@ export async function PlayerProfileView({
   const seasonId = await getActiveSeasonId();
   const ratingSeason = await getVotingSeason();
 
-  const [logs, homeworkDone, leaderboard, matchParts, studentsCount] = await Promise.all([
+  const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, powerHistory] = await Promise.all([
     prisma.pointLog.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -77,6 +82,9 @@ export async function PlayerProfileView({
       take: 80,
     }),
     prisma.user.count({ where: { role: "STUDENT" } }),
+    getAchievementOverview(userId),
+    getSeasonPlaceHistory(userId),
+    getPowerHistory(userId),
   ]);
 
   const historyPlayerIds = new Set<string>();
@@ -163,6 +171,10 @@ export async function PlayerProfileView({
   }
 
   const showProgress = (isOwn || isAdmin) && user.role === "STUDENT";
+  const topBadges = achievements.items
+    .filter((a) => a.tier > 0)
+    .sort((a, b) => b.tier - a.tier || (b.unlockedAt ?? "").localeCompare(a.unlockedAt ?? ""))
+    .slice(0, 4);
 
   const tabs: ProfileTab[] = [
     {
@@ -192,6 +204,25 @@ export async function PlayerProfileView({
             <WeeklyPointsChart logs={logs} />
             <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
           </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <HistoryChart
+              title="Место в сезоне по неделям"
+              points={placeHistory.points}
+              invert
+              format={(v) => `#${v}`}
+              emptyText="График появится после первых начислений в сезоне"
+              hint={placeHistory.total ? `из ${placeHistory.total} учеников` : undefined}
+            />
+            {canSeePower && (
+              <HistoryChart
+                title="Рейтинг силы по неделям"
+                points={powerHistory}
+                color="var(--power)"
+                emptyText="Сила записывается раз в день — график появится через пару недель"
+                hint="Видишь только ты и тренер"
+              />
+            )}
+          </div>
           {canSeePower && (
             <RatingBreakdown
               profile={profile}
@@ -211,6 +242,19 @@ export async function PlayerProfileView({
       id: "matches",
       label: "Матчи",
       content: <MatchHistory entries={matchHistory} title={isOwn ? "Мои матчи 5v5" : "История матчей 5v5"} />,
+    },
+    {
+      id: "achievements",
+      label: `Ачивки${achievements.unlockedCount ? ` · ${achievements.unlockedCount}` : ""}`,
+      content: (
+        <AchievementsTab
+          items={achievements.items}
+          unlockedCount={achievements.unlockedCount}
+          totalCount={achievements.totalCount}
+          points={achievements.points}
+          isOwn={isOwn}
+        />
+      ),
     },
     {
       id: "points",
@@ -303,6 +347,23 @@ export async function PlayerProfileView({
                 </div>
               )}
             </dl>
+
+            {topBadges.length > 0 && (
+              <Link
+                href="?tab=achievements"
+                className="press mt-4 flex items-center gap-3 rounded-[var(--radius-control)] bg-[var(--surface-muted)] px-3 py-2 transition-colors hover:bg-[var(--control)]"
+              >
+                <span className="flex -space-x-1.5">
+                  {topBadges.map((b) => (
+                    <AchievementBadge key={b.code} icon={b.icon} tier={b.tier || 1} size={30} className="ring-2 ring-[var(--surface)]" />
+                  ))}
+                </span>
+                <span className="min-w-0 flex-1 text-[13px] text-[var(--text-2)]">
+                  <span className="font-semibold text-[var(--text)]">{achievements.unlockedCount}</span> ачивок
+                </span>
+                <span className="text-[13px] font-medium text-[var(--points)]">Все →</span>
+              </Link>
+            )}
 
             {isOwn && (
               <div className="mt-4">

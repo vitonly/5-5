@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Check, ChevronRight, ExternalLink, FileText, PlayCircle, RotateCcw } from "lucide-react";
+import { BookOpen, Check, ExternalLink, FileText, PlayCircle, RotateCcw } from "lucide-react";
 import { OfflineStreamRow, StreamCard } from "@/components/StreamCard";
 import { VideoCard } from "@/components/VideoCard";
 import { Button } from "@/components/ui/button";
 import { FilterChips, Segmented } from "@/components/ui/segmented";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { EmptyState, LiveDot, roleFilterItems } from "@/components/materials/shared";
-import { MATERIAL_TYPE_LABELS } from "@/lib/labels";
+import { MATERIAL_TYPE_LABELS, SKILL_LEVEL_LABELS } from "@/lib/labels";
 import {
   getViewedAt,
   isArchivedViewed,
@@ -21,17 +20,26 @@ import {
 import { useMaterialViews } from "@/hooks/useMaterialViews";
 import { extractTwitchLogin } from "@/lib/twitch";
 import { cn, materialDisplayTitle, parseJsonArray } from "@/lib/utils";
-import type { LearningMaterial, DotaRole } from "@prisma/client";
+import type { LearningMaterial, DotaRole, SkillLevel } from "@prisma/client";
 import type { LiveStream } from "@/lib/twitch";
 
-type Filter = "ALL" | "STREAM" | "ARTICLE";
+type Filter = "ALL" | "STREAM" | "ARTICLE" | "VIDEO";
 type Tab = "active" | "viewed";
+
+const LEVELS = Object.keys(SKILL_LEVEL_LABELS) as SkillLevel[];
 
 function materialMatchesRole(m: LearningMaterial, roleFilter: DotaRole | null) {
   if (!roleFilter) return true;
   const pos = parseJsonArray(m.positions) as DotaRole[];
   if (pos.length === 0) return true;
   return pos.includes(roleFilter);
+}
+
+function materialMatchesLevel(m: LearningMaterial, levelFilter: SkillLevel | null) {
+  if (!levelFilter) return true;
+  const levels = parseSkillLevels(m.skillLevels);
+  if (levels.length === 0) return true;
+  return levels.includes(levelFilter);
 }
 
 export function MaterialsClient({
@@ -47,6 +55,7 @@ export function MaterialsClient({
 }) {
   const [typeFilter, setTypeFilter] = useState<Filter>("ALL");
   const [roleFilter, setRoleFilter] = useState<DotaRole | null>(null);
+  const [levelFilter, setLevelFilter] = useState<SkillLevel | null>(null);
   const [tab, setTab] = useState<Tab>("active");
   const [liveLoginsState, setLiveLoginsState] = useState(liveLogins);
   const [liveStreamsState, setLiveStreamsState] = useState(liveStreams);
@@ -76,24 +85,40 @@ export function MaterialsClient({
 
   const filtered = useMemo(() => {
     return materials.filter((m) => {
-      if (m.type === "VIDEO") return false;
       if (typeFilter !== "ALL" && m.type !== typeFilter) return false;
-      return materialMatchesRole(m, roleFilter);
+      if (!materialMatchesRole(m, roleFilter)) return false;
+      if (m.type === "VIDEO" && !materialMatchesLevel(m, levelFilter)) return false;
+      return true;
     });
-  }, [materials, typeFilter, roleFilter]);
+  }, [materials, typeFilter, roleFilter, levelFilter]);
 
-  const allVideos = useMemo(
-    () => materials.filter((m) => m.type === "VIDEO" && materialMatchesRole(m, roleFilter)),
-    [materials, roleFilter]
+  // для «Просмотренные» — без фильтра типа, чтобы счётчик и список не пустели
+  const videosForViews = useMemo(
+    () =>
+      materials.filter(
+        (m) =>
+          m.type === "VIDEO" &&
+          materialMatchesRole(m, roleFilter) &&
+          materialMatchesLevel(m, levelFilter)
+      ),
+    [materials, roleFilter, levelFilter]
+  );
+
+  const feedVideos = useMemo(
+    () => filtered.filter((m) => m.type === "VIDEO"),
+    [filtered]
   );
 
   const { activeVideos, viewedVideos } = useMemo(() => {
     const active: LearningMaterial[] = [];
     const viewedList: LearningMaterial[] = [];
-    for (const v of allVideos) {
+    for (const v of feedVideos) {
+      const at = getViewedAt(views, v.id);
+      if (!isArchivedViewed(at)) active.push(v);
+    }
+    for (const v of videosForViews) {
       const at = getViewedAt(views, v.id);
       if (at) viewedList.push(v);
-      if (!isArchivedViewed(at)) active.push(v);
     }
     active.sort((a, b) => {
       const aSoft = isSoftViewed(getViewedAt(views, a.id)) ? 1 : 0;
@@ -107,21 +132,24 @@ export function MaterialsClient({
       return tb - ta;
     });
     return { activeVideos: active, viewedVideos: viewedList };
-  }, [allVideos, views]);
-
-  const recentVideos = useMemo(
-    () => activeVideos.filter((v) => isNewMaterial(v.createdAt) || isSoftViewed(getViewedAt(views, v.id))),
-    [activeVideos, views]
-  );
+  }, [feedVideos, videosForViews, views]);
 
   const articlesAll = filtered.filter((m) => m.type === "ARTICLE");
+  const articlesForViews = useMemo(
+    () => materials.filter((m) => m.type === "ARTICLE" && materialMatchesRole(m, roleFilter)),
+    [materials, roleFilter]
+  );
+
   const { activeArticles, viewedArticles } = useMemo(() => {
     const active: LearningMaterial[] = [];
     const viewedList: LearningMaterial[] = [];
     for (const a of articlesAll) {
       const at = getViewedAt(views, a.id);
-      if (at) viewedList.push(a);
       if (!isArchivedViewed(at)) active.push(a);
+    }
+    for (const a of articlesForViews) {
+      const at = getViewedAt(views, a.id);
+      if (at) viewedList.push(a);
     }
     active.sort((a, b) => {
       const aSoft = isSoftViewed(getViewedAt(views, a.id)) ? 1 : 0;
@@ -130,7 +158,7 @@ export function MaterialsClient({
       return 0;
     });
     return { activeArticles: active, viewedArticles: viewedList };
-  }, [articlesAll, views]);
+  }, [articlesAll, articlesForViews, views]);
 
   const streamEntries = useMemo(() => {
     return filtered
@@ -158,13 +186,13 @@ export function MaterialsClient({
 
   const showStreams = typeFilter === "ALL" || typeFilter === "STREAM";
   const showArticles = typeFilter === "ALL" || typeFilter === "ARTICLE";
-  const showVideos = typeFilter === "ALL";
+  const showVideos = typeFilter === "ALL" || typeFilter === "VIDEO";
+  const showLevelFilter = showVideos;
 
   const hasAnyContent =
-    liveStreamEntries.length > 0 ||
-    offlineStreamEntries.length > 0 ||
-    recentVideos.length > 0 ||
-    activeArticles.length > 0;
+    (showStreams && (liveStreamEntries.length > 0 || offlineStreamEntries.length > 0)) ||
+    (showVideos && activeVideos.length > 0) ||
+    (showArticles && activeArticles.length > 0);
 
   const viewedCount = viewedVideos.length + viewedArticles.length;
 
@@ -172,28 +200,33 @@ export function MaterialsClient({
     .sort((a, b) => (liveByLogin.get(b.login)?.viewers ?? 0) - (liveByLogin.get(a.login)?.viewers ?? 0))
     .slice(0, 6);
 
+  const videoCard = (v: LearningMaterial) => {
+    const viewed = Boolean(getViewedAt(views, v.id));
+    return (
+      <VideoCard
+        key={v.id}
+        title={materialDisplayTitle(v)}
+        url={v.url}
+        description={v.description || undefined}
+        isNew={isNewMaterial(v.createdAt) && !viewed}
+        skillLevels={parseSkillLevels(v.skillLevels)}
+        viewed={viewed}
+        onMarkViewed={() => markViewed(v.id)}
+        onUnmarkViewed={() => unmarkViewed(v.id)}
+      />
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between">
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          items={[
-            { value: "active", label: "Лента" },
-            { value: "viewed", label: "Просмотренные", count: viewedCount || undefined },
-          ]}
-        />
-        <Link
-          href="/materials/videos"
-          className="press inline-flex h-11 items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm font-medium text-[var(--text)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--points-border)] min-[720px]:h-10"
-        >
-          <span className="inline-flex items-center gap-2">
-            <PlayCircle className="h-4 w-4 text-[var(--points)]" aria-hidden />
-            Видеотека по позициям
-          </span>
-          <ChevronRight className="h-4 w-4 text-[var(--text-3)]" aria-hidden />
-        </Link>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: "active", label: "Лента" },
+          { value: "viewed", label: "Просмотренные", count: viewedCount || undefined },
+        ]}
+      />
 
       {tab === "viewed" ? (
         <ViewedTab videos={viewedVideos} articles={viewedArticles} onUnmark={unmarkViewed} />
@@ -207,10 +240,22 @@ export function MaterialsClient({
               items={[
                 { value: null, label: "Всё" },
                 { value: "STREAM" as const, label: MATERIAL_TYPE_LABELS.STREAM },
+                { value: "VIDEO" as const, label: MATERIAL_TYPE_LABELS.VIDEO },
                 { value: "ARTICLE" as const, label: MATERIAL_TYPE_LABELS.ARTICLE },
               ]}
             />
             <FilterChips label="Позиция" value={roleFilter} onChange={setRoleFilter} items={roleFilterItems()} />
+            {showLevelFilter && (
+              <FilterChips
+                label="Уровень"
+                value={levelFilter}
+                onChange={setLevelFilter}
+                items={[
+                  { value: null, label: "Все уровни" },
+                  ...LEVELS.map((l) => ({ value: l, label: SKILL_LEVEL_LABELS[l] })),
+                ]}
+              />
+            )}
           </div>
 
           {showStreams && sortedLive.length > 0 && (
@@ -227,26 +272,11 @@ export function MaterialsClient({
             </section>
           )}
 
-          {showVideos && recentVideos.length > 0 && (
+          {showVideos && activeVideos.length > 0 && (
             <section>
-              <SectionHeader title="Новые видео" href="/materials/videos" linkLabel="Все видео" />
+              <SectionHeader title="Видео" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recentVideos.map((v) => {
-                  const viewed = Boolean(getViewedAt(views, v.id));
-                  return (
-                    <VideoCard
-                      key={v.id}
-                      title={materialDisplayTitle(v)}
-                      url={v.url}
-                      description={v.description || undefined}
-                      isNew={isNewMaterial(v.createdAt) && !viewed}
-                      skillLevels={parseSkillLevels(v.skillLevels)}
-                      viewed={viewed}
-                      onMarkViewed={() => markViewed(v.id)}
-                      onUnmarkViewed={() => unmarkViewed(v.id)}
-                    />
-                  );
-                })}
+                {activeVideos.map(videoCard)}
               </div>
             </section>
           )}
@@ -284,9 +314,11 @@ export function MaterialsClient({
 
           {!hasAnyContent && (
             <EmptyState
-              icon={<BookOpen />}
-              title={roleFilter || typeFilter !== "ALL" ? "Ничего не нашлось" : "Материалы скоро появятся"}
-              text={roleFilter || typeFilter !== "ALL" ? "Попробуйте другой фильтр." : undefined}
+              icon={typeFilter === "VIDEO" ? <PlayCircle /> : <BookOpen />}
+              title={roleFilter || typeFilter !== "ALL" || levelFilter ? "Ничего не нашлось" : "Материалы скоро появятся"}
+              text={
+                roleFilter || typeFilter !== "ALL" || levelFilter ? "Попробуйте другой фильтр." : undefined
+              }
             />
           )}
         </>
