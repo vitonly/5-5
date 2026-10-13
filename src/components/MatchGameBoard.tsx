@@ -247,14 +247,7 @@ function TeamHead({
           );
         })}
       </div>
-      <p className={cn("flex items-center gap-2", right && "flex-row-reverse")}>
-        <span
-          className={cn(
-            "h-2.5 w-2.5 shrink-0 rounded-full",
-            side === "radiant" ? "bg-[var(--success)]" : "bg-[var(--danger)]"
-          )}
-          aria-hidden
-        />
+      <p className={cn("flex items-center", right && "flex-row-reverse")}>
         <span className="truncate text-[14px] font-semibold text-[var(--text)] min-[720px]:text-[16px]">{name}</span>
       </p>
     </div>

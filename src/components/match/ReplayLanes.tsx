@@ -331,10 +331,7 @@ function PlayerCell({
               </span>
             )}
           </p>
-          <p className="truncate text-[12px] text-[var(--text-3)]">
-            {hero.name}
-            {user && p.name ? ` · ${p.name}` : ""}
-          </p>
+          <p className="truncate text-[12px] text-[var(--text-3)]">{hero.name}</p>
         </div>
         <div className={cn("shrink-0 text-right", mirrored && "min-[900px]:text-left")}>
           <p className="font-mono-num text-[14px] font-bold">
@@ -363,11 +360,13 @@ function PlayerCell({
           )}
         </div>
         <dl className={cn("flex flex-wrap gap-x-2.5 gap-y-0.5 font-mono-num text-[11px] text-[var(--text-3)]", mirrored ? "min-[900px]:mr-auto" : "min-[900px]:ml-auto")}>
-          <Stat label="ЛХ/ДН" value={`${p.lastHits}/${p.denies}`} />
+          <div title="Добито / заденаено" className="font-semibold text-[var(--text-2)]">
+            {p.lastHits}/{p.denies}
+          </div>
           {p.gpm != null && <Stat label="ЗМ" value={String(p.gpm)} />}
           {p.xpm != null && <Stat label="ОМ" value={String(p.xpm)} />}
-          <Stat label="Урон" value={formatK(p.heroDamage)} />
-          <Stat label="Здания" value={formatK(p.towerDamage)} />
+          {p.heroDamage > 0 && <Stat label="Урон" value={formatK(p.heroDamage)} />}
+          {p.towerDamage > 0 && <Stat label="Здания" value={formatK(p.towerDamage)} />}
           {p.healing > 0 && <Stat label="Лечение" value={formatK(p.healing)} />}
         </dl>
       </div>
