@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DotaImg } from "@/components/match/DotaImg";
-import { heroInfo, plural } from "@/lib/replay";
+import { formatK, heroInfo, plural } from "@/lib/replay";
 import type { ReplayStats } from "@/lib/replay-stats";
 import { cn } from "@/lib/utils";
 
@@ -41,14 +41,10 @@ export function HeroStatsSummary({ stats, isOwn }: { stats: ReplayStats; isOwn: 
             {stats.avg.kills} / {stats.avg.deaths} / {stats.avg.assists}
           </b>
         </span>
-        {stats.avg.gpm != null && (
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-3">
-            ЗМ / ОМ{" "}
-            <b className="font-mono-num text-[var(--text)]">
-              {stats.avg.gpm} / {stats.avg.xpm ?? "—"}
-            </b>
-          </span>
-        )}
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-3">
+          Урон{" "}
+          <b className="font-mono-num text-[var(--text)]">{formatK(stats.avg.heroDamage)}</b>
+        </span>
       </div>
 
       <div className="grid gap-3 min-[560px]:grid-cols-2 lg:grid-cols-3">

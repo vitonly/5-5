@@ -86,9 +86,9 @@ export function HeroStatsTab({ stats, viewer, isOwn }: { stats: ReplayStats; vie
               hint={`KDA ${kdaRatio.toFixed(1)}`}
             />
             <StatTile
-              label="Золото / опыт в мин."
-              value={stats.avg.gpm != null ? `${stats.avg.gpm} / ${stats.avg.xpm ?? "—"}` : "—"}
-              hint="ЗМ / ОМ в среднем"
+              label="Урон по героям"
+              value={formatK(stats.avg.heroDamage)}
+              hint="в среднем за игру"
             />
             <StatTile label="Добивания" value={stats.avg.lastHits} hint={`в среднем · денаев ${stats.avg.denies}`} />
             <StatTile
@@ -173,7 +173,9 @@ export function HeroStatsTab({ stats, viewer, isOwn }: { stats: ReplayStats; vie
                           {info.name} · {formatShortDate(r.date)}
                         </p>
                       </div>
-                      <span className="font-mono-num text-[15px] font-bold">{r.key === "netWorth" ? formatK(r.value) : r.value}</span>
+                      <span className="font-mono-num text-[15px] font-bold">
+                        {r.key === "netWorth" || r.key === "heroDamage" ? formatK(r.value) : r.value}
+                      </span>
                     </li>
                   );
                 })}

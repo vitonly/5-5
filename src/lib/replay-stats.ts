@@ -15,7 +15,7 @@ export type HeroStat = {
 };
 
 export type RecordStat = {
-  key: "kills" | "netWorth" | "assists" | "gpm" | "lastHits";
+  key: "kills" | "netWorth" | "assists" | "heroDamage" | "lastHits";
   label: string;
   value: number;
   heroId: number | null;
@@ -51,7 +51,15 @@ export type ReplayStats = {
   wins: number;
   losses: number;
   totalPlayed: number;
-  avg: { kills: number; deaths: number; assists: number; gpm: number | null; xpm: number | null; lastHits: number; denies: number; netWorth: number };
+  avg: {
+    kills: number;
+    deaths: number;
+    assists: number;
+    heroDamage: number;
+    lastHits: number;
+    denies: number;
+    netWorth: number;
+  };
   heroes: HeroStat[];
   records: RecordStat[];
   recent: RecentGame[];
@@ -97,8 +105,6 @@ export async function getReplayStats(userId: string): Promise<ReplayStats | null
   entries.sort((a, b) => b.date.getTime() - a.date.getTime() || b.gameNumber - a.gameNumber);
   const n = entries.length;
   const sum = (f: (e: Entry) => number) => entries.reduce((s, e) => s + f(e), 0);
-  const withGpm = entries.filter((e) => e.p.gpm != null);
-  const withXpm = entries.filter((e) => e.p.xpm != null);
 
   // Герои
   const heroMap = new Map<number, HeroStat>();
@@ -142,7 +148,7 @@ export async function getReplayStats(userId: string): Promise<ReplayStats | null
     best("kills", "Больше всего убийств", (e) => e.p.kills),
     best("netWorth", "Самый большой нетворс", (e) => e.p.netWorth),
     best("assists", "Больше всего ассистов", (e) => e.p.assists),
-    best("gpm", "Лучшее золото в минуту", (e) => e.p.gpm),
+    best("heroDamage", "Больше всего урона по героям", (e) => e.p.heroDamage),
     best("lastHits", "Больше всего добиваний", (e) => e.p.lastHits),
   ].filter((x): x is RecordStat => x !== null);
 
@@ -158,8 +164,7 @@ export async function getReplayStats(userId: string): Promise<ReplayStats | null
       kills: round1(sum((e) => e.p.kills) / n),
       deaths: round1(sum((e) => e.p.deaths) / n),
       assists: round1(sum((e) => e.p.assists) / n),
-      gpm: withGpm.length ? Math.round(withGpm.reduce((s, e) => s + (e.p.gpm ?? 0), 0) / withGpm.length) : null,
-      xpm: withXpm.length ? Math.round(withXpm.reduce((s, e) => s + (e.p.xpm ?? 0), 0) / withXpm.length) : null,
+      heroDamage: Math.round(sum((e) => e.p.heroDamage) / n),
       lastHits: Math.round(sum((e) => e.p.lastHits) / n),
       denies: Math.round(sum((e) => e.p.denies) / n),
       netWorth: Math.round(sum((e) => e.p.netWorth) / n),
@@ -189,7 +194,7 @@ function emptyWithMates(totalPlayed: number, mates: MateStat[]): ReplayStats {
     wins: 0,
     losses: 0,
     totalPlayed,
-    avg: { kills: 0, deaths: 0, assists: 0, gpm: null, xpm: null, lastHits: 0, denies: 0, netWorth: 0 },
+    avg: { kills: 0, deaths: 0, assists: 0, heroDamage: 0, lastHits: 0, denies: 0, netWorth: 0 },
     heroes: [],
     records: [],
     recent: [],
