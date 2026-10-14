@@ -14,15 +14,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: user ? displayName(user) : "Игрок" };
 }
 
-export default async function PlayerPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const [{ id }, { tab }] = await Promise.all([params, searchParams]);
+export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const viewer = await getSessionUser();
 
-  return <PlayerProfileView userId={id} viewer={viewer} initialTab={tab} />;
+  return <PlayerProfileView userId={id} viewer={viewer} />;
 }

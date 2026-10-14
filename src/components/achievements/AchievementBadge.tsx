@@ -1,5 +1,15 @@
 import {
   AlarmClockCheck,
+  ArrowUpFromLine,
+  Axe,
+  BookOpen,
+  Crown,
+  Dumbbell,
+  HeartHandshake,
+  Rocket,
+  Shield,
+  StarHalf,
+  Timer,
   BadgeCheck,
   CalendarCheck,
   Flame,
@@ -43,6 +53,16 @@ export const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
   vote: Vote,
   send: Send,
   "shield-check": ShieldCheck,
+  "book-open": BookOpen,
+  timer: Timer,
+  rocket: Rocket,
+  crown: Crown,
+  shield: Shield,
+  axe: Axe,
+  "heart-handshake": HeartHandshake,
+  dumbbell: Dumbbell,
+  "star-half": StarHalf,
+  "arrow-up-from-line": ArrowUpFromLine,
 };
 
 const TIER_STYLE: Record<number, { bg: string; ring: string; glow: string }> = {

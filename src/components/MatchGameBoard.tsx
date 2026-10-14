@@ -11,6 +11,7 @@ import { POSITION_LABELS } from "@/lib/labels";
 import { formatPoints } from "@/lib/points";
 import { cn } from "@/lib/utils";
 import type { LineupSlot } from "@/lib/match-lineup";
+import { seriesScoreForDisplayedSides } from "@/lib/match-score";
 import { ReplayLanes, type ReplayView } from "@/components/match/ReplayLanes";
 
 type UserRow = {
@@ -41,8 +42,8 @@ export type MatchGameView = {
 
 /** Табло + составы с перелистыванием игр (для решафла №2). */
 export function MatchGameBoard({
-  seriesRadiantName,
-  seriesDireName,
+  seriesRadiantIds,
+  seriesDireIds,
   seriesRadiantWins,
   seriesDireWins,
   games,
@@ -50,8 +51,9 @@ export function MatchGameBoard({
   viewer,
   mvpId,
 }: {
-  seriesRadiantName: string;
-  seriesDireName: string;
+  /** Составы игры 1 — к ним привязан счёт серии */
+  seriesRadiantIds: string[];
+  seriesDireIds: string[];
   seriesRadiantWins: number;
   seriesDireWins: number;
   games: MatchGameView[];
@@ -71,6 +73,13 @@ export function MatchGameBoard({
   const game = games[Math.min(idx, games.length - 1)] ?? games[0];
   const multi = games.length > 1;
   const anyReplay = games.some((g) => g.replay);
+  const { leftWins, rightWins } = seriesScoreForDisplayedSides(
+    game.radiant.map((s) => s.userId),
+    seriesRadiantIds,
+    seriesDireIds,
+    seriesRadiantWins,
+    seriesDireWins
+  );
 
   return (
     <div className={cn("mx-auto px-4", anyReplay ? "max-w-[1120px]" : "max-w-[820px]", "pb-5 pt-4 min-[720px]:px-6 min-[720px]:pb-6")}>
@@ -79,16 +88,16 @@ export function MatchGameBoard({
         <div className="text-center">
           {hasPlayed ? (
             <p className="font-display text-[30px] font-bold leading-none tracking-tight min-[720px]:text-[40px]">
-              <CountUp value={seriesRadiantWins} />
+              <CountUp value={leftWins} />
               <span className="mx-1.5 text-[var(--text-3)]">:</span>
-              <CountUp value={seriesDireWins} />
+              <CountUp value={rightWins} />
             </p>
           ) : (
             <p className="font-display text-[20px] font-bold text-[var(--text-3)]">VS</p>
           )}
           {hasPlayed && multi && (
             <p className="mt-1 text-[11px] text-[var(--text-3)]">
-              серия · {seriesRadiantName.replace(/^Team\s+/i, "")} — {seriesDireName.replace(/^Team\s+/i, "")}
+              серия · {game.radiantName.replace(/^Team\s+/i, "")} — {game.direName.replace(/^Team\s+/i, "")}
             </p>
           )}
         </div>

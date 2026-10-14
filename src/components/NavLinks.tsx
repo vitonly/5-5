@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 type NavItem = { href: string; label: string; badge?: number };
 
 function isActive(pathname: string, href: string) {
-  if (href === "/" || href === "/admin") return pathname === href;
-  return pathname === href || pathname.startsWith(href + "/");
+  const path = href.split("?")[0] || href;
+  if (path === "/" || path === "/admin") return pathname === path;
+  return pathname === path || pathname.startsWith(path + "/");
 }
 
 /** Пункты навигации с подсветкой текущего раздела. */

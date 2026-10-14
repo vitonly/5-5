@@ -51,11 +51,9 @@ function Fact({ label, children, note }: { label: string; children: React.ReactN
 export async function PlayerProfileView({
   userId,
   viewer,
-  initialTab,
 }: {
   userId: string;
   viewer: Viewer;
-  initialTab?: string;
 }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -65,6 +63,7 @@ export async function PlayerProfileView({
 
   const seasonId = await getActiveSeasonId();
   const ratingSeason = await getVotingSeason();
+  const isOwn = viewer?.id === user.id;
 
   const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, powerHistory] = await Promise.all([
     prisma.pointLog.findMany({
@@ -82,7 +81,7 @@ export async function PlayerProfileView({
       take: 80,
     }),
     prisma.user.count({ where: { role: "STUDENT" } }),
-    getAchievementOverview(userId),
+    getAchievementOverview(userId, { revealSecrets: isOwn }),
     getSeasonPlaceHistory(userId),
     getPowerHistory(userId),
   ]);
@@ -137,7 +136,6 @@ export async function PlayerProfileView({
 
   const profile = user.profile;
   const secondaryRoles = parseSecondaryRoles(profile.secondaryRoles, profile.secondaryRole);
-  const isOwn = viewer?.id === user.id;
   const isAdmin = viewer?.role === "ADMIN";
   const canSeePower = isOwn || isAdmin;
 
@@ -379,7 +377,7 @@ export async function PlayerProfileView({
         </div>
       </section>
 
-      <ProfileTabs key={initialTab ?? "overview"} tabs={tabs} initial={initialTab} />
+      <ProfileTabs tabs={tabs} />
     </div>
   );
 }

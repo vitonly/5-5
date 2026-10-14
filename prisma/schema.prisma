@@ -527,3 +527,10 @@ model MatchReplay {
 
   @@unique([sessionId, gameNumber])
 }
+
+/** Служебные флаги приложения (например, запуск ачивок v2) */
+model AppFlag {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

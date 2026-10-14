@@ -118,20 +118,7 @@ def main():
     client = connect()
     sftp = client.open_sftp()
 
-    print("Uploading code...", flush=True)
-    tgz = make_tarball()
-    with sftp.file("/tmp/startplus.tgz", "wb") as f:
-        f.write(tgz)
-
-    run(client, f"rm -rf {REMOTE_APP} && mkdir -p {REMOTE_APP} && tar -xzf /tmp/startplus.tgz -C {REMOTE_APP}")
-    # Empty real dir during build — Turbopack breaks on symlink to /var/www/.../uploads
-    run(
-        client,
-        f"mkdir -p /var/www/startplus/uploads && rm -rf {REMOTE_APP}/public/uploads && "
-        f"mkdir -p {REMOTE_APP}/public/uploads",
-    )
-
-    # Preserve secrets already on the server
+    # Preserve secrets BEFORE wiping the app dir (tarball never includes .env)
     prev_env: dict[str, str] = {}
     try:
         with sftp.file(f"{REMOTE_APP}/.env", "r") as ef:
@@ -155,8 +142,22 @@ def main():
                     )
                 ):
                     prev_env[k] = v
+        print(f"Preserved {len(prev_env)} secret keys from existing .env", flush=True)
     except OSError:
-        pass
+        print("No previous .env on server", flush=True)
+
+    print("Uploading code...", flush=True)
+    tgz = make_tarball()
+    with sftp.file("/tmp/startplus.tgz", "wb") as f:
+        f.write(tgz)
+
+    run(client, f"rm -rf {REMOTE_APP} && mkdir -p {REMOTE_APP} && tar -xzf /tmp/startplus.tgz -C {REMOTE_APP}")
+    # Empty real dir during build — Turbopack breaks on symlink to /var/www/.../uploads
+    run(
+        client,
+        f"mkdir -p /var/www/startplus/uploads && rm -rf {REMOTE_APP}/public/uploads && "
+        f"mkdir -p {REMOTE_APP}/public/uploads",
+    )
 
     remote_env = {
         "DATABASE_URL": PG_URL,

@@ -1,25 +1,37 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 export type ProfileTab = { id: string; label: string; content: React.ReactNode };
 
-/** Вкладки профиля: сегментный переключатель, липнет под шапкой; вкладка пишется в ?tab=. */
-export function ProfileTabs({ tabs, initial }: { tabs: ProfileTab[]; initial?: string }) {
-  const first = tabs.find((t) => t.id === initial)?.id ?? tabs[0]?.id;
-  const [value, setValue] = useState(first);
+function resolveTab(tabs: ProfileTab[], raw: string | null | undefined) {
+  return tabs.find((t) => t.id === raw)?.id ?? tabs[0]?.id ?? "";
+}
+
+function ProfileTabsInner({ tabs, initial }: { tabs: ProfileTab[]; initial?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const fromUrl = resolveTab(tabs, urlTab ?? initial);
+
+  const [value, setValue] = useState(fromUrl);
+
+  // Ссылки «?tab=…» и навбар обновляют searchParams — подхватываем без перемонтирования
+  useEffect(() => {
+    setValue(fromUrl);
+  }, [fromUrl]);
 
   function onChange(v: string) {
     setValue(v);
-    try {
-      const url = new URL(window.location.href);
-      if (v === tabs[0]?.id) url.searchParams.delete("tab");
-      else url.searchParams.set("tab", v);
-      window.history.replaceState(window.history.state, "", url);
-    } catch {
-      /* ignore */
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    if (v === tabs[0]?.id) params.delete("tab");
+    else params.set("tab", v);
+    const q = params.toString();
+    // router.replace держит Next.js в курсе URL (в отличие от history.replaceState)
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }
 
   return (
@@ -46,5 +58,34 @@ export function ProfileTabs({ tabs, initial }: { tabs: ProfileTab[]; initial?: s
         </Tabs.Content>
       ))}
     </Tabs.Root>
+  );
+}
+
+/** Вкладки профиля: сегментный переключатель, липнет под шапкой; вкладка пишется в ?tab=. */
+export function ProfileTabs({ tabs, initial }: { tabs: ProfileTab[]; initial?: string }) {
+  const fallbackId = resolveTab(tabs, initial);
+  return (
+    <Suspense
+      fallback={
+        <div className="sticky top-[97px] z-30 -mx-4 bg-[var(--bg)]/90 px-4 py-2 min-[720px]:static min-[720px]:mx-0 min-[720px]:bg-transparent min-[720px]:px-0 min-[720px]:py-0">
+          <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1 min-[720px]:inline-flex">
+            {tabs.map((t) => (
+              <div
+                key={t.id}
+                className={`min-h-[40px] flex-1 whitespace-nowrap rounded-[var(--radius-sm)] px-4 text-sm font-medium leading-[40px] min-[720px]:flex-none ${
+                  t.id === fallbackId
+                    ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-xs)]"
+                    : "text-[var(--text-2)]"
+                }`}
+              >
+                {t.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <ProfileTabsInner tabs={tabs} initial={initial} />
+    </Suspense>
   );
 }

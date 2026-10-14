@@ -4,7 +4,61 @@ import { formatShortDate } from "@/lib/format";
 import { formatPoints } from "@/lib/points";
 import { cn } from "@/lib/utils";
 
-const ORDER: AchievementCategory[] = ["matches", "mvp", "homework", "lessons", "rating", "team"];
+const TIER_COLOR: Record<number, string> = { 1: "var(--bronze)", 2: "var(--silver)", 3: "var(--gold)" };
+
+/** Подсказка при наведении / фокусе (тап на телефоне): прогресс по каждому уровню */
+function ProgressTip({
+  id,
+  a,
+  hideCondition,
+  locked,
+}: {
+  id: string;
+  a: AchievementView;
+  hideCondition: boolean;
+  locked: boolean;
+}) {
+  return (
+    <div
+      id={id}
+      role="tooltip"
+      className="pointer-events-none invisible absolute left-2 right-2 top-full z-30 mt-1.5 translate-y-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 opacity-0 shadow-[var(--shadow-popover)] transition-[opacity,transform,visibility] duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus:visible group-focus:translate-y-0 group-focus:opacity-100"
+    >
+      {hideCondition ? (
+        <p className="text-[12px] text-[var(--text-3)]">
+          {locked
+            ? "Секретная ачивка — условие откроется, когда получишь её."
+            : "Секретное условие видит только тот, кто получил эту ачивку."}
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {a.tiers.map((t) => {
+            const single = t.need <= 1 || a.code === "podium";
+            const shown = Math.min(a.value, t.need);
+            return (
+              <li key={t.tier} className="flex items-center gap-2 text-[12px]">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TIER_COLOR[t.tier] }} aria-hidden />
+                <span className={cn("min-w-0 flex-1", t.done ? "text-[var(--text)]" : "text-[var(--text-2)]")}>
+                  {a.secret ? a.description : `${TIER_NAMES[t.tier]}: ${t.description}`}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 font-mono-num font-semibold",
+                    t.done ? "text-[var(--success-ink)]" : "text-[var(--text-3)]"
+                  )}
+                >
+                  {t.done ? "✓" : single ? "—" : `${shown} из ${t.need}`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const ORDER: AchievementCategory[] = ["matches", "mvp", "homework", "lessons", "rating"];
 
 export function AchievementsTab({
   items,
@@ -42,7 +96,8 @@ export function AchievementsTab({
           <p className="font-mono-num text-[20px] font-bold text-[var(--points-ink)]">+{formatPoints(points)}</p>
         </div>
         <p className="w-full text-[12px] text-[var(--text-3)]">
-          Бронза — значок, серебро +0.5 очка, золото +1. {isOwn ? "Есть и секретные — попробуй найти." : ""}
+          Бронза — значок, серебро +0.5 очка, золото +1, секретные +0.5. Наведи на ачивку, чтобы увидеть прогресс.
+          {isOwn ? " Секретные — попробуй найти; условие видишь только ты." : " У чужих секретных ачивок условие скрыто."}
         </p>
       </div>
 
@@ -55,13 +110,25 @@ export function AchievementsTab({
             <div className="grid grid-cols-1 gap-2.5 min-[560px]:grid-cols-2 lg:grid-cols-3">
               {list.map((a) => {
                 const locked = a.tier === 0;
-                const hidden = a.secret && locked;
+                const secretLocked = a.secret && locked;
+                const hideCondition = a.secret && (locked || !isOwn);
                 const progress = a.nextNeed ? Math.min(1, a.value / a.nextNeed) : 1;
                 return (
                   <div
                     key={a.code}
-                    className={cn("surface-card flex items-center gap-3 px-3.5 py-3", locked && "bg-[var(--surface-muted)]")}
+                    tabIndex={0}
+                    aria-describedby={`ach-tip-${a.code}`}
+                    className={cn(
+                      "surface-card group relative flex items-center gap-3 px-3.5 py-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--points)]",
+                      locked && "bg-[var(--surface-muted)]"
+                    )}
                   >
+                    <ProgressTip
+                      id={`ach-tip-${a.code}`}
+                      a={a}
+                      hideCondition={hideCondition}
+                      locked={locked}
+                    />
                     <AchievementBadge
                       icon={a.icon}
                       tier={a.tier || 1}
@@ -72,14 +139,18 @@ export function AchievementsTab({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className={cn("truncate text-[14px] font-semibold", locked ? "text-[var(--text-2)]" : "text-[var(--text)]")}>
-                          {hidden ? "Секретная ачивка" : a.title}
+                          {secretLocked ? "Секретная ачивка" : a.title}
                         </p>
-                        <TierDots tier={a.tier} maxTier={a.maxTier} />
+                        {!a.secret && <TierDots tier={a.tier} maxTier={a.maxTier} />}
                       </div>
                       <p className="truncate text-[12px] text-[var(--text-3)]">
-                        {hidden ? "Условие скрыто" : a.description}
+                        {hideCondition
+                          ? secretLocked
+                            ? "Условие скрыто"
+                            : "Секретное условие"
+                          : a.description}
                       </p>
-                      {!hidden && a.nextNeed != null && a.nextNeed > 1 ? (
+                      {!hideCondition && a.nextNeed != null && a.nextNeed > 1 ? (
                         <div className="mt-1.5 flex items-center gap-2">
                           <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--control)]">
                             <div className="h-full rounded-full bg-[var(--points)]" style={{ width: `${progress * 100}%` }} />

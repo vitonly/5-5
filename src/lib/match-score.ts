@@ -58,6 +58,24 @@ export function seriesScoreByGame1Roster(session: {
   return { radiantWins, direWins };
 }
 
+/**
+ * Перекладывает счёт серии (относительно составов игры 1) на левую/правую
+ * сторону текущего табло — после решафла Radiant/Dire часто меняются местами.
+ */
+export function seriesScoreForDisplayedSides(
+  leftIds: string[],
+  seriesRadiantIds: string[],
+  seriesDireIds: string[],
+  seriesRadiantWins: number,
+  seriesDireWins: number
+): { leftWins: number; rightWins: number } {
+  const left = new Set(leftIds);
+  const oR = seriesRadiantIds.filter((id) => left.has(id)).length;
+  const oD = seriesDireIds.filter((id) => left.has(id)).length;
+  if (oR >= oD) return { leftWins: seriesRadiantWins, rightWins: seriesDireWins };
+  return { leftWins: seriesDireWins, rightWins: seriesRadiantWins };
+}
+
 export function lineupsForGame(
   session: {
     radiantPlayerIds: string;

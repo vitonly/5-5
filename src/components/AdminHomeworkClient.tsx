@@ -192,6 +192,7 @@ export function AdminHomeworkClient({
 
   const [gradeInputs, setGradeInputs] = useState<Record<string, ReviewInput>>({});
   const [expandedHomeworkIds, setExpandedHomeworkIds] = useState<Record<string, boolean>>({});
+  const [remindingAll, setRemindingAll] = useState(false);
 
   const allStudentIds = students.map((s) => s.id);
   const allSelected =
@@ -304,6 +305,45 @@ export function AdminHomeworkClient({
     else toast.error("Не удалось отправить: у ученика нет привязанного Telegram или он не запускал бота.");
   }
 
+  async function remindAll(testToAdmin = false) {
+    setRemindingAll(true);
+    try {
+      const res = await fetch("/api/homework/remind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allIncomplete: true, testToAdmin }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === "string" ? data.error : "Ошибка");
+        return;
+      }
+      if (testToAdmin) {
+        toast.success(
+          `Тест отправлен вам (как ученику). Целей: ${data.targets ?? "?"} чел., заданий: ${data.assignments ?? "?"}`
+        );
+        return;
+      }
+      const sent = Number(data.sent) || 0;
+      const skipped = Number(data.skipped) || 0;
+      if (sent === 0) {
+        toast.error(
+          skipped
+            ? `Никому не ушло: нет Telegram у ${skipped} уч.`
+            : "Никому не ушло"
+        );
+        return;
+      }
+      toast.success(
+        skipped
+          ? `Напомнили ${sent} уч. · без TG: ${skipped}`
+          : `Напомнили ${sent} ученикам о домашках`
+      );
+    } finally {
+      setRemindingAll(false);
+    }
+  }
+
   function toggleStudent(id: string) {
     setSelectedStudents((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
@@ -334,31 +374,63 @@ export function AdminHomeworkClient({
     });
   }
 
+  const remindableStudentIds = new Set<string>();
+  for (const hw of initial) {
+    for (const a of hw.assignments) {
+      if (a.status === "ASSIGNED" || a.status === "OVERDUE" || a.status === "REVISION") {
+        remindableStudentIds.add(a.studentId);
+      }
+    }
+  }
+  const remindableCount = remindableStudentIds.size;
+
   return (
     <div className="space-y-6">
-      <Segmented
-        value={tab}
-        onChange={(v) => {
-          setTab(v);
-          if (v === "create") setReviewStudentId(null);
-        }}
-        items={[
-          { value: "create", label: "Выдать задание" },
-          {
-            value: "review",
-            label: (
-              <span className="inline-flex items-center gap-1.5">
-                Проверить работы
-                {pendingReview.length > 0 && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--danger)] px-1.5 text-[11px] font-bold text-white">
-                    {pendingReview.length > 9 ? "9+" : pendingReview.length}
-                  </span>
-                )}
-              </span>
-            ),
-          },
-        ]}
-      />
+      <div className="flex flex-col gap-3 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between">
+        <Segmented
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            if (v === "create") setReviewStudentId(null);
+          }}
+          items={[
+            { value: "create", label: "Выдать задание" },
+            {
+              value: "review",
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  Проверить работы
+                  {pendingReview.length > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--danger)] px-1.5 text-[11px] font-bold text-white">
+                      {pendingReview.length > 9 ? "9+" : pendingReview.length}
+                    </span>
+                  )}
+                </span>
+              ),
+            },
+          ]}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={remindingAll || remindableCount === 0}
+            onClick={() => remindAll()}
+          >
+            {remindingAll ? "Отправка…" : `Напомнить всем${remindableCount ? ` (${remindableCount})` : ""}`}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={remindingAll || remindableCount === 0}
+            onClick={() => remindAll(true)}
+          >
+            Тест мне
+          </Button>
+        </div>
+      </div>
 
       {tab === "create" ? (
         <Card>

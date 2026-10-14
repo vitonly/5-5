@@ -31,7 +31,7 @@ export async function processOverdueHomework() {
     await applyHomeworkOverduePenalty(assignment.studentId, assignment.homework.title);
     await sendTelegramMessage(
       notifyChatId(assignment.student),
-      `⚠️ <b>Просрочена домашка</b>\n\n<b>${assignment.homework.title}</b>\nСрок был: ${formatDate(assignment.deadline)}\n\nШтраф начислен. Сдайте как можно скорее.`
+      `⚠️ <b>Просрочена домашка</b>\n\n<b>${assignment.homework.title}</b>\nСрок был: ${formatDate(assignment.deadline)}\n\nШтраф начислен.`
     );
     count++;
   }

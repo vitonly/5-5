@@ -233,8 +233,8 @@ function MatchCard({
 
       {d.lineupsVisible && (
         <MatchGameBoard
-          seriesRadiantName={d.radiantName}
-          seriesDireName={d.direName}
+          seriesRadiantIds={d.radiant}
+          seriesDireIds={d.dire}
           seriesRadiantWins={d.radiantWins}
           seriesDireWins={d.direWins}
           games={d.games}

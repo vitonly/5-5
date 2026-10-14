@@ -15,11 +15,12 @@ const studentLinks = [
   { href: "/lessons", label: "Архив" },
   { href: "/match", label: "5x5" },
   { href: "/progress", label: "Мой прогресс" },
+  { href: "/profile?tab=achievements", label: "Ачивки" },
   { href: "/rules", label: "Rule book" },
   { href: "/stats", label: "Статистика" },
 ];
 
-const adminLinks = [
+const adminLinksBase = [
   { href: "/admin", label: "Дашборд" },
   { href: "/admin/students", label: "Ученики" },
   { href: "/admin/homework", label: "Домашки" },
@@ -37,6 +38,14 @@ export async function Navbar() {
 
   const impersonatorId = await getImpersonatorId();
   const isAdmin = user.role === "ADMIN";
+  const adminLinks = [
+    ...adminLinksBase,
+    // свой профиль игрока с вкладкой ачивок (если есть карточка)
+    ...(user.profile
+      ? [{ href: `/player/${user.id}?tab=achievements`, label: "Ачивки" }]
+      : []),
+    { href: "/api/admin/achievements/rebuild", label: "Пересчёт ачивок" },
+  ];
   const navLinks = isAdmin ? adminLinks : studentLinks;
 
   let pendingHomework = 0;
@@ -165,6 +174,7 @@ export async function Navbar() {
       )
     : [
         { href: "/progress", label: "Мой прогресс" },
+        { href: "/profile?tab=achievements", label: "Ачивки" },
         { href: "/rules", label: "Rule book" },
         { href: "/stats", label: "Статистика" },
         { href: "/lessons", label: "Архив" },
