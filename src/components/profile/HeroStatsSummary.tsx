@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DotaImg } from "@/components/match/DotaImg";
-import { formatK, heroInfo, plural } from "@/lib/replay";
+import { heroInfo, plural } from "@/lib/replay";
 import type { ReplayStats } from "@/lib/replay-stats";
 import { cn } from "@/lib/utils";
 
@@ -42,8 +42,7 @@ export function HeroStatsSummary({ stats, isOwn }: { stats: ReplayStats; isOwn: 
           </b>
         </span>
         <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-muted)] px-3">
-          Урон{" "}
-          <b className="font-mono-num text-[var(--text)]">{formatK(stats.avg.heroDamage)}</b>
+          Ур. <b className="font-mono-num text-[var(--text)]">{stats.avg.level}</b>
         </span>
       </div>
 

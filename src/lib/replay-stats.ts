@@ -15,7 +15,7 @@ export type HeroStat = {
 };
 
 export type RecordStat = {
-  key: "kills" | "netWorth" | "assists" | "heroDamage" | "lastHits";
+  key: "kills" | "netWorth" | "assists" | "level" | "lastHits";
   label: string;
   value: number;
   heroId: number | null;
@@ -55,7 +55,7 @@ export type ReplayStats = {
     kills: number;
     deaths: number;
     assists: number;
-    heroDamage: number;
+    level: number;
     lastHits: number;
     denies: number;
     netWorth: number;
@@ -148,7 +148,7 @@ export async function getReplayStats(userId: string): Promise<ReplayStats | null
     best("kills", "Больше всего убийств", (e) => e.p.kills),
     best("netWorth", "Самый большой нетворс", (e) => e.p.netWorth),
     best("assists", "Больше всего ассистов", (e) => e.p.assists),
-    best("heroDamage", "Больше всего урона по героям", (e) => e.p.heroDamage),
+    best("level", "Самый высокий уровень", (e) => e.p.level),
     best("lastHits", "Больше всего добиваний", (e) => e.p.lastHits),
   ].filter((x): x is RecordStat => x !== null);
 
@@ -164,7 +164,7 @@ export async function getReplayStats(userId: string): Promise<ReplayStats | null
       kills: round1(sum((e) => e.p.kills) / n),
       deaths: round1(sum((e) => e.p.deaths) / n),
       assists: round1(sum((e) => e.p.assists) / n),
-      heroDamage: Math.round(sum((e) => e.p.heroDamage) / n),
+      level: round1(sum((e) => e.p.level ?? 0) / n),
       lastHits: Math.round(sum((e) => e.p.lastHits) / n),
       denies: Math.round(sum((e) => e.p.denies) / n),
       netWorth: Math.round(sum((e) => e.p.netWorth) / n),
@@ -194,7 +194,7 @@ function emptyWithMates(totalPlayed: number, mates: MateStat[]): ReplayStats {
     wins: 0,
     losses: 0,
     totalPlayed,
-    avg: { kills: 0, deaths: 0, assists: 0, heroDamage: 0, lastHits: 0, denies: 0, netWorth: 0 },
+    avg: { kills: 0, deaths: 0, assists: 0, level: 0, lastHits: 0, denies: 0, netWorth: 0 },
     heroes: [],
     records: [],
     recent: [],
