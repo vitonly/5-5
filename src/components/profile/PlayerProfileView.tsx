@@ -28,6 +28,9 @@ import { getPowerHistory, getSeasonPlaceHistory } from "@/lib/rating-history";
 import { AchievementsTab } from "@/components/achievements/AchievementsTab";
 import { AchievementBadge } from "@/components/achievements/AchievementBadge";
 import { HistoryChart } from "@/components/profile/HistoryChart";
+import { HeroStatsEmpty, HeroStatsTab } from "@/components/profile/HeroStatsTab";
+import { HeroStatsSummary } from "@/components/profile/HeroStatsSummary";
+import { getReplayStats } from "@/lib/replay-stats";
 import type { User, PlayerProfile } from "@prisma/client";
 
 type Viewer = (User & { profile: PlayerProfile | null }) | null;
@@ -65,7 +68,7 @@ export async function PlayerProfileView({
   const ratingSeason = await getVotingSeason();
   const isOwn = viewer?.id === user.id;
 
-  const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, powerHistory] = await Promise.all([
+  const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, powerHistory, replayStats] = await Promise.all([
     prisma.pointLog.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -84,6 +87,7 @@ export async function PlayerProfileView({
     getAchievementOverview(userId, { revealSecrets: isOwn }),
     getSeasonPlaceHistory(userId),
     getPowerHistory(userId),
+    getReplayStats(userId),
   ]);
 
   const historyPlayerIds = new Set<string>();
@@ -198,6 +202,7 @@ export async function PlayerProfileView({
               </span>
             </Link>
           )}
+          {replayStats && <HeroStatsSummary stats={replayStats} isOwn={isOwn} />}
           <div className="grid gap-6 lg:grid-cols-2">
             <WeeklyPointsChart logs={logs} />
             <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
@@ -240,6 +245,15 @@ export async function PlayerProfileView({
       id: "matches",
       label: "Матчи",
       content: <MatchHistory entries={matchHistory} title={isOwn ? "Мои матчи 5v5" : "История матчей 5v5"} />,
+    },
+    {
+      id: "heroes",
+      label: "Герои",
+      content: replayStats ? (
+        <HeroStatsTab stats={replayStats} viewer={viewer ? { id: viewer.id, role: viewer.role } : null} isOwn={isOwn} />
+      ) : (
+        <HeroStatsEmpty isOwn={isOwn} />
+      ),
     },
     {
       id: "achievements",

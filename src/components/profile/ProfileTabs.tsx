@@ -2,7 +2,7 @@
 
 import * as Tabs from "@radix-ui/react-tabs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 
 export type ProfileTab = { id: string; label: string; content: React.ReactNode };
 
@@ -14,18 +14,9 @@ function ProfileTabsInner({ tabs, initial }: { tabs: ProfileTab[]; initial?: str
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const urlTab = searchParams.get("tab");
-  const fromUrl = resolveTab(tabs, urlTab ?? initial);
-
-  const [value, setValue] = useState(fromUrl);
-
-  // Ссылки «?tab=…» и навбар обновляют searchParams — подхватываем без перемонтирования
-  useEffect(() => {
-    setValue(fromUrl);
-  }, [fromUrl]);
+  const value = resolveTab(tabs, searchParams.get("tab") ?? initial);
 
   function onChange(v: string) {
-    setValue(v);
     const params = new URLSearchParams(searchParams.toString());
     if (v === tabs[0]?.id) params.delete("tab");
     else params.set("tab", v);
