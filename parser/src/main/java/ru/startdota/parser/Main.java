@@ -35,7 +35,7 @@ import java.util.Locale;
 /**
  * Парсер демок Dota 2 для СТАРТ+ на базе clarity 4 (как у OpenDota). Нужна Java 21.
  *
- *   java -jar startplus-parser.jar match.dem        — разобрать файл, JSON в stdout
+ *   java -jar startplus-parser.jar match.dem        — разобрать файл (.dem, .dem.bz2, .dem.gz), JSON в stdout
  *   java -jar startplus-parser.jar --serve 5600     — HTTP: POST /parse (тело = .dem), GET /health
  *
  * Читает итоговое состояние матча: герои, K/D/A, уровень, нетворс, ласт-хиты, предметы, Steam ID,
@@ -60,7 +60,15 @@ public class Main {
             System.err.println("usage: startplus-parser <file.dem> | --serve <port>");
             System.exit(2);
         }
-        System.out.println(parseFile(Path.of(args[0])));
+        Path src = Path.of(args[0]);
+        Path copy = Files.createTempFile("startplus-cli-", ".dem");
+        Files.copy(src, copy, StandardCopyOption.REPLACE_EXISTING);
+        Path dem = unpackIfCompressed(copy);
+        try {
+            System.out.println(parseFile(dem));
+        } finally {
+            Files.deleteIfExists(dem);
+        }
     }
 
     /* ---------------- Сбор по ходу демки ---------------- */
@@ -266,6 +274,7 @@ public class Main {
                 respond(ex, 400, "{\"ok\":false,\"error\":\"Файл пустой или это не демка\"}");
                 return;
             }
+            tmp = unpackIfCompressed(tmp);
             respond(ex, 200, parseFile(tmp));
         } catch (Throwable t) {
             t.printStackTrace();
@@ -290,6 +299,29 @@ public class Main {
     }
 
     /* ---------------- Разбор ---------------- */
+
+    /**
+     * Демки с CDN Valve / OpenDota / Dotabuff приходят сжатыми (.dem.bz2, иногда .gz).
+     * Распознаём по сигнатуре и распаковываем во временный файл; обычный .dem возвращаем как есть.
+     */
+    static Path unpackIfCompressed(Path file) throws Exception {
+        byte[] head = new byte[3];
+        try (InputStream in = Files.newInputStream(file)) {
+            if (in.read(head) < 3) return file;
+        }
+        boolean bz2 = head[0] == 'B' && head[1] == 'Z' && head[2] == 'h';
+        boolean gz = (head[0] & 0xff) == 0x1f && (head[1] & 0xff) == 0x8b;
+        if (!bz2 && !gz) return file;
+        Path out = Files.createTempFile("startplus-unpacked-", ".dem");
+        try (InputStream raw = new java.io.BufferedInputStream(Files.newInputStream(file), 1 << 20);
+             InputStream in = bz2
+                     ? new org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream(raw, true)
+                     : new java.util.zip.GZIPInputStream(raw, 1 << 16)) {
+            Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);
+        }
+        Files.deleteIfExists(file);
+        return out;
+    }
 
     public static synchronized String parseFile(Path file) throws Exception {
         Main processor = new Main();
