@@ -301,20 +301,30 @@ public class Main {
     /* ---------------- Разбор ---------------- */
 
     /**
-     * Демки с CDN Valve / OpenDota / Dotabuff приходят сжатыми (.dem.bz2, иногда .gz).
+     * Демки с CDN Valve / OpenDota / Dotabuff приходят сжатыми.
+     * URL часто *.dem.bz2, но свежие файлы — zstd (magic 28 B5 2F FD); старые — BZip2 (BZh) или gzip.
      * Распознаём по сигнатуре и распаковываем во временный файл; обычный .dem возвращаем как есть.
      */
     static Path unpackIfCompressed(Path file) throws Exception {
-        byte[] head = new byte[3];
+        byte[] head = new byte[4];
+        int n;
         try (InputStream in = Files.newInputStream(file)) {
-            if (in.read(head) < 3) return file;
+            n = in.read(head);
         }
+        if (n < 3) return file;
         boolean bz2 = head[0] == 'B' && head[1] == 'Z' && head[2] == 'h';
         boolean gz = (head[0] & 0xff) == 0x1f && (head[1] & 0xff) == 0x8b;
-        if (!bz2 && !gz) return file;
+        boolean zstd = n >= 4
+                && (head[0] & 0xff) == 0x28
+                && (head[1] & 0xff) == 0xb5
+                && (head[2] & 0xff) == 0x2f
+                && (head[3] & 0xff) == 0xfd;
+        if (!bz2 && !gz && !zstd) return file;
         Path out = Files.createTempFile("startplus-unpacked-", ".dem");
         try (InputStream raw = new java.io.BufferedInputStream(Files.newInputStream(file), 1 << 20);
-             InputStream in = bz2
+             InputStream in = zstd
+                     ? new org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream(raw)
+                     : bz2
                      ? new org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream(raw, true)
                      : new java.util.zip.GZIPInputStream(raw, 1 << 16)) {
             Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);

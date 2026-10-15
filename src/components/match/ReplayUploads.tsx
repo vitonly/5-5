@@ -44,8 +44,8 @@ export function ReplayUploads({
   }
 
   function upload(file: File, game: number) {
-    if (!/\.dem(\.bz2|\.gz)?$/i.test(file.name)) {
-      toast.error("Нужен файл демки .dem (или .dem.bz2 с OpenDota/Dotabuff)");
+    if (!/\.dem(\.bz2|\.gz|\.zst)?$/i.test(file.name)) {
+      toast.error("Нужен файл демки .dem (или .dem.bz2 / .zst с OpenDota/Dotabuff)");
       return;
     }
     const xhr = new XMLHttpRequest();
@@ -101,7 +101,7 @@ export function ReplayUploads({
       <input
         ref={inputRef}
         type="file"
-        accept=".dem,.bz2,.gz"
+        accept=".dem,.bz2,.gz,.zst"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

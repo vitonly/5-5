@@ -362,14 +362,6 @@ function PlayerCell({
           </div>
           {p.gpm != null && <Stat label="ЗМ" value={String(p.gpm)} />}
           {p.xpm != null && <Stat label="ОМ" value={String(p.xpm)} />}
-          {p.heroDamage > 0 && <Stat label="Урон" value={formatK(p.heroDamage)} />}
-          {p.towerDamage > 0 && <Stat label="Здания" value={formatK(p.towerDamage)} />}
-          {p.healing > 0 && <Stat label="Лечение" value={formatK(p.healing)} />}
-          {(p.obsPlaced ?? 0) + (p.senPlaced ?? 0) > 0 && (
-            <Stat label="Варды" value={`${p.obsPlaced ?? 0}/${p.senPlaced ?? 0}`} title="Обзорные / сентри" />
-          )}
-          {(p.campsStacked ?? 0) > 0 && <Stat label="Стаки" value={String(p.campsStacked)} />}
-          {(p.stuns ?? 0) >= 1 && <Stat label="Станы" value={`${Math.round(p.stuns ?? 0)}с`} />}
         </dl>
       </div>
     </div>

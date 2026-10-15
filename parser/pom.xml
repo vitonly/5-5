@@ -28,6 +28,12 @@
       <artifactId>commons-compress</artifactId>
       <version>1.26.2</version>
     </dependency>
+    <!-- Нужен для ZstdCompressorInputStream (свежие демки Valve с URL *.dem.bz2 — на деле zstd) -->
+    <dependency>
+      <groupId>com.github.luben</groupId>
+      <artifactId>zstd-jni</artifactId>
+      <version>1.5.6-3</version>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-simple</artifactId>
