@@ -9,7 +9,10 @@ import { PlayerLink } from "@/components/PlayerLink";
 import { MatchNav } from "@/components/MatchNav";
 import { MatchGameBoard, type MatchGameView } from "@/components/MatchGameBoard";
 import { MatchMvpClient } from "@/components/MatchMvpClient";
-import type { ReplayData } from "@/lib/replay";
+import { heroInfo, type ReplayData } from "@/lib/replay";
+import { DotaImg } from "@/components/match/DotaImg";
+import { PredictionPanel } from "@/components/match/PredictionPanel";
+import { getPredictionView } from "@/lib/match-predictions";
 import { PageHeader } from "@/components/ui/page-header";
 import { teamDisplayName } from "@/lib/team-names";
 import { parseTeamAssignments } from "@/lib/match-lineup";
@@ -185,7 +188,7 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
   };
 }
 
-function MatchCard({
+async function MatchCard({
   session,
   number,
   userMap,
@@ -201,6 +204,9 @@ function MatchCard({
   const d = matchData(session, userMap, viewer);
   const mvp = session.mvpResolved && session.mvpWinnerId ? userMap[session.mvpWinnerId] : null;
   const live = session.status === "IN_PROGRESS";
+  const prediction = d.lineupsVisible
+    ? await getPredictionView(session, viewer.id, { showCounts: viewer.role === "ADMIN" })
+    : null;
 
   return (
     <article className={cn(!embedded && "surface-card overflow-hidden")}>
@@ -242,6 +248,10 @@ function MatchCard({
           viewer={viewer}
           mvpId={session.mvpWinnerId}
         />
+      )}
+
+      {prediction && (
+        <PredictionPanel sessionId={session.id} view={prediction} canVote={viewer.role === "STUDENT"} />
       )}
 
       {session.status === "TEAMS_SET" && (d.radiant.length > 0 || d.dire.length > 0) && (
@@ -316,6 +326,13 @@ function PastMatchRow({
         : "L"
       : null;
 
+  const myHeroes = session.replays
+    .map((r) => {
+      const me = ((r.data as unknown as ReplayData)?.players ?? []).find((p) => p.userId === viewer.id);
+      return me?.heroId != null ? { game: r.gameNumber, heroId: me.heroId } : null;
+    })
+    .filter((x): x is { game: number; heroId: number } => x !== null);
+
   return (
     <details className="group">
       <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--surface-muted)] min-[720px]:px-6 [&::-webkit-details-marker]:hidden">
@@ -324,6 +341,13 @@ function PastMatchRow({
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
           {winner ? winner.name : MATCH_STATUS_LABELS[session.status]}
         </span>
+        {myHeroes.length > 0 && (
+          <span className="hidden shrink-0 items-center gap-1 min-[400px]:flex" title="Твои герои">
+            {myHeroes.map((h) => (
+              <DotaImg key={h.game} src={heroInfo(h.heroId).img} alt={heroInfo(h.heroId).name} className="h-[20px] w-[35px] rounded-[3px] object-cover" />
+            ))}
+          </span>
+        )}
         {hasGames && (
           <span className="shrink-0 font-mono-num text-[14px] font-bold text-[var(--text)]">
             {d.radiantWins}:{d.direWins}

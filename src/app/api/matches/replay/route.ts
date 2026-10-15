@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
-import { normalizeDraft, normalizeReplayPlayers } from "@/lib/replay";
+import { normalizeDraft, normalizeKills, normalizeReplayPlayers } from "@/lib/replay";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
   const durationSec = typeof parsed.durationSec === "number" ? Math.round(parsed.durationSec) : 0;
   const players = normalizeReplayPlayers(rawPlayers, userByAccount, durationSec);
   const draft = normalizeDraft(parsed.draft, players);
+  const kills = normalizeKills(parsed.kills);
 
   const data = {
     durationSec: typeof parsed.durationSec === "number" ? Math.round(parsed.durationSec) : 0,
@@ -79,8 +80,8 @@ export async function POST(request: NextRequest) {
 
   const replay = await prisma.matchReplay.upsert({
     where: { sessionId_gameNumber: { sessionId, gameNumber } },
-    create: { sessionId, gameNumber, ...data, data: { players, draft }, uploadedById: admin.id },
-    update: { ...data, data: { players, draft }, uploadedById: admin.id, createdAt: new Date() },
+    create: { sessionId, gameNumber, ...data, data: { players, draft, kills }, uploadedById: admin.id },
+    update: { ...data, data: { players, draft, kills }, uploadedById: admin.id, createdAt: new Date() },
   });
 
   const matched = players.filter((p) => p.userId).length;

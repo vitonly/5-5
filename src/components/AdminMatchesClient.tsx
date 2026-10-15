@@ -351,6 +351,26 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
+  async function openPredictions(sessionId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/matches/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, action: "open" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось открыть прогнозы");
+        return;
+      }
+      toast.success(`Прогнозы открыты · в Telegram отправлено: ${data.sent ?? 0}`);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function generateGame2(sessionId: string, intensity = reshuffleIntensity) {
     setSaving(true);
     try {
@@ -1160,6 +1180,22 @@ export function AdminMatchesClient({
                     <Button onClick={() => startSession(session.id)}>
                       Старт сессии (все за ПК)
                     </Button>
+                    {session.predictionsOpen ? (
+                      <Badge variant="success">Прогнозы открыты · закроются при старте</Badge>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        disabled={saving || (hasGame2 && !session.lineupsGame2Confirmed)}
+                        title={
+                          hasGame2 && !session.lineupsGame2Confirmed
+                            ? "Сначала утвердите состав на игру №2"
+                            : "Ученики смогут сделать прогноз на сайте и в Telegram"
+                        }
+                        onClick={() => openPredictions(session.id)}
+                      >
+                        Открыть прогнозы
+                      </Button>
+                    )}
                     {!hasGame2 && (
                       <Button
                         variant="secondary"

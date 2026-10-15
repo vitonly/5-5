@@ -433,6 +433,27 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
       return;
     }
 
+    if (cq.data.startsWith("pred:")) {
+      const voter = await findUserByTelegram(cq.from);
+      if (!voter) {
+        await answerCallbackQuery(cq.id, "Сначала привяжите Telegram", true);
+        return;
+      }
+      try {
+        const { handlePredictionCallback } = await import("@/lib/match-predictions");
+        const note = await handlePredictionCallback({
+          data: cq.data,
+          userId: voter.id,
+          chatId,
+          messageId: cq.message?.message_id,
+        });
+        await answerCallbackQuery(cq.id, note);
+      } catch (e) {
+        await answerCallbackQuery(cq.id, e instanceof Error ? e.message : "Ошибка", true);
+      }
+      return;
+    }
+
     await handleMatchSignupCallback({
       callbackQueryId: cq.id,
       data: cq.data,

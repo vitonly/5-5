@@ -128,6 +128,7 @@ model User {
   lessonSessionsCreated LessonSession[]  @relation("LessonCreator")
   achievements        UserAchievement[]
   ratingSnapshots     RatingSnapshot[]
+  matchPredictions    MatchPrediction[]
 }
 
 model LoginTicket {
@@ -396,6 +397,9 @@ model MatchSession {
   rsvps                 MatchRsvp[]
   mvpVotes              MatchDayMvpVote[]
   replays               MatchReplay[]
+  /** Прогнозы открыты админом (закрываются стартом сессии) */
+  predictionsOpen       Boolean            @default(false)
+  predictions           MatchPrediction[]
 }
 
 model MatchDayMvpVote {
@@ -533,4 +537,21 @@ model AppFlag {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+/** Прогноз ученика на победителя игры дня (сторона в составе этой игры) */
+model MatchPrediction {
+  id         String       @id @default(cuid())
+  sessionId  String
+  session    MatchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameNumber Int
+  /** RADIANT | DIRE */
+  pick       String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([sessionId, userId, gameNumber])
+  @@index([userId])
 }

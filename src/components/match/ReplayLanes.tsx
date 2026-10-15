@@ -11,7 +11,9 @@ import {
   formatK,
   heroInfo,
   itemInfo,
+  networthAdvantage,
   packItems,
+  purchaseTime,
   type DraftEntry,
   type ReplayPlayer,
 } from "@/lib/replay";
@@ -109,6 +111,12 @@ export function ReplayLanes({
       </div>
 
       {replay.draft.length > 0 && <DraftStrip draft={replay.draft} />}
+
+      <AdvantageChart
+        values={networthAdvantage(replay.players).map((v) => (leftSide === "RADIANT" ? v : -v))}
+        leftName={leftName}
+        rightName={rightName}
+      />
 
       {/* Лицом к лицу по позициям */}
       <div className="space-y-2">
@@ -330,7 +338,15 @@ function PlayerCell({
         <div className={cn("flex items-center gap-[3px]", mirrored && "min-[900px]:flex-row-reverse")}>
           {items.map((it, k) => {
             const info = itemInfo(it)!;
-            return <DotaImg key={k} src={info.img} alt={info.name} className="h-[22px] w-[30px] rounded-[3px] object-cover" />;
+            const at = purchaseTime(p, it);
+            return (
+              <DotaImg
+                key={k}
+                src={info.img}
+                alt={at ? `${info.name} · куплен на ${at}` : info.name}
+                className="h-[22px] w-[30px] rounded-[3px] object-cover"
+              />
+            );
           })}
           {neutral && (
             <DotaImg
@@ -349,18 +365,75 @@ function PlayerCell({
           {p.heroDamage > 0 && <Stat label="Урон" value={formatK(p.heroDamage)} />}
           {p.towerDamage > 0 && <Stat label="Здания" value={formatK(p.towerDamage)} />}
           {p.healing > 0 && <Stat label="Лечение" value={formatK(p.healing)} />}
+          {(p.obsPlaced ?? 0) + (p.senPlaced ?? 0) > 0 && (
+            <Stat label="Варды" value={`${p.obsPlaced ?? 0}/${p.senPlaced ?? 0}`} title="Обзорные / сентри" />
+          )}
+          {(p.campsStacked ?? 0) > 0 && <Stat label="Стаки" value={String(p.campsStacked)} />}
+          {(p.stuns ?? 0) >= 1 && <Stat label="Станы" value={`${Math.round(p.stuns ?? 0)}с`} />}
         </dl>
       </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1" title={title}>
       <dt>{label}</dt>
       <dd className="font-semibold text-[var(--text-2)]">{value}</dd>
     </div>
   );
 }
 
+/** График преимущества по нетворсу (плюс — в пользу левой команды) */
+function AdvantageChart({ values, leftName, rightName }: { values: number[]; leftName: string; rightName: string }) {
+  if (values.length < 3) return null;
+  const W = 600;
+  const H = 120;
+  const maxAbs = Math.max(1000, ...values.map((v) => Math.abs(v)));
+  const x = (i: number) => (i / (values.length - 1)) * W;
+  const y = (v: number) => H / 2 - (v / maxAbs) * (H / 2 - 6);
+  const line = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${W},${H / 2} L0,${H / 2} Z`;
+  const peakLeft = Math.max(0, ...values);
+  const peakRight = Math.max(0, ...values.map((v) => -v));
+  const last = values[values.length - 1];
+  const clipId = `adv-${values.length}-${Math.round(maxAbs)}`;
+  return (
+    <div>
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Преимущество по золоту</p>
+        <p className="text-[11px] text-[var(--text-3)]">
+          пик: <span className="font-semibold text-[var(--success-ink)]">{leftName.replace(/^Team\s+/i, "")} +{formatK(peakLeft)}</span>
+          {" · "}
+          <span className="font-semibold text-[var(--danger)]">{rightName.replace(/^Team\s+/i, "")} +{formatK(peakRight)}</span>
+        </p>
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="h-[110px] w-full rounded-[var(--radius-control)] bg-[var(--surface-muted)]"
+        role="img"
+        aria-label={`Преимущество по золоту к концу игры: ${last >= 0 ? leftName : rightName} +${formatK(Math.abs(last))}`}
+      >
+        <defs>
+          <clipPath id={`${clipId}-top`}>
+            <rect x="0" y="0" width={W} height={H / 2} />
+          </clipPath>
+          <clipPath id={`${clipId}-bottom`}>
+            <rect x="0" y={H / 2} width={W} height={H / 2} />
+          </clipPath>
+        </defs>
+        <path d={area} fill="var(--success)" opacity="0.18" clipPath={`url(#${clipId}-top)`} />
+        <path d={area} fill="var(--danger)" opacity="0.18" clipPath={`url(#${clipId}-bottom)`} />
+        <line x1="0" x2={W} y1={H / 2} y2={H / 2} stroke="var(--border)" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+        <path d={line} fill="none" stroke="var(--text-2)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="mt-1 flex justify-between font-mono-num text-[10px] text-[var(--text-4)]">
+        <span>0:00</span>
+        <span>{Math.round((values.length - 1) / 2)}:00</span>
+        <span>{values.length - 1}:00</span>
+      </div>
+    </div>
+  );
+}

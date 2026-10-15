@@ -38,8 +38,10 @@ import java.util.Locale;
  *   java -jar startplus-parser.jar match.dem        — разобрать файл, JSON в stdout
  *   java -jar startplus-parser.jar --serve 5600     — HTTP: POST /parse (тело = .dem), GET /health
  *
- * Читает итоговое состояние матча: герои, K/D/A, уровень, нетворс, ласт-хиты,
- * урон, предметы, Steam ID игроков, победитель и длительность.
+ * Читает итоговое состояние матча: герои, K/D/A, уровень, нетворс, ласт-хиты, предметы, Steam ID,
+ * победитель и длительность; из комбат-лога — урон (по героям, зданиям, полученный), лечение,
+ * варды (поставлено/сломано), башни, Рошан, руны, байбэки, мультикиллы и серии, покупки по времени,
+ * лог убийств героев; раз в минуту — нетворс и опыт (график преимущества); драфт.
  */
 @UsesEntities
 @UsesStringTable("EntityNames")
@@ -63,35 +65,102 @@ public class Main {
 
     /* ---------------- Сбор по ходу демки ---------------- */
 
-    /** Урон по героям / зданиям и лечение — из комбат-лога, ключ = имя юнита героя (npc_dota_hero_*) */
+    /** Счётчики из комбат-лога, ключ = имя юнита героя (npc_dota_hero_*) */
     private final Map<String, Long> heroDamage = new HashMap<>();
     private final Map<String, Long> towerDamage = new HashMap<>();
     private final Map<String, Long> healing = new HashMap<>();
+    private final Map<String, Long> damageTaken = new HashMap<>();
+    private final Map<String, Long> obsPlacedLog = new HashMap<>();
+    private final Map<String, Long> senPlacedLog = new HashMap<>();
+    private final Map<String, Long> obsKilled = new HashMap<>();
+    private final Map<String, Long> senKilled = new HashMap<>();
+    private final Map<String, Long> towerKills = new HashMap<>();
+    private final Map<String, Long> roshanKills = new HashMap<>();
+    private final Map<String, Long> runesLog = new HashMap<>();
+    private final Map<String, Long> maxMultiKill = new HashMap<>();
+    private final Map<String, Long> maxKillStreak = new HashMap<>();
+    private final Map<String, Long> campsStackedLog = new HashMap<>();
+    /** Байбэки по номеру игрока (значение в комбат-логе) */
+    private final Map<Integer, Long> buybacks = new HashMap<>();
+    /** Покупки: юнит героя → [{t, item}] (t — сек. игрового времени, без вычета старта) */
+    private final Map<String, List<String>> purchases = new HashMap<>();
+    /** Убийства героев: {t, killer, victim} */
+    private final List<float[]> killTimes = new ArrayList<>();
+    private final List<String[]> killNames = new ArrayList<>();
 
     /** Драфт: порядок появления банов и пиков в правилах игры */
     private final List<String> draft = new ArrayList<>();
     private final Set<String> draftSeen = new HashSet<>();
     private boolean draftDone = false;
 
+    /** Таймлайн раз в минуту: индекс игрока → нетворс / опыт по минутам */
+    private final Map<Integer, List<Integer>> nwTimeline = new HashMap<>();
+    private final Map<Integer, List<Integer>> xpTimeline = new HashMap<>();
+    private int nextMinute = 0;
+
+    private static final Set<String> CHEAP_ITEMS = Set.of(
+            "item_tango", "item_tango_single", "item_flask", "item_clarity", "item_enchanted_mango",
+            "item_tpscroll", "item_ward_observer", "item_ward_sentry", "item_ward_dispenser", "item_dust",
+            "item_smoke_of_deceit", "item_faerie_fire", "item_branches", "item_courier", "item_blood_grenade",
+            "item_famango", "item_great_famango", "item_greater_famango", "item_bottle_refill");
+
+    private static void inc(Map<String, Long> m, String k, long v) {
+        if (k != null) m.merge(k, v, Long::sum);
+    }
+
+    private static void max(Map<String, Long> m, String k, long v) {
+        if (k != null) m.merge(k, v, Math::max);
+    }
+
     @OnCombatLogEntry
     public void onCombatLog(Context ctx, CombatLogEntry e) {
         try {
             DOTA_COMBATLOG_TYPES type = e.getType();
-            if (!e.isAttackerHero() || e.isAttackerIllusion()) return;
             String attacker = e.getAttackerName();
             String target = e.getTargetName();
-            if (attacker == null) return;
+            boolean heroAttacker = e.isAttackerHero() && !e.isAttackerIllusion();
+            boolean heroTarget = e.isTargetHero() && !e.isTargetIllusion();
             long v = Math.max(0, e.getValue());
-            if (type == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DAMAGE) {
-                if (e.isTargetHero() && !e.isTargetIllusion()) {
-                    heroDamage.merge(attacker, v, Long::sum);
-                } else if (target != null && isBuilding(target)) {
-                    towerDamage.merge(attacker, v, Long::sum);
+            switch (type) {
+                case DOTA_COMBATLOG_DAMAGE -> {
+                    if (heroTarget) inc(damageTaken, target, v);
+                    if (!heroAttacker) return;
+                    if (heroTarget) inc(heroDamage, attacker, v);
+                    else if (target != null && isBuilding(target)) inc(towerDamage, attacker, v);
                 }
-            } else if (type == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_HEAL) {
-                if (e.isTargetHero() && !e.isTargetIllusion() && !attacker.equals(target)) {
-                    healing.merge(attacker, v, Long::sum);
+                case DOTA_COMBATLOG_HEAL -> {
+                    if (heroAttacker && heroTarget && attacker != null && !attacker.equals(target)) inc(healing, attacker, v);
                 }
+                case DOTA_COMBATLOG_DEATH -> {
+                    if (target == null) return;
+                    if (heroTarget) {
+                        killTimes.add(new float[]{e.getTimestamp()});
+                        killNames.add(new String[]{heroAttacker ? attacker : null, target});
+                    }
+                    if (!heroAttacker) return;
+                    if (target.contains("observer_wards")) inc(obsKilled, attacker, 1);
+                    else if (target.contains("sentry_wards")) inc(senKilled, attacker, 1);
+                    else if (target.contains("_tower")) inc(towerKills, attacker, 1);
+                    else if (target.contains("roshan")) inc(roshanKills, attacker, 1);
+                }
+                case DOTA_COMBATLOG_ITEM -> {
+                    String item = e.getInflictorName();
+                    if (!heroAttacker || item == null) return;
+                    if (item.equals("item_ward_observer")) inc(obsPlacedLog, attacker, 1);
+                    else if (item.equals("item_ward_sentry")) inc(senPlacedLog, attacker, 1);
+                }
+                case DOTA_COMBATLOG_PURCHASE -> {
+                    String item = e.getValueName();
+                    if (target == null || item == null || CHEAP_ITEMS.contains(item) || item.startsWith("item_recipe")) return;
+                    purchases.computeIfAbsent(target, k -> new ArrayList<>())
+                            .add(e.getTimestamp() + "|" + item);
+                }
+                case DOTA_COMBATLOG_BUYBACK -> buybacks.merge(e.getValue(), 1L, Long::sum);
+                case DOTA_COMBATLOG_MULTIKILL -> { if (heroAttacker) max(maxMultiKill, attacker, v); }
+                case DOTA_COMBATLOG_KILLSTREAK -> { if (heroAttacker) max(maxKillStreak, attacker, v); }
+                case DOTA_COMBATLOG_PICKUP_RUNE -> { if (heroAttacker) inc(runesLog, attacker, 1); }
+                case DOTA_COMBATLOG_NEUTRAL_CAMP_STACK -> { if (heroAttacker) inc(campsStackedLog, attacker, 1); }
+                default -> { }
             }
         } catch (Exception ignored) { }
     }
@@ -105,33 +174,69 @@ public class Main {
     @OnTickStart
     @UsesEntities
     public void onTick(Context ctx, boolean synthetic) {
-        if (draftDone) return;
         try {
             Entities entities = ctx.getProcessor(Entities.class);
             if (entities == null) return;
             Entity rules = entities.getByDtName("CDOTAGamerulesProxy");
             if (rules == null) return;
-            Integer state = num(rules, "m_pGameRules.m_nGameState");
-            // 4+ = стратегия/подготовка/игра: драфт закончен (ещё пару секунд дочитываем)
-            Integer active = num(rules, "m_pGameRules.m_iActiveTeam");
-            for (int i = 0; i < 24; i++) {
-                String path = i < 14
-                        ? "m_pGameRules.m_BannedHeroes." + String.format(Locale.ROOT, "%04d", i)
-                        : "m_pGameRules.m_SelectedHeroes." + String.format(Locale.ROOT, "%04d", i - 14);
-                Integer hero = num(rules, path);
-                if (hero == null || hero <= 0) continue;
-                boolean pick = i >= 14;
-                String key = (pick ? "p" : "b") + hero;
-                if (!draftSeen.add(key)) continue;
-                draft.add(new Json()
-                        .put("order", draft.size() + 1)
-                        .put("heroId", hero)
-                        .put("pick", pick)
-                        .put("team", active != null && (active == 2 || active == 3) ? (active == 2 ? "RADIANT" : "DIRE") : null)
-                        .toString());
-            }
-            if (state != null && state >= 5) draftDone = true;
+            if (!draftDone) readDraft(rules);
+            sampleTimeline(entities, rules);
         } catch (Exception ignored) { }
+    }
+
+    private void readDraft(Entity rules) {
+        Integer state = num(rules, "m_pGameRules.m_nGameState");
+        Integer active = num(rules, "m_pGameRules.m_iActiveTeam");
+        for (int i = 0; i < 24; i++) {
+            String path = i < 14
+                    ? "m_pGameRules.m_BannedHeroes." + String.format(Locale.ROOT, "%04d", i)
+                    : "m_pGameRules.m_SelectedHeroes." + String.format(Locale.ROOT, "%04d", i - 14);
+            Integer hero = num(rules, path);
+            if (hero == null || hero <= 0) continue;
+            boolean pick = i >= 14;
+            String key = (pick ? "p" : "b") + hero;
+            if (!draftSeen.add(key)) continue;
+            draft.add(new Json()
+                    .put("order", draft.size() + 1)
+                    .put("heroId", hero)
+                    .put("pick", pick)
+                    .put("team", active != null && (active == 2 || active == 3) ? (active == 2 ? "RADIANT" : "DIRE") : null)
+                    .toString());
+        }
+        // 5+ = подготовка/игра: драфт закончен
+        if (state != null && state >= 5) draftDone = true;
+    }
+
+    /** Раз в игровую минуту: нетворс и опыт каждого игрока (для графика преимущества) */
+    private void sampleTimeline(Entities entities, Entity rules) {
+        Float gameTime = flt(rules, "m_pGameRules.m_fGameTime");
+        Float start = flt(rules, "m_pGameRules.m_flGameStartTime");
+        if (gameTime == null || start == null || start <= 0) return;
+        float t = gameTime - start;
+        if (t < nextMinute * 60f) return;
+        Entity pr = entities.getByDtName("CDOTA_PlayerResource");
+        Entity radiant = entities.getByDtName("CDOTA_DataRadiant");
+        Entity dire = entities.getByDtName("CDOTA_DataDire");
+        if (pr == null) return;
+        int ri = 0, di = 0;
+        for (int i = 0; i < 24; i++) {
+            Integer team = num(pr, idx("m_vecPlayerData.%i.m_iPlayerTeam", i));
+            if (team == null || (team != 2 && team != 3)) continue;
+            int slot = team == 2 ? ri++ : di++;
+            String d = "m_vecDataTeam." + String.format(Locale.ROOT, "%04d", slot) + ".";
+            Entity data = team == 2 ? radiant : dire;
+            Integer nw = num(data, d + "m_iNetWorth");
+            Integer xp = num(data, d + "m_iTotalEarnedXP");
+            fill(nwTimeline, i, nextMinute, nw);
+            fill(xpTimeline, i, nextMinute, xp);
+        }
+        nextMinute++;
+    }
+
+    private static void fill(Map<Integer, List<Integer>> m, int player, int minute, Integer v) {
+        List<Integer> list = m.computeIfAbsent(player, k -> new ArrayList<>());
+        while (list.size() < minute) list.add(list.isEmpty() ? 0 : list.get(list.size() - 1));
+        list.add(v == null ? (list.isEmpty() ? 0 : list.get(list.size() - 1)) : v);
     }
 
     /* ---------------- HTTP ---------------- */
@@ -240,6 +345,11 @@ public class Main {
             Integer denies = num(data, d + "m_iDenyCount");
             Integer gold = num(data, d + "m_iTotalEarnedGold");
             Integer xp = num(data, d + "m_iTotalEarnedXP");
+            Number stuns = anyNum(data, d + "m_fStuns");
+            Integer campsStacked = num(data, d + "m_iCampsStacked");
+            Integer runePickups = num(data, d + "m_iRunePickups");
+            Integer obsPlaced = num(data, d + "m_iObserverWardsPlaced");
+            Integer senPlaced = num(data, d + "m_iSentryWardsPlaced");
             Integer heroDamage = num(data, d + "m_iHeroDamage");
             Integer towerDamage = num(data, d + "m_iTowerDamage");
             Number healing = anyNum(data, d + "m_fHealing", d + "m_iHealing");
@@ -282,6 +392,22 @@ public class Main {
                     .put("heroDamage", pick(this.heroDamage, heroUnit, heroDamage))
                     .put("towerDamage", pick(this.towerDamage, heroUnit, towerDamage))
                     .put("healing", pick(this.healing, heroUnit, healing != null ? (int) Math.round(healing.doubleValue()) : null))
+                    .put("damageTaken", pick(this.damageTaken, heroUnit, null))
+                    .put("stuns", stuns != null ? Math.round(stuns.doubleValue() * 10) / 10.0 : null)
+                    .put("campsStacked", campsStacked != null ? campsStacked : pick(this.campsStackedLog, heroUnit, null))
+                    .put("runePickups", runePickups != null ? runePickups : pick(this.runesLog, heroUnit, null))
+                    .put("obsPlaced", obsPlaced != null ? obsPlaced : pick(this.obsPlacedLog, heroUnit, 0))
+                    .put("senPlaced", senPlaced != null ? senPlaced : pick(this.senPlacedLog, heroUnit, 0))
+                    .put("obsKilled", pick(this.obsKilled, heroUnit, 0))
+                    .put("senKilled", pick(this.senKilled, heroUnit, 0))
+                    .put("towerKills", pick(this.towerKills, heroUnit, 0))
+                    .put("roshanKills", pick(this.roshanKills, heroUnit, 0))
+                    .put("buybacks", buybacks.getOrDefault(i, 0L))
+                    .put("maxMultiKill", pick(this.maxMultiKill, heroUnit, 0))
+                    .put("maxKillStreak", pick(this.maxKillStreak, heroUnit, 0))
+                    .putRaw("purchases", purchasesJson(heroUnit, startTime))
+                    .putRaw("nwTimeline", intArr(nwTimeline.get(i)))
+                    .putRaw("xpTimeline", intArr(xpTimeline.get(i)))
                     .putRaw("items", Json.arr(items))
                     .putRaw("backpack", Json.arr(backpack))
                     .put("neutralItem", neutral);
@@ -297,7 +423,40 @@ public class Main {
                 .put("direScore", direKills)
                 .putRaw("players", "[" + String.join(",", players) + "]")
                 .putRaw("draft", "[" + String.join(",", draft) + "]")
+                .putRaw("kills", killsJson(startTime))
                 .toString();
+    }
+
+    private String purchasesJson(String unit, Float start) {
+        List<String> list = unit != null ? purchases.get(unit) : null;
+        if (list == null) return "[]";
+        List<String> out = new ArrayList<>();
+        for (String raw : list) {
+            int bar = raw.indexOf('|');
+            float t = Float.parseFloat(raw.substring(0, bar));
+            int sec = Math.round(t - (start != null ? start : 0f));
+            out.add(new Json().put("t", sec).put("item", raw.substring(bar + 1)).toString());
+        }
+        return "[" + String.join(",", out) + "]";
+    }
+
+    private String killsJson(Float start) {
+        List<String> out = new ArrayList<>();
+        for (int k = 0; k < killTimes.size(); k++) {
+            int sec = Math.round(killTimes.get(k)[0] - (start != null ? start : 0f));
+            out.add(new Json().put("t", sec).put("killer", killNames.get(k)[0]).put("victim", killNames.get(k)[1]).toString());
+        }
+        return "[" + String.join(",", out) + "]";
+    }
+
+    private static String intArr(List<Integer> values) {
+        if (values == null) return "[]";
+        StringBuilder b = new StringBuilder("[");
+        for (int k = 0; k < values.size(); k++) {
+            if (k > 0) b.append(',');
+            b.append(values.get(k));
+        }
+        return b.append(']').toString();
     }
 
     /** Значение из комбат-лога, если есть, иначе из сущности */

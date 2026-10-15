@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { countCorrectPredictionDays } from "@/lib/match-predictions";
 import { addPoints, positionForMatchGame } from "@/lib/points";
 import { absolutePublicUrl, notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { APP_TIMEZONE, displayName } from "@/lib/utils";
@@ -52,6 +53,7 @@ export type AchievementStats = {
   seasonPodium: number;
   weeklyRise: number;
   fromBasement: number;
+  predictionsCorrect: number;
 };
 
 export type AchievementDef = {
@@ -87,6 +89,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { code: "veteran", title: "Ветеран", description: "Сыграть {n} игр 5v5", category: "matches", icon: "swords", metric: "matchesPlayed", tiers: [{ tier: 1, need: 10 }, { tier: 2, need: 15 }, { tier: 3, need: 25 }] },
   { code: "win_streak", title: "Серия побед", description: "{n} побед подряд", category: "matches", icon: "zap", metric: "matchWinStreak", tiers: [{ tier: 1, need: 3 }, { tier: 2, need: 5 }, { tier: 3, need: 7 }] },
   { code: "universal", title: "Универсал", description: "Победы на {n} разных позициях", category: "matches", icon: "shuffle", metric: "winPositions", tiers: [{ tier: 2, need: 3 }, { tier: 3, need: 5 }] },
+  { code: "oracle", title: "Провидец", description: "Угадать победителей всех игр дня {n} раз", category: "matches", icon: "eye", metric: "predictionsCorrect", tiers: [{ tier: 1, need: 5 }, { tier: 2, need: 10 }, { tier: 3, need: 15 }] },
   { code: "comeback", title: "Камбэк", description: "Проиграть первую игру дня и выиграть серию", category: "matches", icon: "rotate-ccw", metric: "comebacks", tiers: SECRET, secret: true },
   { code: "clean_sweep", title: "Всухую", description: "Выиграть 3 серии подряд со счётом 2:0", category: "matches", icon: "crown", metric: "cleanSweepStreak", tiers: [{ tier: 2, need: 3 }], secret: true },
   { code: "immortal", title: "Бессмертный", description: "Выиграть игру без единой смерти (по демке)", category: "matches", icon: "shield", metric: "immortal", tiers: SECRET, secret: true },
@@ -357,6 +360,7 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
     seasonPodium,
     weeklyRise,
     fromBasement,
+    predictionsCorrect: await countCorrectPredictionDays(userId),
   };
 }
 

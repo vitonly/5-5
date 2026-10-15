@@ -80,7 +80,13 @@ export async function PlayerProfileView({
     getSeasonLeaderboard(seasonId),
     prisma.matchParticipant.findMany({
       where: { userId: user.id },
-      include: { game: { include: { session: true } } },
+      include: {
+        game: {
+          include: {
+            session: { include: { replays: { select: { gameNumber: true, data: true } } } },
+          },
+        },
+      },
       take: 80,
     }),
     prisma.user.count({ where: { role: "STUDENT" } }),

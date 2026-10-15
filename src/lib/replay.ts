@@ -24,7 +24,29 @@ export type ReplayPlayer = {
   items: (string | null)[];
   backpack: (string | null)[];
   neutralItem: string | null;
+  /* Расширенные поля (новый парсер; в старых демках их нет) */
+  heroUnit?: string | null;
+  damageTaken?: number | null;
+  stuns?: number | null;
+  campsStacked?: number | null;
+  runePickups?: number | null;
+  obsPlaced?: number | null;
+  senPlaced?: number | null;
+  obsKilled?: number | null;
+  senKilled?: number | null;
+  towerKills?: number | null;
+  roshanKills?: number | null;
+  buybacks?: number | null;
+  maxMultiKill?: number | null;
+  maxKillStreak?: number | null;
+  /** Покупки: секунда игры → предмет */
+  purchases?: { t: number; item: string }[];
+  /** Нетворс / опыт по минутам */
+  nwTimeline?: number[];
+  xpTimeline?: number[];
 };
+
+export type KillEvent = { t: number; killer: string | null; victim: string };
 
 export type DraftEntry = {
   order: number;
@@ -33,13 +55,46 @@ export type DraftEntry = {
   team: "RADIANT" | "DIRE" | null;
 };
 
-export type ReplayData = { players: ReplayPlayer[]; draft?: DraftEntry[] };
+export type ReplayData = { players: ReplayPlayer[]; draft?: DraftEntry[]; kills?: KillEvent[] };
 
 type RawPlayer = Partial<Record<string, unknown>>;
 
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const nn = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const s = (v: unknown) => (typeof v === "string" && v ? v : null);
+
+const numArr = (v: unknown) => (Array.isArray(v) ? v.map(n) : undefined);
+
+/** Лог убийств героев */
+export function normalizeKills(raw: unknown): KillEvent[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[])
+    .map((k) => ({ t: n(k.t), killer: s(k.killer), victim: s(k.victim) ?? "" }))
+    .filter((k) => k.victim);
+}
+
+/** Когда куплен предмет (последняя покупка до конца игры), «мм:сс» */
+export function purchaseTime(p: ReplayPlayer, item: string | null) {
+  if (!item || !p.purchases?.length) return null;
+  const hits = p.purchases.filter((x) => x.item === item);
+  if (!hits.length) return null;
+  return formatDuration(Math.max(0, hits[hits.length - 1].t));
+}
+
+/** Разница нетворса команд по минутам (плюс — в пользу Света) */
+export function networthAdvantage(players: ReplayPlayer[]) {
+  const len = Math.max(0, ...players.map((p) => p.nwTimeline?.length ?? 0));
+  const out: number[] = [];
+  for (let m = 0; m < len; m++) {
+    let diff = 0;
+    for (const p of players) {
+      const v = p.nwTimeline?.[Math.min(m, (p.nwTimeline?.length ?? 1) - 1)] ?? 0;
+      diff += p.team === "RADIANT" ? v : -v;
+    }
+    out.push(diff);
+  }
+  return out;
+}
 
 /** Привести ответ парсера к нашему формату и подставить учеников по Steam ID */
 export function normalizeReplayPlayers(
@@ -73,6 +128,27 @@ export function normalizeReplayPlayers(
       items: Array.from({ length: 6 }, (_, i) => items[i] ?? null),
       backpack,
       neutralItem: s(p.neutralItem),
+      heroUnit: s(p.heroUnit),
+      damageTaken: nn(p.damageTaken),
+      stuns: nn(p.stuns),
+      campsStacked: nn(p.campsStacked),
+      runePickups: nn(p.runePickups),
+      obsPlaced: nn(p.obsPlaced),
+      senPlaced: nn(p.senPlaced),
+      obsKilled: nn(p.obsKilled),
+      senKilled: nn(p.senKilled),
+      towerKills: nn(p.towerKills),
+      roshanKills: nn(p.roshanKills),
+      buybacks: nn(p.buybacks),
+      maxMultiKill: nn(p.maxMultiKill),
+      maxKillStreak: nn(p.maxKillStreak),
+      purchases: Array.isArray(p.purchases)
+        ? (p.purchases as Record<string, unknown>[])
+            .map((x) => ({ t: n(x.t), item: s(x.item) ?? "" }))
+            .filter((x) => x.item)
+        : undefined,
+      nwTimeline: numArr(p.nwTimeline),
+      xpTimeline: numArr(p.xpTimeline),
     };
   });
 }

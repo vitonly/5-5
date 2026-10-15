@@ -1,4 +1,6 @@
 import { Badge } from "@/components/ui/badge";
+import { DotaImg } from "@/components/match/DotaImg";
+import { heroInfo, type ReplayData } from "@/lib/replay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { POSITION_LABELS } from "@/lib/labels";
 import { formatPoints } from "@/lib/points";
@@ -16,6 +18,9 @@ export type MatchHistoryEntry = {
   won: boolean;
   pointsAwarded: number;
   position: number | null;
+  /** Из демки (если загружена) */
+  heroId: number | null;
+  kda: { k: number; d: number; a: number } | null;
 };
 
 export type MatchHistoryPlayer = {
@@ -60,9 +65,16 @@ export function MatchHistory({
           return (
             <div
               key={e.gameId}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm"
+              className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm"
             >
-              <div className="min-w-0 space-y-0.5">
+              {e.heroId != null && (
+                <DotaImg
+                  src={heroInfo(e.heroId).img}
+                  alt={heroInfo(e.heroId).name}
+                  className="h-[30px] w-[52px] shrink-0 rounded-[5px] object-cover"
+                />
+              )}
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="font-medium text-[var(--text)]">
                   {formatDate(e.sessionDate)} · игра {e.gameNumber}
                 </p>
@@ -70,6 +82,13 @@ export function MatchHistory({
                   {e.teamLabel}
                   {e.position != null && (
                     <> · {POSITION_LABELS[e.position] ?? `поз. ${e.position}`}</>
+                  )}
+                  {e.heroId != null && <> · {heroInfo(e.heroId).name}</>}
+                  {e.kda && (
+                    <span className="font-mono-num">
+                      {" "}
+                      · {e.kda.k}/{e.kda.d}/{e.kda.a}
+                    </span>
                   )}
                 </p>
               </div>
@@ -110,6 +129,7 @@ export function buildMatchHistoryEntries(
         date: Date;
         teamAssignments: string;
         teamAssignmentsGame2?: string | null;
+        replays?: { gameNumber: number; data: unknown }[];
       };
     };
   }[],
@@ -139,6 +159,8 @@ export function buildMatchHistoryEntries(
           username: playersById[id]?.username,
           finalRating: playersById[id]?.finalRating ?? 0,
         }));
+      const replay = p.game.session.replays?.find((r) => r.gameNumber === p.game.gameNumber);
+      const me = replay ? ((replay.data as ReplayData | null)?.players ?? []).find((x) => x.userId === userId) : undefined;
       return {
         gameId: p.game.id,
         gameNumber: p.game.gameNumber,
@@ -149,6 +171,8 @@ export function buildMatchHistoryEntries(
         won: p.won,
         pointsAwarded: p.pointsAwarded,
         position,
+        heroId: me?.heroId ?? null,
+        kda: me ? { k: me.kills, d: me.deaths, a: me.assists } : null,
       };
     })
     .sort((a, b) => {
