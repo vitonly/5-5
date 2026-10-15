@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { Avatar } from "@/components/home/Avatar";
 import { PlayerLink } from "@/components/PlayerLink";
 import { PositionBadge } from "@/components/RoleIcon";
-import { CountUp } from "@/components/fx/CountUp";
 import { Button } from "@/components/ui/button";
 import { POSITION_LABELS } from "@/lib/labels";
 import { formatPoints } from "@/lib/points";
@@ -88,9 +87,9 @@ export function MatchGameBoard({
         <div className="text-center">
           {hasPlayed ? (
             <p className="font-display text-[30px] font-bold leading-none tracking-tight min-[720px]:text-[40px]">
-              <CountUp value={leftWins} />
+              {leftWins}
               <span className="mx-1.5 text-[var(--text-3)]">:</span>
-              <CountUp value={rightWins} />
+              {rightWins}
             </p>
           ) : (
             <p className="font-display text-[20px] font-bold text-[var(--text-3)]">VS</p>

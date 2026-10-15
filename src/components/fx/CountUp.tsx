@@ -36,19 +36,28 @@ export function CountUp({
   };
 
   useIsoLayoutEffect(() => {
+    // Уже анимировали — просто синхронизируем (иначе при смене value остаётся старое число)
+    if (started.current) {
+      setShown(value);
+      return;
+    }
     const el = ref.current;
-    if (!el || started.current) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || value === 0) return;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || value === 0) {
+      setShown(value);
+      return;
+    }
     setShown(0);
 
     let raf = 0;
+    const target = value;
     const run = () => {
       started.current = true;
       const t0 = performance.now();
       const tick = (t: number) => {
         const p = Math.min(1, (t - t0) / duration);
         const eased = 1 - Math.pow(1 - p, 3);
-        setShown(value * eased);
+        setShown(target * eased);
         if (p < 1) raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
