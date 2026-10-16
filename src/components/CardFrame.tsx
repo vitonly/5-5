@@ -127,6 +127,7 @@ export function CardFrame({
   lastName,
   photoUrl,
   size = CARD_WIDTH,
+  hideName = false,
 }: {
   design: CardDesign;
   rating: number;
@@ -135,6 +136,8 @@ export function CardFrame({
   photoUrl?: string | null;
   /** ширина в px; высота масштабируется пропорционально */
   size?: number;
+  /** Только фото + сила — без полоски с ФИО (профиль игрока) */
+  hideName?: boolean;
 }) {
   const clipId = `clip-${design.id}`;
   const borderId = `border-${design.id}`;
@@ -212,51 +215,55 @@ export function CardFrame({
           {rating}
         </text>
 
-        {/* Name bar */}
-        <rect
-          x="24"
-          y="278"
-          width={CARD_WIDTH - 48}
-          height={line2 ? 56 : 42}
-          rx="4"
-          fill="rgba(0,0,0,0.55)"
-        />
-        {single ? (
-          <text
-            x={CARD_WIDTH / 2}
-            y="306"
-            fill={design.text}
-            fontSize={nameFontSize}
-            fontWeight="900"
-            textAnchor="middle"
-            fontFamily="system-ui, sans-serif"
-          >
-            {fitLine(single, 16)}
-          </text>
-        ) : (
+        {!hideName && (
           <>
-            <text
-              x={CARD_WIDTH / 2}
-              y="300"
-              fill={design.text}
-              fontSize={nameFontSize}
-              fontWeight="900"
-              textAnchor="middle"
-              fontFamily="system-ui, sans-serif"
-            >
-              {fitLine(line1, 16)}
-            </text>
-            <text
-              x={CARD_WIDTH / 2}
-              y="320"
-              fill={design.text}
-              fontSize={nameFontSize}
-              fontWeight="900"
-              textAnchor="middle"
-              fontFamily="system-ui, sans-serif"
-            >
-              {fitLine(line2, 16)}
-            </text>
+            {/* Name bar */}
+            <rect
+              x="24"
+              y="278"
+              width={CARD_WIDTH - 48}
+              height={line2 ? 56 : 42}
+              rx="4"
+              fill="rgba(0,0,0,0.55)"
+            />
+            {single ? (
+              <text
+                x={CARD_WIDTH / 2}
+                y="306"
+                fill={design.text}
+                fontSize={nameFontSize}
+                fontWeight="900"
+                textAnchor="middle"
+                fontFamily="system-ui, sans-serif"
+              >
+                {fitLine(single, 16)}
+              </text>
+            ) : (
+              <>
+                <text
+                  x={CARD_WIDTH / 2}
+                  y="300"
+                  fill={design.text}
+                  fontSize={nameFontSize}
+                  fontWeight="900"
+                  textAnchor="middle"
+                  fontFamily="system-ui, sans-serif"
+                >
+                  {fitLine(line1, 16)}
+                </text>
+                <text
+                  x={CARD_WIDTH / 2}
+                  y="320"
+                  fill={design.text}
+                  fontSize={nameFontSize}
+                  fontWeight="900"
+                  textAnchor="middle"
+                  fontFamily="system-ui, sans-serif"
+                >
+                  {fitLine(line2, 16)}
+                </text>
+              </>
+            )}
           </>
         )}
 

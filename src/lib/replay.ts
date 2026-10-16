@@ -185,8 +185,13 @@ const ITEMS = (dota as { items: Record<string, { d: string; i: string }> }).item
 
 export function heroInfo(heroId: number | null) {
   const h = heroId != null ? HEROES[String(heroId)] : undefined;
-  if (!h) return { name: "Неизвестный герой", img: null as string | null };
-  return { name: h.l, img: `${CDN}/heroes/${h.n}.png` };
+  if (!h) return { name: "Неизвестный герой", img: null as string | null, icon: null as string | null };
+  // crops ≈400×250 — чётче на карточках; обычные heroes/*.png всего 256×144 и мылятся
+  return {
+    name: h.l,
+    img: `${CDN}/heroes/crops/${h.n}.png`,
+    icon: `${CDN}/heroes/${h.n}.png`,
+  };
 }
 
 /** item_blink → «Blink Dagger» + картинка */

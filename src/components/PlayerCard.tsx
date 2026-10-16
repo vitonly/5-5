@@ -22,7 +22,12 @@ interface PlayerCardProps {
   };
 }
 
-export function PlayerCard({ user, profile, size }: PlayerCardProps & { size?: number }) {
+export function PlayerCard({
+  user,
+  profile,
+  size,
+  hideName,
+}: PlayerCardProps & { size?: number; hideName?: boolean }) {
   const seed = cardSeed(user);
   const design = generateCardDesign(seed, profile.finalRating);
 
@@ -34,6 +39,7 @@ export function PlayerCard({ user, profile, size }: PlayerCardProps & { size?: n
       lastName={user.lastName}
       photoUrl={user.photoUrl}
       size={size}
+      hideName={hideName}
     />
   );
 }

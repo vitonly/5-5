@@ -298,7 +298,7 @@ export async function PlayerProfileView({
         <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-4 gap-y-4 p-4 min-[720px]:grid-cols-[220px_minmax(0,1fr)] min-[720px]:grid-rows-[auto_1fr] min-[720px]:gap-x-8 min-[720px]:gap-y-5 min-[720px]:p-6">
           <div className="col-start-1 row-start-1 min-[720px]:row-span-2">
             <TiltCard shape={SHIELD_CLIP}>
-              <PlayerCard user={user} profile={profile} size={220} />
+              <PlayerCard user={user} profile={profile} size={220} hideName />
             </TiltCard>
             <MotionChip className="mt-2 h-7 px-2 text-[11px]" />
           </div>
