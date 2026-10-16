@@ -29,7 +29,6 @@ import { AchievementsTab } from "@/components/achievements/AchievementsTab";
 import { AchievementBadge } from "@/components/achievements/AchievementBadge";
 import { HistoryChart } from "@/components/profile/HistoryChart";
 import { HeroStatsEmpty, HeroStatsTab } from "@/components/profile/HeroStatsTab";
-import { HeroStatsSummary } from "@/components/profile/HeroStatsSummary";
 import { getReplayStats } from "@/lib/replay-stats";
 import type { User, PlayerProfile } from "@prisma/client";
 
@@ -208,7 +207,6 @@ export async function PlayerProfileView({
               </span>
             </Link>
           )}
-          {replayStats && <HeroStatsSummary stats={replayStats} isOwn={isOwn} />}
           <div className="grid gap-6 lg:grid-cols-2">
             <WeeklyPointsChart logs={logs} />
             <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
