@@ -134,8 +134,12 @@ function RecordCard({
                   {initials(u.firstName, u.lastName)}
                 </span>
               )}
-              <span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1.5">
-                <PlayerLink user={u} viewer={viewer} className="block truncate text-[13px] font-semibold text-white hover:text-white">
+              <span className="absolute inset-x-0 bottom-2 flex justify-center px-2">
+                <PlayerLink
+                  user={u}
+                  viewer={viewer}
+                  className="max-w-full truncate text-center text-[13px] font-semibold text-white hover:text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                >
                   {me ? "Ты" : displayName(u)}
                 </PlayerLink>
               </span>
@@ -157,15 +161,17 @@ function RecordCard({
                   </span>
                 )}
               </div>
-              <p
-                className={cn(
-                  "mt-2 font-mono-num text-[30px] font-bold leading-none min-[400px]:text-[36px]",
-                  anti ? "text-[var(--danger)]" : "text-[var(--text)]"
-                )}
-              >
-                {record.display}
-              </p>
-              <div className="mt-auto flex flex-col items-center gap-1 pt-3">
+              <div className="flex flex-1 flex-col items-center justify-center py-1">
+                <p
+                  className={cn(
+                    "font-mono-num text-[30px] font-bold leading-none min-[400px]:text-[36px]",
+                    anti ? "text-[var(--danger)]" : "text-[var(--text)]"
+                  )}
+                >
+                  {record.display}
+                </p>
+              </div>
+              <div className="flex flex-col items-center gap-1">
                 <DotaImg
                   src={hero.img}
                   alt={hero.name}

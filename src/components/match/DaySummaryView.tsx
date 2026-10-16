@@ -169,15 +169,21 @@ export function DaySummaryView({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-soft)] pt-3">
-        <p className="text-[12px] text-[var(--text-3)]">Табло, драфт и статистика каждой игры — во вкладке «Игры».</p>
-        <a
-          href={`/api/matches/${sessionId}/summary-image?download=1`}
-          download
-          className="press inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--points-bg)] px-3.5 text-[13px] font-semibold text-[var(--points-ink)] transition-colors hover:bg-[var(--points-border)]"
-        >
-          <Download className="h-4 w-4" aria-hidden />
-          Скачать картинку для Telegram
-        </a>
+        <p className="text-[12px] text-[var(--text-3)]">
+          {viewer.role === "ADMIN"
+            ? "Табло, драфт и статистика каждой игры — во вкладке «Игры»."
+            : "Когда определится MVP, бот пришлёт картинку итогов в Telegram. Табло и статистика — во вкладке «Игры»."}
+        </p>
+        {viewer.role === "ADMIN" && (
+          <a
+            href={`/api/matches/${sessionId}/summary-image?download=1`}
+            download
+            className="press inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--points-bg)] px-3.5 text-[13px] font-semibold text-[var(--points-ink)] transition-colors hover:bg-[var(--points-border)]"
+          >
+            <Download className="h-4 w-4" aria-hidden />
+            Скачать картинку для Telegram
+          </a>
+        )}
       </div>
     </div>
   );

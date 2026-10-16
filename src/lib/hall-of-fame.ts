@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { addPoints, getActiveSeasonId, positionForMatchGame, removePointsBySource } from "@/lib/points";
+import { addPoints, getActiveSeasonId, positionForMatchGame } from "@/lib/points";
 import { notifyChatId, sendTelegramMessage, absolutePublicUrl } from "@/lib/telegram";
 import { heroInfo, type ReplayData, type ReplayPlayer } from "@/lib/replay";
 
@@ -179,7 +179,19 @@ export async function syncHallPoints() {
     changed++;
     const anti = n.group === "anti";
     if (had) {
-      await removePointsBySource(had, SOURCE, sourceId);
+      // Старое начисление оставляем в истории, но снимаем с учёта держателя
+      await prisma.pointLog.updateMany({
+        where: { userId: had, sourceType: SOURCE, sourceId },
+        data: { sourceType: "HALL_OF_FAME_PAST" },
+      });
+      await addPoints(
+        had,
+        anti ? HALL_POINTS : -HALL_POINTS,
+        anti
+          ? `Антирекорд: «${n.title}» перешёл к другому — очки вернулись`
+          : `Зал славы: рекорд «${n.title}» побили`,
+        { type: "HALL_OF_FAME_LOSS", id: `${sourceId}:lost:${Date.now()}` }
+      );
       await notify(had, anti
         ? `😮‍💨 Антирекорд «${n.title}» перешёл к другому игроку — ${HALL_POINTS} очка вернулись.`
         : `⚔️ Твой рекорд «${n.title}» побили — −${HALL_POINTS} очка. Время вернуть его!`);

@@ -3,11 +3,14 @@ import { POINT_VALUES, addPoints } from "@/lib/points";
 import { displayName, parseJsonArray, APP_TIMEZONE, formatDate } from "@/lib/utils";
 import { parseTeamAssignments } from "@/lib/match-lineup";
 import {
+  absolutePublicUrl,
   notifyChatId,
   sendTelegramInviteDetailed,
   sendTelegramMessageDetailed,
+  sendTelegramPhotoBuffer,
   type InlineKeyboard,
 } from "@/lib/telegram";
+import { renderDaySummaryPng } from "@/lib/match-summary-image";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -139,7 +142,7 @@ export async function castMvpVote(opts: {
   return { votes: updated.length, players: players.length, resolved: false, winnerId: null };
 }
 
-/** Рассылка итога дня всем участникам (имя + фото + очки). */
+/** Рассылка итогов дня: картинка всем ученикам + тренеру. */
 export async function broadcastMvpResult(sessionId: string) {
   const session = await prisma.matchSession.findUnique({
     where: { id: sessionId },
@@ -153,12 +156,6 @@ export async function broadcastMvpResult(sessionId: string) {
   const players = playerIdsFromSession(session);
   const users = await prisma.user.findMany({ where: { id: { in: players } } });
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
-  const rsvpByUser = Object.fromEntries(
-    (session.rsvps ?? []).map((r) => [r.userId, r.tgChatId] as const)
-  );
-
-  let text: string;
-  let photoUrl: string | null = null;
 
   const counts = new Map<string, number>();
   for (const v of session.mvpVotes) {
@@ -174,29 +171,50 @@ export async function broadcastMvpResult(sessionId: string) {
     })
     .join("\n");
 
+  let caption: string;
   if (session.mvpWinnerId && byId[session.mvpWinnerId]) {
     const w = byId[session.mvpWinnerId];
-    photoUrl = w.photoUrl ?? null;
-    text =
-      `🏆 <b>MVP игрового дня</b> — ${formatDate(session.date)}\n\n` +
-      `Все проголосовали!\n` +
-      `Победитель: <b>${displayName(w)}</b> ⭐\n` +
-      `+${POINT_VALUES.MVP_DAY} очков на счёт.` +
+    caption =
+      `🏆 <b>Итоги 5v5</b> — ${formatDate(session.date)}\n` +
+      `MVP: <b>${displayName(w)}</b> ⭐ · +${POINT_VALUES.MVP_DAY} очк.` +
       (top3 ? `\n\n<b>Топ-3:</b>\n${top3}` : "");
   } else {
-    text =
-      `🏆 <b>MVP игрового дня</b> — ${formatDate(session.date)}\n\n` +
-      `Голосование закрыто.\nНичья или нет голосов — очки MVP не начислены.` +
+    caption =
+      `🏆 <b>Итоги 5v5</b> — ${formatDate(session.date)}\n` +
+      `MVP не определён (ничья или нет голосов).` +
       (top3 ? `\n\n<b>Топ-3:</b>\n${top3}` : "");
   }
+  const matchLink = absolutePublicUrl(`/match?open=${sessionId}`);
+  if (matchLink) caption += `\n\n<a href="${matchLink}">Открыть матч</a>`;
+
+  const png = await renderDaySummaryPng(sessionId).catch((e) => {
+    console.error("[mvp] summary image", e);
+    return null;
+  });
+
+  const recipients = await prisma.user.findMany({
+    where: { role: { in: ["STUDENT", "ADMIN"] } },
+    select: { id: true, telegramChatId: true, telegramId: true },
+  });
+  const rsvpByUser = Object.fromEntries(
+    (session.rsvps ?? []).map((r) => [r.userId, r.tgChatId] as const)
+  );
 
   let sent = 0;
-  for (const id of players) {
-    const u = byId[id];
-    if (!u) continue;
-    const chatId = await chatIdForPlayer(id, u, rsvpByUser[id]);
+  for (const u of recipients) {
+    const chatId = rsvpByUser[u.id] || notifyChatId(u);
     if (!chatId) continue;
-    const ok = await sendWithRetry(chatId, text, undefined, photoUrl);
+    let ok = false;
+    if (png) {
+      let result = await sendTelegramPhotoBuffer(chatId, png.buffer, png.filename, caption);
+      if (!result.ok) {
+        await sleep(400);
+        result = await sendTelegramPhotoBuffer(chatId, png.buffer, png.filename, caption);
+      }
+      ok = result.ok;
+    } else {
+      ok = await sendWithRetry(chatId, caption);
+    }
     if (ok) sent += 1;
     await sleep(80);
   }

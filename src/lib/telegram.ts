@@ -231,6 +231,35 @@ export async function sendTelegramMessage(
   return result.ok;
 }
 
+/** Отправить PNG/JPEG из буфера (итоги дня и т.п.). */
+export async function sendTelegramPhotoBuffer(
+  chatId: string | null | undefined,
+  buffer: Buffer,
+  filename: string,
+  caption?: string,
+  replyMarkup?: InlineKeyboard
+): Promise<TelegramSendResult> {
+  if (!chatId || !buffer.length) return { ok: false };
+  const fields: Record<string, string> = {
+    chat_id: String(chatId),
+    parse_mode: "HTML",
+  };
+  if (caption) {
+    fields.caption = caption.length > 1024 ? `${caption.slice(0, 1020)}…` : caption;
+  }
+  if (replyMarkup) fields.reply_markup = JSON.stringify(replyMarkup);
+  const { ok, data } = await telegramApiMultipart("sendPhoto", fields, {
+    field: "photo",
+    filename,
+    buffer,
+    contentType: guessMime(filename),
+  });
+  return {
+    ok,
+    messageId: typeof data?.result?.message_id === "number" ? data.result.message_id : undefined,
+  };
+}
+
 export async function editTelegramMessage(
   chatId: string | null | undefined,
   messageId: number | null | undefined,
