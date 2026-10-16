@@ -324,11 +324,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Не у всех игроков есть профиль" }, { status: 400 });
     }
     const onlyListedRoles = body.onlyListedRoles !== false;
-    const avoid = parseAssignments(session.teamAssignments);
+    const avoidRaw = parseAssignments(session.teamAssignments);
+    const avoid =
+      Object.keys(avoidRaw).length > 0
+        ? (Object.fromEntries(
+            Object.entries(avoidRaw).map(([id, a]) => [
+              id,
+              {
+                team: a.team === "DIRE" ? ("DIRE" as const) : ("RADIANT" as const),
+                position: a.position,
+              },
+            ])
+          ) as Record<string, { team: "RADIANT" | "DIRE"; position: number }>)
+        : null;
     try {
       const teams = rebalanceTeams(players, {
         onlyListedRoles,
-        avoid: Object.keys(avoid).length ? avoid : null,
+        avoid,
         intensity: Number(body.intensity ?? 3),
       });
       const updated = await prisma.matchSession.update({
