@@ -15,6 +15,7 @@ export function LastMatchCard({
   direWins,
   mvp,
   mvpTeamWon,
+  sessionId,
 }: {
   date: Date;
   radiantName: string;
@@ -23,15 +24,17 @@ export function LastMatchCard({
   direWins: number;
   mvp: Person;
   mvpTeamWon: boolean | null;
+  /** Для ссылки сразу на «Итоги дня» этого матча */
+  sessionId?: string;
 }) {
   return (
     <Link
-      href="/match"
+      href={sessionId ? `/match?open=${sessionId}#m-${sessionId}` : "/match"}
       className="hover-lift mx-auto block max-w-[720px] overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]"
     >
       <div className="flex items-center justify-between gap-3 px-4 pt-4 min-[720px]:px-5">
         <p className="eyebrow">Итоги 5v5 · {formatShortDate(date)}</p>
-        <span className="text-[13px] font-medium text-[var(--points)]">Подробнее →</span>
+        <span className="text-[13px] font-medium text-[var(--points)]">Итоги дня →</span>
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 min-[720px]:px-5">

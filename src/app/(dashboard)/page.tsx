@@ -104,6 +104,7 @@ export default async function HomePage() {
         : null;
     if (mvp) {
       lastMatch = {
+        sessionId: lastMvpSession.id,
         date: lastMvpSession.date,
         radiantName: teamDisplayName(named(radiant), "Team A"),
         direName: teamDisplayName(named(dire), "Team B"),

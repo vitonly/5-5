@@ -13,6 +13,9 @@ import { heroInfo, type ReplayData } from "@/lib/replay";
 import { DotaImg } from "@/components/match/DotaImg";
 import { PredictionPanel } from "@/components/match/PredictionPanel";
 import { getPredictionView } from "@/lib/match-predictions";
+import { getDaySummary } from "@/lib/match-summary";
+import { MatchDayTabs } from "@/components/match/MatchDayTabs";
+import { DaySummaryView } from "@/components/match/DaySummaryView";
 import { PageHeader } from "@/components/ui/page-header";
 import { teamDisplayName } from "@/lib/team-names";
 import { parseTeamAssignments } from "@/lib/match-lineup";
@@ -222,6 +225,7 @@ async function MatchCard({
   const prediction = d.lineupsVisible
     ? await getPredictionView(session, viewer.id, { showCounts: viewer.role === "ADMIN" })
     : null;
+  const summary = d.lineupsVisible ? await getDaySummary(session) : null;
 
   return (
     <article className={cn(!embedded && "surface-card overflow-hidden")}>
@@ -252,22 +256,60 @@ async function MatchCard({
         </div>
       ) : null}
 
-      {d.lineupsVisible && (
-        <MatchGameBoard
-          seriesRadiantIds={d.radiant}
-          seriesDireIds={d.dire}
-          seriesRadiantWins={d.radiantWins}
-          seriesDireWins={d.direWins}
-          games={d.games}
-          userMap={userMap}
-          viewer={viewer}
-          mvpId={session.mvpWinnerId}
-          initialGame={initialGame}
-        />
-      )}
+      {summary ? (
+        <MatchDayTabs
+          gamesCount={session.games.length}
+          initial={initialGame ? "games" : "summary"}
+          summary={
+            <DaySummaryView
+              summary={summary}
+              score={{ leftName: d.radiantName, rightName: d.direName, left: d.radiantWins, right: d.direWins }}
+              userMap={userMap}
+              viewer={viewer}
+            />
+          }
+          games={
+            <>
+                    {d.lineupsVisible && (
+                      <MatchGameBoard
+                        seriesRadiantIds={d.radiant}
+                        seriesDireIds={d.dire}
+                        seriesRadiantWins={d.radiantWins}
+                        seriesDireWins={d.direWins}
+                        games={d.games}
+                        userMap={userMap}
+                        viewer={viewer}
+                        mvpId={session.mvpWinnerId}
+                        initialGame={initialGame}
+                      />
+                    )}
 
-      {prediction && (
-        <PredictionPanel sessionId={session.id} view={prediction} canVote={viewer.role === "STUDENT"} />
+                    {prediction && (
+                      <PredictionPanel sessionId={session.id} view={prediction} canVote={viewer.role === "STUDENT"} />
+                    )}
+            </>
+          }
+        />
+      ) : (
+        <>
+        {d.lineupsVisible && (
+          <MatchGameBoard
+            seriesRadiantIds={d.radiant}
+            seriesDireIds={d.dire}
+            seriesRadiantWins={d.radiantWins}
+            seriesDireWins={d.direWins}
+            games={d.games}
+            userMap={userMap}
+            viewer={viewer}
+            mvpId={session.mvpWinnerId}
+            initialGame={initialGame}
+          />
+        )}
+
+        {prediction && (
+          <PredictionPanel sessionId={session.id} view={prediction} canVote={viewer.role === "STUDENT"} />
+        )}
+        </>
       )}
 
       {session.status === "TEAMS_SET" && (d.radiant.length > 0 || d.dire.length > 0) && (
