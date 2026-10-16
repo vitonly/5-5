@@ -182,6 +182,8 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
             direScore: rep.direScore,
             players: repData?.players ?? [],
             draft: repData?.draft ?? [],
+            source: repData?.source ?? "demo",
+            screenshots: repData?.screenshots ?? [],
           }
         : null,
     };

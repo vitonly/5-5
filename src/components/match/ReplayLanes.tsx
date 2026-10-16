@@ -27,6 +27,9 @@ export type ReplayView = {
   direScore: number;
   players: ReplayPlayer[];
   draft: DraftEntry[];
+  /** "screenshot" — данные перенесены со скриншотов (демка не сохранилась) */
+  source?: "demo" | "screenshot";
+  screenshots?: string[];
 };
 
 type UserRow = {
@@ -110,6 +113,8 @@ export function ReplayLanes({
         <SideSummary side={rightSide} name={rightName} won={won(rightSide)} nw={nwSum(right)} right />
       </div>
 
+      {replay.source === "screenshot" && <ScreenshotNote shots={replay.screenshots ?? []} />}
+
       {replay.draft.length > 0 && <DraftStrip draft={replay.draft} />}
 
       <AdvantageChart
@@ -141,6 +146,37 @@ export function ReplayLanes({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** Плашка «данные со скриншотов» + миниатюры, открываются в новой вкладке */
+function ScreenshotNote({ shots }: { shots: string[] }) {
+  return (
+    <div className="rounded-[var(--radius-control)] border border-dashed border-[var(--border)] px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-[13px] font-semibold">Данные со скриншота</p>
+        <p className="text-[12px] text-[var(--text-3)]">
+          Демка не сохранилась — без станов, лога убийств и времени покупок
+        </p>
+      </div>
+      {shots.length > 0 && (
+        <div className="no-scrollbar -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1">
+          {shots.map((src, i) => (
+            <a
+              key={src}
+              href={src}
+              target="_blank"
+              rel="noreferrer"
+              className="block shrink-0 overflow-hidden rounded-[8px] border border-[var(--border-soft)] transition-opacity hover:opacity-80"
+              aria-label={`Скриншот ${i + 1}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="" loading="lazy" className="h-[54px] w-[96px] object-cover" />
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

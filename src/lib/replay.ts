@@ -55,7 +55,15 @@ export type DraftEntry = {
   team: "RADIANT" | "DIRE" | null;
 };
 
-export type ReplayData = { players: ReplayPlayer[]; draft?: DraftEntry[]; kills?: KillEvent[] };
+export type ReplayData = {
+  players: ReplayPlayer[];
+  draft?: DraftEntry[];
+  kills?: KillEvent[];
+  /** Откуда данные: демка (по умолчанию) или перенесены вручную со скриншотов итогов игры */
+  source?: "demo" | "screenshot";
+  /** Скриншоты итогов игры (пути в /public), если данные со скриншотов */
+  screenshots?: string[];
+};
 
 type RawPlayer = Partial<Record<string, unknown>>;
 
