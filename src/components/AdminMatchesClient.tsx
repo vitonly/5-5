@@ -220,6 +220,7 @@ export function AdminMatchesClient({
           sessionId,
           action: "rebalanceGame1",
           onlyListedRoles,
+          intensity: reshuffleIntensity,
         }),
       });
       const data = await res.json().catch(() => ({}));

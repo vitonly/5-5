@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { balanceTeams, reshuffleForSecondGame } from "@/lib/team-balance";
+import { balanceTeams, rebalanceTeams, reshuffleForSecondGame } from "@/lib/team-balance";
 import { displayName, parseAppDateTime, parseJsonArray, toJsonArray } from "@/lib/utils";
 import {
   applyMatchDrawPoints,
@@ -324,8 +324,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Не у всех игроков есть профиль" }, { status: 400 });
     }
     const onlyListedRoles = body.onlyListedRoles !== false;
+    const avoid = parseAssignments(session.teamAssignments);
     try {
-      const teams = balanceTeams(players, onlyListedRoles);
+      const teams = rebalanceTeams(players, {
+        onlyListedRoles,
+        avoid: Object.keys(avoid).length ? avoid : null,
+        intensity: Number(body.intensity ?? 3),
+      });
       const updated = await prisma.matchSession.update({
         where: { id: sessionId },
         data: {

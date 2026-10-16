@@ -253,44 +253,44 @@ function strictBalanceError(players: BalancePlayer[], which: "1-й" | "2-й" = "
   );
 }
 
+function teamsToSideMap(teams: BalancedTeams): SideMap {
+  const map: SideMap = {};
+  for (const p of teams.radiant) map[p.id] = { team: "RADIANT", position: p.position };
+  for (const p of teams.dire) map[p.id] = { team: "DIRE", position: p.position };
+  return map;
+}
+
 /**
- * Автобаланс 5×5.
- * onlyListedRoles — только позиции из primary/secondary; без «подстановок».
- * Ищем разбиение с минимальной разницей силы, где обе команды закрывают роли.
+ * Все валидные разбиения 5×5 (с назначением ролей), от лучшей разницы силы к худшей.
+ * Дубликаты одного и того же key отбрасываются.
  */
-export function balanceTeams(
+function enumerateBalancedLineups(
   players: BalancePlayer[],
-  onlyListedRoles: boolean = false
-): BalancedTeams {
-  if (players.length !== 10) {
-    throw new Error("Для автобаланса нужно ровно 10 игроков");
-  }
-
-  if (!onlyListedRoles) {
-    const { radiant, dire } = bestSubsetBalance(players);
-    const totals = teamTotals(radiant, dire);
-    return {
-      radiant: assignPositions(radiant),
-      dire: assignPositions(dire),
-      ...totals,
-    };
-  }
-
+  onlyListedRoles: boolean
+): BalancedTeams[] {
   const n = players.length;
   const half = n / 2;
   const sorted = [...players].sort((a, b) => b.finalRating - a.finalRating);
-  let best: BalancedTeams | null = null;
+  const byKey = new Map<string, BalancedTeams>();
+  const assign = onlyListedRoles ? assignPositionsStrict : assignPositions;
 
   function search(index: number, radiant: BalancePlayer[], dire: BalancePlayer[]) {
     if (index === n) {
       if (radiant.length !== half || dire.length !== half) return;
-      const rAssigned = assignPositionsStrict(radiant);
-      const dAssigned = assignPositionsStrict(dire);
-      if (!assignmentComplete(rAssigned) || !assignmentComplete(dAssigned)) return;
-      const totals = teamTotals(radiant, dire);
-      if (!best || totals.difference < best.difference) {
-        best = { radiant: rAssigned, dire: dAssigned, ...totals };
+      const rAssigned = assign(radiant);
+      const dAssigned = assign(dire);
+      if (onlyListedRoles) {
+        if (!assignmentComplete(rAssigned) || !assignmentComplete(dAssigned)) return;
       }
+      const totals = teamTotals(radiant, dire);
+      const teams: BalancedTeams = {
+        radiant: rAssigned,
+        dire: dAssigned,
+        ...totals,
+      };
+      const key = fullAssignmentKey(teamsToSideMap(teams));
+      const prev = byKey.get(key);
+      if (!prev || teams.difference < prev.difference) byKey.set(key, teams);
       return;
     }
     if (radiant.length < half) {
@@ -306,8 +306,91 @@ export function balanceTeams(
   }
 
   search(0, [], []);
-  if (!best) throw strictBalanceError(players, "1-й");
-  return best;
+  return [...byKey.values()].sort((a, b) => a.difference - b.difference);
+}
+
+/**
+ * Автобаланс 5×5 (первый / «лучший» вариант).
+ * onlyListedRoles — только позиции из primary/secondary; без «подстановок».
+ */
+export function balanceTeams(
+  players: BalancePlayer[],
+  onlyListedRoles: boolean = false
+): BalancedTeams {
+  if (players.length !== 10) {
+    throw new Error("Для автобаланса нужно ровно 10 игроков");
+  }
+  const all = enumerateBalancedLineups(players, onlyListedRoles);
+  if (!all.length) {
+    if (onlyListedRoles) throw strictBalanceError(players, "1-й");
+    // fallback на старый путь (всегда найдёт разбиение)
+    const { radiant, dire } = bestSubsetBalance(players);
+    const totals = teamTotals(radiant, dire);
+    return {
+      radiant: assignPositions(radiant),
+      dire: assignPositions(dire),
+      ...totals,
+    };
+  }
+  return all[0];
+}
+
+/**
+ * Пересборка 1-й игры: случайный вариант из пула около лучшей разницы силы,
+ * с учётом intensity и исключением текущего состава (avoid).
+ */
+export function rebalanceTeams(
+  players: BalancePlayer[],
+  opts: {
+    onlyListedRoles?: boolean;
+    avoid?: SideMap | null;
+    intensity?: number;
+  } = {}
+): BalancedTeams {
+  if (players.length !== 10) {
+    throw new Error("Для автобаланса нужно ровно 10 игроков");
+  }
+  const onlyListedRoles = Boolean(opts.onlyListedRoles);
+  const intensity = clampIntensity(opts.intensity ?? 3);
+  const params = intensityParams(intensity);
+  const all = enumerateBalancedLineups(players, onlyListedRoles);
+  if (!all.length) {
+    if (onlyListedRoles) throw strictBalanceError(players, "1-й");
+    throw new Error("Не удалось собрать состав");
+  }
+
+  const minDiff = all[0].difference;
+  const slack = params.maxDiffSlack;
+  let pool = all.filter((t) => t.difference <= minDiff + slack);
+  if (pool.length < 2) pool = all.slice(0, Math.min(all.length, params.poolSize + 4));
+
+  const avoidKey =
+    opts.avoid && Object.keys(opts.avoid).length
+      ? fullAssignmentKey(opts.avoid)
+      : null;
+  if (avoidKey) {
+    const without = pool.filter((t) => fullAssignmentKey(teamsToSideMap(t)) !== avoidKey);
+    if (without.length > 0) {
+      pool = without;
+    } else {
+      const fromAll = all.filter((t) => fullAssignmentKey(teamsToSideMap(t)) !== avoidKey);
+      if (fromAll.length > 0) pool = fromAll;
+      else {
+        throw new Error(
+          "Другого валидного состава нет (все варианты совпадают с текущим или ломают роли). Снимите галочку или поправьте роли."
+        );
+      }
+    }
+  }
+
+  // Чем сильнее intensity — тем шире пул; внутри пула предпочитаем меньшую разницу силы
+  const take = Math.min(pool.length, Math.max(params.poolSize, intensity >= 4 ? 12 : 8));
+  const scored = pool.slice(0, take).map((t) => ({
+    teams: t,
+    // выше score = чаще выбираем; инверсия разницы + чуть шума от intensity
+    score: 1000 - t.difference * 20 + intensity * 3,
+  }));
+  return pickRandomWeighted(scored).teams;
 }
 
 type SideMap = Record<string, { team: "RADIANT" | "DIRE"; position: number }>;
