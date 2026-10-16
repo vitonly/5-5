@@ -320,13 +320,21 @@ async function MatchCard({
           <p className="mb-3 text-sm text-[var(--text-3)]">
             Игроки набраны. Составы ещё не утверждены — команды и позиции скрыты.
           </p>
+          {/* Порядок по имени, не radiant→dire: иначе «фейковые» команды видны до утверждения */}
           <ol className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            {[...d.radiant, ...d.dire].map((id, i) => (
-              <li key={id} className="flex items-center gap-2">
-                <span className="w-5 text-right font-mono-num text-[12px] text-[var(--text-3)]">{i + 1}</span>
-                {userMap[id] ? <PlayerLink user={userMap[id]} viewer={viewer} avatar={24} /> : id}
-              </li>
-            ))}
+            {[...d.radiant, ...d.dire]
+              .slice()
+              .sort((a, b) => {
+                const na = userMap[a] ? displayName(userMap[a]) : a;
+                const nb = userMap[b] ? displayName(userMap[b]) : b;
+                return na.localeCompare(nb, "ru");
+              })
+              .map((id, i) => (
+                <li key={id} className="flex items-center gap-2">
+                  <span className="w-5 text-right font-mono-num text-[12px] text-[var(--text-3)]">{i + 1}</span>
+                  {userMap[id] ? <PlayerLink user={userMap[id]} viewer={viewer} avatar={24} /> : id}
+                </li>
+              ))}
           </ol>
         </div>
       )}

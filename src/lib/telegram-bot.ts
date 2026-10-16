@@ -182,7 +182,7 @@ async function replyTeamsStatus(userId: string): Promise<string> {
     return "⚔️ <b>Команды</b>\nСейчас нет активной сессии 5v5.";
   }
 
-  // До утверждения — только кто есть, без команд и позиций
+  // До утверждения — только кто есть, без команд и позиций (порядок по имени, не по сторонам)
   if (session.status === "TEAMS_SET") {
     const ids = [
       ...parseJsonArray(session.radiantPlayerIds),
@@ -196,6 +196,14 @@ async function replyTeamsStatus(userId: string): Promise<string> {
       : [];
     const byId = Object.fromEntries(users.map((u) => [u.id, u]));
     const names = ids
+      .slice()
+      .sort((a, b) => {
+        const ua = byId[a];
+        const ub = byId[b];
+        const na = ua ? displayName(ua) : a;
+        const nb = ub ? displayName(ub) : b;
+        return na.localeCompare(nb, "ru");
+      })
       .map((id, i) => {
         const u = byId[id];
         return u ? `  ${i + 1}. ${displayName(u)}` : null;
