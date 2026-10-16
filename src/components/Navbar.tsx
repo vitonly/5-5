@@ -14,6 +14,7 @@ const studentLinks = [
   { href: "/materials", label: "Материалы" },
   { href: "/lessons", label: "Архив" },
   { href: "/match", label: "5x5" },
+  { href: "/hall", label: "Зал славы" },
   { href: "/progress", label: "Мой прогресс" },
   { href: "/profile?tab=achievements", label: "Ачивки" },
   { href: "/rules", label: "Rule book" },
@@ -30,6 +31,7 @@ const adminLinksBase = [
   { href: "/admin/attendance", label: "Посещаемость" },
   { href: "/admin/seasons", label: "Сезоны" },
   { href: "/admin/penalties", label: "Очки" },
+  { href: "/hall", label: "Зал славы" },
 ];
 
 export async function Navbar() {
@@ -150,7 +152,7 @@ export async function Navbar() {
 
   const PRIMARY = isAdmin
     ? ["/admin", "/admin/students", "/admin/homework", "/admin/matches", "/admin/penalties"]
-    : ["/homework", "/materials", "/match", "/stats"];
+    : ["/homework", "/materials", "/match", "/hall", "/stats"];
 
   const desktopItems = navLinks.map((link) => ({
     ...link,
@@ -173,6 +175,7 @@ export async function Navbar() {
           )
       )
     : [
+        { href: "/hall", label: "Зал славы" },
         { href: "/progress", label: "Мой прогресс" },
         { href: "/profile?tab=achievements", label: "Ачивки" },
         { href: "/rules", label: "Rule book" },

@@ -6,6 +6,7 @@ import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { processMvpDeadlines } from "@/lib/match-mvp";
 import { checkAllAchievements } from "@/lib/achievements";
 import { snapshotRatings } from "@/lib/rating-history";
+import { syncHallPoints } from "@/lib/hall-of-fame";
 
 export async function processOverdueHomework() {
   const now = new Date();
@@ -90,7 +91,13 @@ export async function runAutomation() {
     return 0;
   });
 
+  const hall = await syncHallPoints().catch((e) => {
+    console.error("[automation] hall of fame", e);
+    return { changed: 0 };
+  });
+
   return {
+    hallChanged: hall.changed,
     overdueProcessed,
     votingClosed,
     seasonsClosed,

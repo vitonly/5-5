@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
+import { syncHallPoints } from "@/lib/hall-of-fame";
 import { normalizeDraft, normalizeKills, normalizeReplayPlayers } from "@/lib/replay";
 
 export const runtime = "nodejs";
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
   });
 
   const matched = players.filter((p) => p.userId).length;
+  await syncHallPoints().catch((e) => console.error("[hall] sync after upload", e));
   return NextResponse.json({
     ok: true,
     replayId: replay.id,
@@ -100,5 +102,6 @@ export async function DELETE(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get("sessionId") ?? "";
   const gameNumber = Number(request.nextUrl.searchParams.get("gameNumber"));
   await prisma.matchReplay.deleteMany({ where: { sessionId, gameNumber } });
+  await syncHallPoints().catch((e) => console.error("[hall] sync after delete", e));
   return NextResponse.json({ ok: true });
 }

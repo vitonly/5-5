@@ -49,7 +49,13 @@ async function loadSessions() {
   });
 }
 
-export default async function MatchPage() {
+export default async function MatchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ open?: string; game?: string }>;
+}) {
+  const { open, game } = await searchParams;
+  const openGame = Number(game) || undefined;
   const user = await getSessionUser();
   if (!user) return null;
 
@@ -100,15 +106,22 @@ export default async function MatchPage() {
         </p>
       ) : (
         <div className="space-y-8">
-          <MatchCard session={featured} number={numberOf(featured)} userMap={userMap} viewer={user} />
+          <MatchCard session={featured} number={numberOf(featured)} userMap={userMap} viewer={user} initialGame={open === featured.id ? openGame : undefined} />
 
           {rest.length > 0 && (
             <section>
               <h2 className="mb-3 text-[17px] leading-snug min-[720px]:text-[20px]">Прошлые матчи</h2>
               <ul className="surface-card divide-y divide-[var(--border-soft)] overflow-hidden">
                 {rest.map((s) => (
-                  <li key={s.id}>
-                    <PastMatchRow session={s} number={numberOf(s)} userMap={userMap} viewer={user} />
+                  <li key={s.id} id={`m-${s.id}`} className="scroll-mt-28">
+                    <PastMatchRow
+                      session={s}
+                      number={numberOf(s)}
+                      userMap={userMap}
+                      viewer={user}
+                      defaultOpen={open === s.id}
+                      initialGame={open === s.id ? openGame : undefined}
+                    />
                   </li>
                 ))}
               </ul>
@@ -194,12 +207,14 @@ async function MatchCard({
   userMap,
   viewer,
   embedded = false,
+  initialGame,
 }: {
   session: SessionWithGames;
   number: number;
   userMap: Record<string, UserRow>;
   viewer: Viewer;
   embedded?: boolean;
+  initialGame?: number;
 }) {
   const d = matchData(session, userMap, viewer);
   const mvp = session.mvpResolved && session.mvpWinnerId ? userMap[session.mvpWinnerId] : null;
@@ -247,6 +262,7 @@ async function MatchCard({
           userMap={userMap}
           viewer={viewer}
           mvpId={session.mvpWinnerId}
+          initialGame={initialGame}
         />
       )}
 
@@ -304,11 +320,15 @@ function PastMatchRow({
   number,
   userMap,
   viewer,
+  defaultOpen = false,
+  initialGame,
 }: {
   session: SessionWithGames;
   number: number;
   userMap: Record<string, UserRow>;
   viewer: Viewer;
+  defaultOpen?: boolean;
+  initialGame?: number;
 }) {
   const d = matchData(session, userMap, viewer);
   const hasGames = session.games.length > 0;
@@ -334,7 +354,7 @@ function PastMatchRow({
     .filter((x): x is { game: number; heroId: number } => x !== null);
 
   return (
-    <details className="group">
+    <details className="group" open={defaultOpen || undefined}>
       <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--surface-muted)] min-[720px]:px-6 [&::-webkit-details-marker]:hidden">
         <span className="w-9 shrink-0 font-mono-num text-[12px] text-[var(--text-3)]">#{number}</span>
         <span className="w-14 shrink-0 text-[13px] text-[var(--text-2)]">{formatShortDate(session.date)}</span>
@@ -374,7 +394,7 @@ function PastMatchRow({
         </span>
       </summary>
       <div className="border-t border-[var(--border-soft)] bg-[var(--surface)]">
-        <MatchCard session={session} number={number} userMap={userMap} viewer={viewer} embedded />
+        <MatchCard session={session} number={number} userMap={userMap} viewer={viewer} embedded initialGame={initialGame} />
       </div>
     </details>
   );

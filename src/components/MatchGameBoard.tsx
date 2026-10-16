@@ -49,6 +49,7 @@ export function MatchGameBoard({
   userMap,
   viewer,
   mvpId,
+  initialGame,
 }: {
   /** Составы игры 1 — к ним привязан счёт серии */
   seriesRadiantIds: string[];
@@ -59,6 +60,8 @@ export function MatchGameBoard({
   userMap: Record<string, UserRow>;
   viewer: Viewer;
   mvpId?: string | null;
+  /** Открыть сразу эту игру (ссылка из Зала славы) */
+  initialGame?: number;
 }) {
   const hasPlayed = games.some((g) => g.winnerTeam);
   const lastPlayedIdx = (() => {
@@ -68,7 +71,8 @@ export function MatchGameBoard({
     });
     return last;
   })();
-  const [idx, setIdx] = useState(lastPlayedIdx);
+  const wantedIdx = initialGame ? games.findIndex((g) => g.gameNumber === initialGame) : -1;
+  const [idx, setIdx] = useState(wantedIdx >= 0 ? wantedIdx : lastPlayedIdx);
   const game = games[Math.min(idx, games.length - 1)] ?? games[0];
   const multi = games.length > 1;
   const anyReplay = games.some((g) => g.replay);
