@@ -117,7 +117,7 @@ function RecordCard({
   return (
     <article
       className={cn(
-        "surface-card relative flex flex-col gap-3 p-3 min-[400px]:p-4",
+        "surface-card relative overflow-visible flex flex-col gap-3 p-3 min-[400px]:p-4",
         me && "ring-2 ring-[var(--points-border)]"
       )}
     >
@@ -127,7 +127,7 @@ function RecordCard({
             <span
               aria-label={anti ? `−${HALL_POINTS} очка` : `+${HALL_POINTS} очка`}
               className={cn(
-                "absolute -right-1.5 -top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full font-mono-num text-[12px] font-bold text-white shadow-[var(--shadow-xs)]",
+                "absolute -right-2.5 -top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full font-mono-num text-[11px] font-bold text-white shadow-[var(--shadow-xs)]",
                 anti ? "bg-[var(--danger)]" : "bg-[var(--success)]"
               )}
             >
