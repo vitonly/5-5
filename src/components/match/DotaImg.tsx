@@ -34,7 +34,7 @@ export function DotaImg({ src, alt, className }: { src: string | null; alt: stri
       decoding="async"
       style={{ imageRendering: "auto" }}
       onError={() => {
-        // crops → обычный горизонтальный портрет (256×144)
+        // crops → обычный портрет
         if (current.includes("/heroes/crops/")) {
           setCurrent(current.replace("/heroes/crops/", "/heroes/"));
           return;

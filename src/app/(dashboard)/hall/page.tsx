@@ -176,7 +176,7 @@ function RecordCard({
                   src={hero.img}
                   alt={hero.name}
                   className={cn(
-                    "h-[72px] w-[72px] rounded-full object-cover ring-2 min-[400px]:h-[84px] min-[400px]:w-[84px]",
+                    "h-[72px] w-[72px] rounded-full object-cover object-top ring-2 min-[400px]:h-[84px] min-[400px]:w-[84px]",
                     anti ? "ring-[var(--danger-bg)]" : "ring-[var(--gold-light)]"
                   )}
                 />

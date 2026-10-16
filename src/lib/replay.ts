@@ -185,12 +185,15 @@ const ITEMS = (dota as { items: Record<string, { d: string; i: string }> }).item
 
 export function heroInfo(heroId: number | null) {
   const h = heroId != null ? HEROES[String(heroId)] : undefined;
-  if (!h) return { name: "Неизвестный герой", img: null as string | null, icon: null as string | null };
-  // crops ≈400×250 — чётче на карточках; обычные heroes/*.png всего 256×144 и мылятся
+  if (!h) {
+    return { name: "Неизвестный герой", img: null as string | null, banner: null as string | null };
+  }
+  // img — стандартный горизонтальный портрет (лицо в кадре при object-cover)
+  // banner — crops выше чёткость для широких карточек; кадрировать с object-top
   return {
     name: h.l,
-    img: `${CDN}/heroes/crops/${h.n}.png`,
-    icon: `${CDN}/heroes/${h.n}.png`,
+    img: `${CDN}/heroes/${h.n}.png`,
+    banner: `${CDN}/heroes/crops/${h.n}.png`,
   };
 }
 

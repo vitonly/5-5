@@ -53,7 +53,11 @@ export function HeroStatsSummary({ stats, isOwn }: { stats: ReplayStats; isOwn: 
           return (
             <article key={h.heroId} className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-soft)]">
               <div className="relative">
-                <DotaImg src={info.img} alt={info.name} className="block aspect-[16/9] max-h-[124px] w-full object-cover" />
+                <DotaImg
+                  src={info.banner ?? info.img}
+                  alt={info.name}
+                  className="block aspect-[16/9] max-h-[124px] w-full object-cover object-top"
+                />
                 <span className="absolute left-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
                   №{i + 1} · {h.games} {plural(h.games, "игра", "игры", "игр")}
                 </span>
