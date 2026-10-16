@@ -50,6 +50,19 @@ export default async function AdminMatchesPage() {
           },
           orderBy: { createdAt: "asc" },
         },
+        predictions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: [{ gameNumber: "asc" }, { updatedAt: "asc" }],
+        },
       },
       orderBy: { date: "desc" },
     }),

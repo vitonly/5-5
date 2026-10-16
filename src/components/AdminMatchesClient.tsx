@@ -74,12 +74,25 @@ type MvpVoteRow = {
     username?: string | null;
   };
 };
+type PredictionRow = {
+  id: string;
+  userId: string;
+  gameNumber: number;
+  pick: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName?: string | null;
+    username?: string | null;
+  };
+};
 type RsvpWithUser = MatchRsvp & { user: User };
 type Session = MatchSession & {
   games: MatchGame[];
   replays?: ReplaySummary[];
   rsvps?: RsvpWithUser[];
   mvpVotes?: MvpVoteRow[];
+  predictions?: PredictionRow[];
 };
 type Student = User & { profile: PlayerProfile | null };
 type DraftSlot = { userId: string; position: number };
@@ -518,7 +531,7 @@ export function AdminMatchesClient({
   async function confirmLineups(sessionId: string) {
     if (
       !(await confirmAction(
-        "Утвердить составы? Игрокам уйдёт уведомление в Telegram по игре №1. Если 2-й состав уже собран — уйдёт и по игре №2. Если соберёте 2-й состав позже — он разошлётся автоматически при сборке. После этого можно стартовать сессию."
+        "Утвердить оба состава? Игрокам уйдёт одно сообщение в Telegram с составами на игру №1 и №2. После этого можно открыть прогнозы и стартовать сессию."
       ))
     ) {
       return;
@@ -1119,28 +1132,26 @@ export function AdminMatchesClient({
               {session.status === "TEAMS_SET" && !isEditing && (
                 <div className="space-y-2">
                   {!hasGame2 && intensityControl()}
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => confirmLineups(session.id)}>
-                      Утвердить составы (игра 1)
-                    </Button>
-                    {!hasGame2 && (
-                      <>
-                        <Button
-                          variant="secondary"
-                          disabled={saving}
-                          onClick={() => rebalanceGame1(session.id)}
-                        >
-                          Пересобрать 1-й состав
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          disabled={saving}
-                          onClick={() => generateGame2(session.id)}
-                        >
-                          Собрать состав на 2-ю игру
-                        </Button>
-                      </>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {hasGame2 && (
+                      <Button onClick={() => confirmLineups(session.id)} disabled={saving}>
+                        Утвердить составы (игры 1 и 2)
+                      </Button>
                     )}
+                    <Button
+                      variant="secondary"
+                      disabled={saving}
+                      onClick={() => rebalanceGame1(session.id)}
+                    >
+                      Пересобрать 1-й состав
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={saving}
+                      onClick={() => generateGame2(session.id)}
+                    >
+                      {hasGame2 ? "Пересобрать 2-й состав" : "Собрать состав на 2-ю игру"}
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={() =>
@@ -1150,6 +1161,12 @@ export function AdminMatchesClient({
                       Отменить / завершить без игр
                     </Button>
                   </div>
+                  {!hasGame2 && (
+                    <p className="text-xs text-[var(--text-3)]">
+                      Кнопка «Утвердить составы» появится после сборки состава на 2-ю игру — игрокам
+                      уйдёт одно сообщение с обоими составами.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1209,15 +1226,24 @@ export function AdminMatchesClient({
                         </p>
                         <div className="space-y-2">
                           {intensityControl()}
-                          <div className="flex flex-wrap gap-2">
-                            {!session.lineupsGame2Confirmed && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {session.status === "TEAMS_SET" && !session.lineupsGame2Confirmed && (
                               <Button
                                 disabled={saving}
-                                onClick={() => confirmLineupsGame2(session.id)}
+                                onClick={() => confirmLineups(session.id)}
                               >
-                                Утвердить состав на игру №2
+                                Утвердить составы (игры 1 и 2)
                               </Button>
                             )}
+                            {session.status === "LINEUPS_CONFIRMED" &&
+                              !session.lineupsGame2Confirmed && (
+                                <Button
+                                  disabled={saving}
+                                  onClick={() => confirmLineupsGame2(session.id)}
+                                >
+                                  Утвердить состав на игру №2
+                                </Button>
+                              )}
                             <Button
                               variant="secondary"
                               disabled={saving}
@@ -1235,12 +1261,14 @@ export function AdminMatchesClient({
               {session.status === "LINEUPS_CONFIRMED" && !isEditing && (
                 <div className="space-y-2">
                   {!hasGame2 && intensityControl()}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button onClick={() => startSession(session.id)}>
                       Старт сессии (все за ПК)
                     </Button>
                     {session.predictionsOpen ? (
-                      <Badge variant="success">Прогнозы открыты · закроются при старте</Badge>
+                      <Badge variant="success" className="self-center h-11 px-3.5 text-[13px]">
+                        Прогнозы открыты · закроются при старте
+                      </Badge>
                     ) : (
                       <Button
                         variant="secondary"
@@ -1272,6 +1300,66 @@ export function AdminMatchesClient({
                     >
                       Отменить / завершить без игр
                     </Button>
+                  </div>
+                </div>
+              )}
+
+              {session.predictionsOpen && !isEditing && (session.predictions?.length ?? 0) >= 0 && (
+                <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <p className="mb-3 font-display text-base font-semibold text-[var(--text)]">
+                    Прогнозы учеников
+                    {(session.predictions?.length ?? 0) === 0 && (
+                      <span className="ml-2 text-[13px] font-normal text-[var(--text-3)]">
+                        пока никто не проголосовал
+                      </span>
+                    )}
+                  </p>
+                  <div className="grid gap-4 min-[720px]:grid-cols-2">
+                    {[1, ...(hasGame2 ? [2] : [])].map((gameNumber) => {
+                      const names =
+                        gameNumber === 1
+                          ? { RADIANT: radiantName, DIRE: direName }
+                          : { RADIANT: game2RadiantName, DIRE: game2DireName };
+                      const forGame = (session.predictions ?? []).filter(
+                        (p) => p.gameNumber === gameNumber
+                      );
+                      const bySide = {
+                        RADIANT: forGame.filter((p) => p.pick === "RADIANT"),
+                        DIRE: forGame.filter((p) => p.pick === "DIRE"),
+                      } as const;
+                      return (
+                        <div key={gameNumber} className="space-y-2">
+                          <p className="text-[13px] font-medium text-[var(--text-2)]">
+                            Игра №{gameNumber}
+                            <span className="ml-2 font-mono-num text-[12px] text-[var(--text-3)]">
+                              {forGame.length} голос{forGame.length === 1 ? "" : forGame.length < 5 ? "а" : "ов"}
+                            </span>
+                          </p>
+                          {(["RADIANT", "DIRE"] as const).map((side) => (
+                            <div
+                              key={side}
+                              className="rounded-[var(--radius-control)] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2"
+                            >
+                              <p className="mb-1.5 flex items-center justify-between gap-2 text-[12px] font-semibold text-[var(--text)]">
+                                <span className="min-w-0 truncate">{names[side]}</span>
+                                <span className="font-mono-num text-[var(--text-3)]">
+                                  {bySide[side].length}
+                                </span>
+                              </p>
+                              {bySide[side].length === 0 ? (
+                                <p className="text-[12px] text-[var(--text-3)]">—</p>
+                              ) : (
+                                <ul className="space-y-0.5 text-[13px] text-[var(--text-2)]">
+                                  {bySide[side].map((p) => (
+                                    <li key={p.id}>{displayName(p.user)}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

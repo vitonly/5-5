@@ -376,13 +376,9 @@ export async function PATCH(request: NextRequest) {
     }
     const assignments = parseAssignments(session.teamAssignments);
     let avoid: TeamAssignment | null = null;
-    let hadGame2Before = false;
     try {
       const prev = JSON.parse(session.teamAssignmentsGame2 || "{}") as TeamAssignment;
-      if (Object.keys(prev).length) {
-        avoid = prev;
-        hadGame2Before = true;
-      }
+      if (Object.keys(prev).length) avoid = prev;
     } catch {
       avoid = null;
     }
@@ -416,7 +412,7 @@ export async function PATCH(request: NextRequest) {
       for (const p of teams.dire) {
         map[p.id] = { team: "DIRE", position: p.position };
       }
-      let updated = await prisma.matchSession.update({
+      const updated = await prisma.matchSession.update({
         where: { id: sessionId },
         data: {
           teamAssignmentsGame2: JSON.stringify(map),
@@ -424,22 +420,11 @@ export async function PATCH(request: NextRequest) {
         },
       });
 
-      const g1AlreadySent =
-        session.status === "LINEUPS_CONFIRMED" || session.status === "IN_PROGRESS";
-      let game2Notified = false;
-      if (g1AlreadySent && !hadGame2Before && game2LineupComplete(updated.teamAssignmentsGame2)) {
-        try {
-          updated = await confirmLineupsGame2(sessionId);
-          game2Notified = true;
-        } catch (e) {
-          console.error("[generateGame2] auto-notify game2 failed:", e);
-        }
-      }
-
+      // TG не шлём здесь — одно сообщение при «Утвердить составы» (оба сразу)
       return NextResponse.json({
         session: updated,
         difference: teams.difference,
-        game2Notified,
+        game2Notified: false,
       });
     } catch (e) {
       return NextResponse.json(
