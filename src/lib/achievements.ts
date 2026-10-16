@@ -20,14 +20,13 @@ export type Tier = 1 | 2 | 3;
 export const TIER_POINTS: Record<Tier, number> = { 1: 0, 2: 0.5, 3: 1 };
 export const TIER_LABELS: Record<Tier, string> = { 1: "бронза", 2: "серебро", 3: "золото" };
 
-export type AchievementCategory = "lessons" | "homework" | "matches" | "mvp" | "rating";
+export type AchievementCategory = "lessons" | "homework" | "matches" | "mvp";
 
 export const CATEGORY_LABELS: Record<AchievementCategory, string> = {
   lessons: "Занятия",
   homework: "Домашки",
   matches: "5v5",
   mvp: "MVP",
-  rating: "Рейтинг",
 };
 
 export type AchievementStats = {
@@ -50,9 +49,6 @@ export type AchievementStats = {
   carried: number;
   mvpCount: number;
   mvpInLoss: number;
-  seasonPodium: number;
-  weeklyRise: number;
-  fromBasement: number;
   predictionsCorrect: number;
 };
 
@@ -100,11 +96,6 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // MVP
   { code: "mvp", title: "MVP", description: "Стать MVP дня {n} раз", category: "mvp", icon: "star", metric: "mvpCount", tiers: [{ tier: 1, need: 1 }, { tier: 2, need: 3 }, { tier: 3, need: 10 }] },
   { code: "mvp_loss", title: "MVP в поражении", description: "Стать MVP дня, когда твоя команда проиграла серию", category: "mvp", icon: "star-half", metric: "mvpInLoss", tiers: SECRET, secret: true },
-
-  // Рейтинг
-  { code: "podium", title: "Призёр сезона", description: "Попасть в топ-3 сезона (золото — чемпион)", category: "rating", icon: "medal", metric: "seasonPodium", tiers: [{ tier: 2, need: 1, label: "Топ-3 сезона" }, { tier: 3, need: 2, label: "Чемпион сезона" }] },
-  { code: "rise", title: "Рывок", description: "Подняться на {n}+ места за неделю", category: "rating", icon: "trending-up", metric: "weeklyRise", tiers: [{ tier: 1, need: 3 }, { tier: 2, need: 5 }] },
-  { code: "from_basement", title: "Из подвала", description: "Подняться из нижней пятёрки рейтинга в топ-5 за сезон", category: "rating", icon: "arrow-up-from-line", metric: "fromBasement", tiers: SECRET, secret: true },
 ];
 
 const DEF_BY_CODE = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.code, a]));
@@ -154,65 +145,49 @@ function longestDayRun(days: number[]) {
 type SharedData = {
   replays: { sessionId: string; radiantWin: boolean | null; data: unknown }[];
   materialsTotal: number;
-  seasons: { id: string; openedAt: Date | null; closedAt: Date | null }[];
-  rankedByDay: Map<number, number>;
 };
 
 async function loadShared(): Promise<SharedData> {
-  const [replays, materialsTotal, seasons, ranked] = await Promise.all([
+  const [replays, materialsTotal] = await Promise.all([
     prisma.matchReplay.findMany({ select: { sessionId: true, radiantWin: true, data: true } }),
     prisma.learningMaterial.count(),
-    prisma.ratingSeason.findMany({ select: { id: true, openedAt: true, closedAt: true } }),
-    prisma.ratingSnapshot.groupBy({ by: ["date"], where: { place: { not: null } }, _count: { _all: true } }),
   ]);
-  const rankedByDay = new Map<number, number>();
-  for (const r of ranked) rankedByDay.set(mskDayNumber(new Date(r.date)), r._count._all);
-  return { replays, materialsTotal, seasons, rankedByDay };
+  return { replays, materialsTotal };
 }
 
 export async function computeAchievementStats(userId: string, shared?: SharedData): Promise<AchievementStats> {
   const now = new Date();
   const common = shared ?? (await loadShared());
 
-  const [
-    attendances,
-    lessonSessions,
-    excellent,
-    assignments,
-    participants,
-    mvpSessions,
-    snapshots,
-    diaryLogs,
-    viewed,
-  ] = await Promise.all([
-    prisma.lessonAttendance.findMany({ where: { userId, present: true }, select: { sessionId: true } }),
-    prisma.lessonSession.findMany({ where: { date: { lte: now } }, select: { id: true }, orderBy: { date: "asc" } }),
-    prisma.homeworkSubmission.count({ where: { studentId: userId, excellent: true } }),
-    prisma.homeworkAssignment.findMany({
-      where: { studentId: userId },
-      select: { deadline: true, createdAt: true, submission: { select: { submittedAt: true } } },
-      orderBy: { deadline: "asc" },
-    }),
-    prisma.matchParticipant.findMany({
-      where: { userId },
-      select: {
-        won: true,
-        game: {
-          select: {
-            createdAt: true,
-            gameNumber: true,
-            sessionId: true,
-            session: { select: { date: true, teamAssignments: true, teamAssignmentsGame2: true } },
+  const [attendances, lessonSessions, excellent, assignments, participants, mvpSessions, diaryLogs, viewed] =
+    await Promise.all([
+      prisma.lessonAttendance.findMany({ where: { userId, present: true }, select: { sessionId: true } }),
+      prisma.lessonSession.findMany({ where: { date: { lte: now } }, select: { id: true }, orderBy: { date: "asc" } }),
+      prisma.homeworkSubmission.count({ where: { studentId: userId, excellent: true } }),
+      prisma.homeworkAssignment.findMany({
+        where: { studentId: userId },
+        select: { deadline: true, createdAt: true, submission: { select: { submittedAt: true } } },
+        orderBy: { deadline: "asc" },
+      }),
+      prisma.matchParticipant.findMany({
+        where: { userId },
+        select: {
+          won: true,
+          game: {
+            select: {
+              createdAt: true,
+              gameNumber: true,
+              sessionId: true,
+              session: { select: { date: true, teamAssignments: true, teamAssignmentsGame2: true } },
+            },
           },
         },
-      },
-      orderBy: { game: { createdAt: "asc" } },
-    }),
-    prisma.matchSession.findMany({ where: { mvpWinnerId: userId }, select: { id: true } }),
-    prisma.ratingSnapshot.findMany({ where: { userId }, select: { date: true, place: true }, orderBy: { date: "asc" } }),
-    prisma.progressLog.findMany({ where: { userId }, select: { date: true, createdAt: true } }),
-    prisma.materialView.count({ where: { userId } }),
-  ]);
+        orderBy: { game: { createdAt: "asc" } },
+      }),
+      prisma.matchSession.findMany({ where: { mvpWinnerId: userId }, select: { id: true } }),
+      prisma.progressLog.findMany({ where: { userId }, select: { date: true, createdAt: true } }),
+      prisma.materialView.count({ where: { userId } }),
+    ]);
 
   // Занятия
   const attendedIds = new Set(attendances.map((a) => a.sessionId));
@@ -287,56 +262,6 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
   // MVP
   const mvpInLoss = mvpSessions.filter((s) => lostSeries.has(s.id)).length;
 
-  // Призёр сезона
-  let seasonPodium = 0;
-  for (const s of common.seasons.filter((x) => x.closedAt)) {
-    const grouped = await prisma.pointLog.groupBy({
-      by: ["userId"],
-      where: { seasonId: s.id },
-      _sum: { delta: true },
-    });
-    const ranked = grouped
-      .map((g) => ({ userId: g.userId, sum: g._sum.delta ?? 0 }))
-      .filter((g) => g.sum > 0)
-      .sort((a, b) => b.sum - a.sum);
-    const idx = ranked.findIndex((r) => r.userId === userId);
-    if (idx === 0) seasonPodium = Math.max(seasonPodium, 2);
-    else if (idx > 0 && idx < 3) seasonPodium = Math.max(seasonPodium, 1);
-  }
-
-  // Рывок: лучшее улучшение места за 7 дней по снимкам
-  let weeklyRise = 0;
-  for (let i = 0; i < snapshots.length; i++) {
-    const a = snapshots[i];
-    if (a.place == null) continue;
-    for (let j = i + 1; j < snapshots.length; j++) {
-      const b = snapshots[j];
-      const days = (new Date(b.date).getTime() - new Date(a.date).getTime()) / 86_400_000;
-      if (days > 7) break;
-      if (b.place != null) weeklyRise = Math.max(weeklyRise, a.place - b.place);
-    }
-  }
-
-  // Из подвала: в пределах одного сезона был в нижней пятёрке, потом попал в топ-5
-  let fromBasement = 0;
-  for (const s of common.seasons) {
-    if (!s.openedAt) continue;
-    const from = new Date(s.openedAt).getTime();
-    const to = s.closedAt ? new Date(s.closedAt).getTime() : now.getTime();
-    let wasBottom = false;
-    for (const snap of snapshots) {
-      const t = new Date(snap.date).getTime();
-      if (t < from || t > to || snap.place == null) continue;
-      const total = common.rankedByDay.get(mskDayNumber(new Date(snap.date))) ?? 0;
-      if (total >= 10 && snap.place > total - 5) wasBottom = true;
-      else if (wasBottom && snap.place <= 5) {
-        fromBasement = 1;
-        break;
-      }
-    }
-    if (fromBasement) break;
-  }
-
   return {
     lessonsAttended: attendedIds.size,
     lessonStreak,
@@ -357,9 +282,6 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
     carried,
     mvpCount: mvpSessions.length,
     mvpInLoss,
-    seasonPodium,
-    weeklyRise,
-    fromBasement,
     predictionsCorrect: await countCorrectPredictionDays(userId),
   };
 }

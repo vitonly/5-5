@@ -30,8 +30,13 @@ export function PointHistory({
   const [filter, setFilter] = useState<PointCategory | "all">("all");
 
   const filtered = useMemo(() => {
-    if (filter === "all") return logs;
-    return logs.filter((log) => categorizePointReason(log.reason) === filter);
+    // ±3 зала славы / антирекорды не показываем в профиле
+    const visible = logs.filter((log) => {
+      const r = log.reason.toLowerCase();
+      return !r.startsWith("зал славы:") && !r.startsWith("антирекорд:");
+    });
+    if (filter === "all") return visible;
+    return visible.filter((log) => categorizePointReason(log.reason) === filter);
   }, [logs, filter]);
 
   return (

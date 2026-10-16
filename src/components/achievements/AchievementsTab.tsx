@@ -58,7 +58,7 @@ function ProgressTip({
   );
 }
 
-const ORDER: AchievementCategory[] = ["matches", "mvp", "homework", "lessons", "rating"];
+const ORDER: AchievementCategory[] = ["matches", "mvp", "homework", "lessons"];
 
 export function AchievementsTab({
   items,
