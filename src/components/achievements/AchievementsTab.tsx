@@ -33,7 +33,7 @@ function ProgressTip({
       ) : (
         <ul className="space-y-1.5">
           {a.tiers.map((t) => {
-            const single = t.need <= 1 || a.code === "podium";
+            const single = t.need <= 1;
             const shown = Math.min(a.value, t.need);
             return (
               <li key={t.tier} className="flex items-center gap-2 text-[12px]">
