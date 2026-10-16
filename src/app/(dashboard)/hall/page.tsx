@@ -123,6 +123,18 @@ function RecordCard({
     >
       {record && u && hero ? (
         <>
+          {!allTime && (
+            <span
+              aria-label={anti ? `−${HALL_POINTS} очка` : `+${HALL_POINTS} очка`}
+              className={cn(
+                "absolute -right-1.5 -top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full font-mono-num text-[12px] font-bold text-white shadow-[var(--shadow-xs)]",
+                anti ? "bg-[var(--danger)]" : "bg-[var(--success)]"
+              )}
+            >
+              {anti ? "−" : "+"}
+              {HALL_POINTS}
+            </span>
+          )}
           <div className="grid grid-cols-[minmax(0,44%)_minmax(0,1fr)] gap-3 min-[400px]:gap-4">
             {/* Фото игрока */}
             <div className="relative aspect-[3/4] overflow-hidden rounded-[var(--radius-control)] bg-[var(--control)]">
@@ -134,11 +146,12 @@ function RecordCard({
                   {initials(u.firstName, u.lastName)}
                 </span>
               )}
-              <span className="absolute inset-x-0 bottom-2 flex justify-center px-2">
+              {/* ~40% от прежнего bg-black/55 */}
+              <span className="absolute inset-x-0 bottom-0 flex justify-center bg-black/20 px-2 py-1.5">
                 <PlayerLink
                   user={u}
                   viewer={viewer}
-                  className="max-w-full truncate text-center text-[13px] font-semibold text-white hover:text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                  className="max-w-full truncate text-center text-[13px] font-semibold text-white hover:text-white"
                 >
                   {me ? "Ты" : displayName(u)}
                 </PlayerLink>
@@ -146,21 +159,8 @@ function RecordCard({
             </div>
 
             {/* Рекорд · число · герой */}
-            <div className="flex min-w-0 flex-col">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[13px] font-semibold leading-snug text-[var(--text-2)]">{title}</p>
-                {!allTime && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 font-mono-num text-[11px] font-bold",
-                      anti ? "bg-[var(--danger-bg)] text-[var(--danger)]" : "bg-[var(--points-bg)] text-[var(--points-ink)]"
-                    )}
-                  >
-                    {anti ? "−" : "+"}
-                    {HALL_POINTS}
-                  </span>
-                )}
-              </div>
+            <div className="flex min-w-0 flex-col items-center text-center">
+              <p className="w-full text-[13px] font-semibold leading-snug text-[var(--text-2)]">{title}</p>
               <div className="flex flex-1 flex-col items-center justify-center py-1">
                 <p
                   className={cn(
