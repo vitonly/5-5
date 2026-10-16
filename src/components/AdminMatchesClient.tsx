@@ -151,7 +151,8 @@ export function AdminMatchesClient({
           <span>
             Не ставить на роль, которой нет у игрока
             <span className="block text-[11px] text-[var(--text-3)]">
-              Только роли из профиля. Если собрать нельзя — ошибка, без «подстановок»
+              Для 1-й и 2-й игры: только роли из профиля. Если собрать нельзя — ошибка, без
+              «подстановок»
             </span>
           </span>
         </label>
@@ -190,14 +191,61 @@ export function AdminMatchesClient({
   }
 
   async function createSession() {
-    await fetch("/api/matches", {
+    const res = await fetch("/api/matches", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, playerIds: selectedPlayers }),
+      body: JSON.stringify({
+        date,
+        playerIds: selectedPlayers,
+        onlyListedRoles,
+      }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось создать сессию");
+      return;
+    }
     setDate("");
     setSelectedPlayers([]);
     router.refresh();
+  }
+
+  async function rebalanceGame1(sessionId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/matches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          action: "rebalanceGame1",
+          onlyListedRoles,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось пересобрать");
+        return;
+      }
+      if (data.session) {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === data.session.id
+              ? {
+                  ...s,
+                  ...data.session,
+                  games: s.games,
+                  rsvps: s.rsvps,
+                }
+              : s
+          )
+        );
+      }
+      toast.success("Состав на игру №1 пересобран");
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function createOpenSignup(allWithTg: boolean, testToAdmin = false) {
@@ -701,6 +749,7 @@ export function AdminMatchesClient({
               ))}
             </div>
           </div>
+          {intensityControl()}
           <Button onClick={createSession} disabled={!date || selectedPlayers.length !== 10}>
             Сформировать команды
           </Button>
@@ -1074,13 +1123,22 @@ export function AdminMatchesClient({
                       Утвердить составы (игра 1)
                     </Button>
                     {!hasGame2 && (
-                      <Button
-                        variant="secondary"
-                        disabled={saving}
-                        onClick={() => generateGame2(session.id)}
-                      >
-                        Собрать состав на 2-ю игру
-                      </Button>
+                      <>
+                        <Button
+                          variant="secondary"
+                          disabled={saving}
+                          onClick={() => rebalanceGame1(session.id)}
+                        >
+                          Пересобрать 1-й состав
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={saving}
+                          onClick={() => generateGame2(session.id)}
+                        >
+                          Собрать состав на 2-ю игру
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="outline"

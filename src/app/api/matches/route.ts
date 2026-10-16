@@ -114,8 +114,9 @@ export async function POST(request: NextRequest) {
       secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
     }));
 
+    const onlyListedRoles = body.onlyListedRoles !== false;
     try {
-      const teams = balanceTeams(players);
+      const teams = balanceTeams(players, onlyListedRoles);
       const updated = await prisma.matchSession.update({
         where: { id: session.id },
         data: {
@@ -126,7 +127,14 @@ export async function POST(request: NextRequest) {
         },
       });
       return NextResponse.json({ session: updated, teams });
-    } catch {
+    } catch (e) {
+      if (onlyListedRoles) {
+        await prisma.matchSession.delete({ where: { id: session.id } }).catch(() => {});
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Не удалось собрать состав по ролям" },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ session });
     }
   }
@@ -272,6 +280,70 @@ export async function PATCH(request: NextRequest) {
       },
     });
     return NextResponse.json({ session: updated });
+  }
+
+  if (body.action === "rebalanceGame1") {
+    if (session.status !== "TEAMS_SET" && session.status !== "PLANNED") {
+      return NextResponse.json(
+        { error: "Пересобрать 1-й состав можно до утверждения" },
+        { status: 400 }
+      );
+    }
+    const allIds = [
+      ...parseJsonArray(session.radiantPlayerIds),
+      ...parseJsonArray(session.direPlayerIds),
+    ];
+    const fromRsvp =
+      allIds.length !== 10
+        ? (
+            await prisma.matchRsvp.findMany({
+              where: { sessionId, status: "JOINED" },
+              orderBy: { respondedAt: "asc" },
+              take: 10,
+            })
+          ).map((r) => r.userId)
+        : allIds;
+    if (fromRsvp.length !== 10) {
+      return NextResponse.json(
+        { error: "Нужно ровно 10 игроков для пересборки" },
+        { status: 400 }
+      );
+    }
+    const profiles = await prisma.playerProfile.findMany({
+      where: { userId: { in: fromRsvp } },
+      include: { user: true },
+    });
+    const players = profiles.map((p) => ({
+      id: p.userId,
+      name: displayName(p.user),
+      finalRating: p.finalRating,
+      primaryRole: p.primaryRole,
+      secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
+    }));
+    if (players.length !== 10) {
+      return NextResponse.json({ error: "Не у всех игроков есть профиль" }, { status: 400 });
+    }
+    const onlyListedRoles = body.onlyListedRoles !== false;
+    try {
+      const teams = balanceTeams(players, onlyListedRoles);
+      const updated = await prisma.matchSession.update({
+        where: { id: sessionId },
+        data: {
+          status: "TEAMS_SET",
+          radiantPlayerIds: toJsonArray(teams.radiant.map((p) => p.id)),
+          direPlayerIds: toJsonArray(teams.dire.map((p) => p.id)),
+          teamAssignments: buildAssignments(teams),
+          teamAssignmentsGame2: "{}",
+          lineupsGame2Confirmed: false,
+        },
+      });
+      return NextResponse.json({ session: updated, difference: teams.difference });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось собрать 1-й состав" },
+        { status: 400 }
+      );
+    }
   }
 
   if (body.action === "generateGame2") {

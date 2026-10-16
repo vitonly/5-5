@@ -238,17 +238,76 @@ function bestSubsetBalance(players: BalancePlayer[]): { radiant: BalancePlayer[]
   return best ?? { radiant: sorted.slice(0, half), dire: sorted.slice(half) };
 }
 
-export function balanceTeams(players: BalancePlayer[]): BalancedTeams {
+function strictBalanceError(players: BalancePlayer[], which: "1-й" | "2-й" = "1-й"): Error {
+  const offenders = players
+    .filter((p) => strictListedPositions(p).length === 0)
+    .map((p) => p.name);
+  const hint =
+    offenders.length > 0
+      ? ` У кого не указаны роли: ${offenders.join(", ")}.`
+      : " Слишком много претендентов на одни и те же позиции.";
+  return new Error(
+    `Не удалось собрать ${which} состав строго по указанным ролям.` +
+      hint +
+      " Снимите галочку или поправьте роли в профилях."
+  );
+}
+
+/**
+ * Автобаланс 5×5.
+ * onlyListedRoles — только позиции из primary/secondary; без «подстановок».
+ * Ищем разбиение с минимальной разницей силы, где обе команды закрывают роли.
+ */
+export function balanceTeams(
+  players: BalancePlayer[],
+  onlyListedRoles: boolean = false
+): BalancedTeams {
   if (players.length !== 10) {
     throw new Error("Для автобаланса нужно ровно 10 игроков");
   }
-  const { radiant, dire } = bestSubsetBalance(players);
-  const totals = teamTotals(radiant, dire);
-  return {
-    radiant: assignPositions(radiant),
-    dire: assignPositions(dire),
-    ...totals,
-  };
+
+  if (!onlyListedRoles) {
+    const { radiant, dire } = bestSubsetBalance(players);
+    const totals = teamTotals(radiant, dire);
+    return {
+      radiant: assignPositions(radiant),
+      dire: assignPositions(dire),
+      ...totals,
+    };
+  }
+
+  const n = players.length;
+  const half = n / 2;
+  const sorted = [...players].sort((a, b) => b.finalRating - a.finalRating);
+  let best: BalancedTeams | null = null;
+
+  function search(index: number, radiant: BalancePlayer[], dire: BalancePlayer[]) {
+    if (index === n) {
+      if (radiant.length !== half || dire.length !== half) return;
+      const rAssigned = assignPositionsStrict(radiant);
+      const dAssigned = assignPositionsStrict(dire);
+      if (!assignmentComplete(rAssigned) || !assignmentComplete(dAssigned)) return;
+      const totals = teamTotals(radiant, dire);
+      if (!best || totals.difference < best.difference) {
+        best = { radiant: rAssigned, dire: dAssigned, ...totals };
+      }
+      return;
+    }
+    if (radiant.length < half) {
+      radiant.push(sorted[index]);
+      search(index + 1, radiant, dire);
+      radiant.pop();
+    }
+    if (dire.length < half) {
+      dire.push(sorted[index]);
+      search(index + 1, radiant, dire);
+      dire.pop();
+    }
+  }
+
+  search(0, [], []);
+  if (!best) throw strictBalanceError(players, "1-й");
+  return best;
 }
 
 type SideMap = Record<string, { team: "RADIANT" | "DIRE"; position: number }>;
@@ -390,7 +449,7 @@ export function reshuffleForSecondGame(
     else direSlots.push(slot);
   }
   if (radiantSlots.length !== 5 || direSlots.length !== 5) {
-    return balanceTeams(players);
+    return balanceTeams(players, onlyListedRoles);
   }
 
   const baseDiff = Math.abs(
@@ -631,24 +690,22 @@ export function reshuffleForSecondGame(
 
   // Для «сильно» — полный ребаланс как ещё одно семейство кандидатов
   if (intensity >= 4) {
-    const full = balanceTeams(players);
-    const asSlots = {
-      r: full.radiant.map((p) => ({
-        userId: p.id,
-        position: p.position,
-        rating: p.finalRating,
-      })),
-      d: full.dire.map((p) => ({
-        userId: p.id,
-        position: p.position,
-        rating: p.finalRating,
-      })),
-    };
-    if (onlyListedRoles) {
-      const fixed = reassignRoles(asSlots.r, asSlots.d);
-      if (fixed) raw.push(fixed);
-    } else {
-      raw.push(asSlots);
+    try {
+      const full = balanceTeams(players, onlyListedRoles);
+      raw.push({
+        r: full.radiant.map((p) => ({
+          userId: p.id,
+          position: p.position,
+          rating: p.finalRating,
+        })),
+        d: full.dire.map((p) => ({
+          userId: p.id,
+          position: p.position,
+          rating: p.finalRating,
+        })),
+      });
+    } catch {
+      // строгий полный ребаланс невозможен — остальные кандидаты
     }
   }
 
@@ -696,21 +753,8 @@ export function reshuffleForSecondGame(
   }
 
   if (candidates.length === 0) {
-    if (onlyListedRoles) {
-      const offenders = players
-        .filter((p) => strictListedPositions(p).length === 0)
-        .map((p) => p.name);
-      const hint =
-        offenders.length > 0
-          ? ` У кого не указаны роли: ${offenders.join(", ")}.`
-          : " Слишком много претендентов на одни и те же позиции.";
-      throw new Error(
-        "Не удалось собрать 2-й состав строго по указанным ролям." +
-          hint +
-          " Снимите галочку или поправьте роли в профилях."
-      );
-    }
-    return balanceTeams(players);
+    if (onlyListedRoles) throw strictBalanceError(players, "2-й");
+    return balanceTeams(players, false);
   }
 
   candidates.sort((a, b) => b.score - a.score || a.diff - b.diff);

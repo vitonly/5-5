@@ -58,8 +58,11 @@ async function loadBalancePlayers(userIds: string[]) {
   }));
 }
 
-/** Пересобрать команды из текущих JOINED (ровно 10). */
-export async function rebalanceOpenSession(sessionId: string) {
+/** Пересобрать команды из текущих JOINED (ровно 10). По умолчанию — строго по ролям из профиля. */
+export async function rebalanceOpenSession(
+  sessionId: string,
+  onlyListedRoles: boolean = true
+) {
   const joined = await prisma.matchRsvp.findMany({
     where: { sessionId, status: "JOINED" },
     orderBy: { respondedAt: "asc" },
@@ -83,18 +86,36 @@ export async function rebalanceOpenSession(sessionId: string) {
     throw new Error("Не у всех игроков есть профиль");
   }
 
-  const teams = balanceTeams(players);
-  const updated = await prisma.matchSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "TEAMS_SET",
-      radiantPlayerIds: toJsonArray(teams.radiant.map((p) => p.id)),
-      direPlayerIds: toJsonArray(teams.dire.map((p) => p.id)),
-      teamAssignments: buildAssignmentsJson(teams),
-    },
-  });
-
-  return { session: updated, teams };
+  try {
+    const teams = balanceTeams(players, onlyListedRoles);
+    const updated = await prisma.matchSession.update({
+      where: { id: sessionId },
+      data: {
+        status: "TEAMS_SET",
+        radiantPlayerIds: toJsonArray(teams.radiant.map((p) => p.id)),
+        direPlayerIds: toJsonArray(teams.dire.map((p) => p.id)),
+        teamAssignments: buildAssignmentsJson(teams),
+        teamAssignmentsGame2: "{}",
+        lineupsGame2Confirmed: false,
+      },
+    });
+    return { session: updated, teams };
+  } catch (e) {
+    // 10 записаны, но строго по ролям нельзя — оставляем без автосостава
+    await prisma.matchSession.update({
+      where: { id: sessionId },
+      data: {
+        status: "PLANNED",
+        radiantPlayerIds: "[]",
+        direPlayerIds: "[]",
+        teamAssignments: "{}",
+        teamAssignmentsGame2: "{}",
+        lineupsGame2Confirmed: false,
+      },
+    });
+    console.error("[rebalanceOpenSession]", e);
+    return null;
+  }
 }
 
 async function notifyTeamsFormed(sessionId: string) {
