@@ -1,4 +1,4 @@
-import { Star, Trophy, Skull } from "lucide-react";
+import { Download, Star, Trophy, Skull } from "lucide-react";
 import { Avatar } from "@/components/home/Avatar";
 import { PlayerLink } from "@/components/PlayerLink";
 import { DotaImg } from "@/components/match/DotaImg";
@@ -20,11 +20,13 @@ const plural = (n: number, a: string, b: string, c: string) => {
 
 /** Содержимое вкладки «Итоги дня» */
 export function DaySummaryView({
+  sessionId,
   summary,
   score,
   userMap,
   viewer,
 }: {
+  sessionId: string;
   summary: DaySummary;
   score: { leftName: string; rightName: string; left: number; right: number };
   userMap: Record<string, U>;
@@ -166,9 +168,17 @@ export function DaySummaryView({
         </div>
       )}
 
-      <p className="border-t border-[var(--border-soft)] pt-3 text-[12px] text-[var(--text-3)]">
-        Табло, драфт и статистика каждой игры — во вкладке «Игры».
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-soft)] pt-3">
+        <p className="text-[12px] text-[var(--text-3)]">Табло, драфт и статистика каждой игры — во вкладке «Игры».</p>
+        <a
+          href={`/api/matches/${sessionId}/summary-image?download=1`}
+          download
+          className="press inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--points-bg)] px-3.5 text-[13px] font-semibold text-[var(--points-ink)] transition-colors hover:bg-[var(--points-border)]"
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          Скачать картинку для Telegram
+        </a>
+      </div>
     </div>
   );
 }

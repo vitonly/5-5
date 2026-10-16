@@ -458,23 +458,29 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                     <button
                       type="button"
                       onClick={() => selectStudent(s)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                      className="shrink-0 rounded-full"
+                      aria-label={`Редактировать ${displayName(s)}`}
                     >
                       <Avatar photoUrl={s.photoUrl} firstName={s.firstName} lastName={s.lastName} size={32} />
-                      <span className="min-w-0 flex-1">
-                        <span className={`block truncate font-medium ${isSel ? "text-[var(--admin-ink)]" : "text-[var(--text)]"}`}>
-                          {[s.firstName, s.lastName].filter(Boolean).join(" ")}
-                        </span>
-                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[var(--text-3)]">
-                          {s.login && <span className="font-mono-num">@{s.login}</span>}
-                          <span className="font-mono-num">сила {s.profile?.finalRating ?? "—"}</span>
-                          <StatusDot ok={hasLogin} label="вход" />
-                          <StatusDot ok={Boolean(s.telegramChatId)} label="TG" />
-                          {hasIncompleteRoles(s.profile) && <span className="font-medium text-[var(--danger)]">роли!</span>}
-                          {s.loginPasswordTemp && <span className="text-[var(--points-ink)]">пароль → TG</span>}
-                        </span>
-                      </span>
                     </button>
+                    <div className="min-w-0 flex-1">
+                      <PlayerLink
+                        user={s}
+                        className={`block truncate font-medium ${isSel ? "text-[var(--admin-ink)]" : "text-[var(--text)]"}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => selectStudent(s)}
+                        className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left text-[11px] text-[var(--text-3)]"
+                      >
+                        {s.login && <span className="font-mono-num">@{s.login}</span>}
+                        <span className="font-mono-num">сила {s.profile?.finalRating ?? "—"}</span>
+                        <StatusDot ok={hasLogin} label="вход" />
+                        <StatusDot ok={Boolean(s.telegramChatId)} label="TG" />
+                        {hasIncompleteRoles(s.profile) && <span className="font-medium text-[var(--danger)]">роли!</span>}
+                        {s.loginPasswordTemp && <span className="text-[var(--points-ink)]">пароль → TG</span>}
+                      </button>
+                    </div>
                     <Button size="sm" variant="ghost" onClick={() => impersonate(s.id)} title="Зайти за ученика">
                       <LogIn aria-hidden />
                       <span className="hidden min-[560px]:inline">Зайти</span>

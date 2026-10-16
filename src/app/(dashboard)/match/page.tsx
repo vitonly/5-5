@@ -262,6 +262,7 @@ async function MatchCard({
           initial={initialGame ? "games" : "summary"}
           summary={
             <DaySummaryView
+              sessionId={session.id}
               summary={summary}
               score={{ leftName: d.radiantName, rightName: d.direName, left: d.radiantWins, right: d.direWins }}
               userMap={userMap}
