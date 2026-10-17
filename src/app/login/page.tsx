@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { isLoginTicketToken, telegramLoginDeepLink, telegramLoginUrl } from "@/lib/telegram-login-url";
 
 const TG_LOGIN_TOKEN_KEY = "tg_login_token";
 const TG_LOGIN_URL_KEY = "tg_login_url";
@@ -62,12 +63,14 @@ function LoginForm() {
 
   useEffect(() => {
     try {
+      // Адрес бота не берём из хранилища — собираем из токена (см. telegram-login-url.ts)
       const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
-      const savedUrl = sessionStorage.getItem(TG_LOGIN_URL_KEY);
-      if (savedToken) {
+      if (isLoginTicketToken(savedToken)) {
         setBotToken(savedToken);
-        setBotUrl(savedUrl);
+        setBotUrl(telegramLoginUrl(savedToken));
         setBotWaiting(true);
+      } else if (savedToken) {
+        clearPendingLogin();
       }
     } catch {
       /* ignore */
@@ -79,10 +82,9 @@ function LoginForm() {
       if (document.visibilityState !== "visible") return;
       try {
         const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
-        const savedUrl = sessionStorage.getItem(TG_LOGIN_URL_KEY);
-        if (savedToken && !botWaiting) {
+        if (isLoginTicketToken(savedToken) && !botWaiting) {
           setBotToken(savedToken);
-          setBotUrl(savedUrl);
+          setBotUrl(telegramLoginUrl(savedToken));
           setBotWaiting(true);
         }
       } catch {
@@ -166,19 +168,24 @@ function LoginForm() {
     }
     setLoading(true);
     setError("");
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, password, pdConsent: true }),
-    });
-    setLoading(false);
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login, password, pdConsent: true }),
+      });
       const data = await res.json().catch(() => ({}));
-      router.push(data.role === "ADMIN" ? "/admin" : "/");
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || "Неверный логин или пароль");
+      if (res.ok) {
+        router.push(data.role === "ADMIN" ? "/admin" : "/");
+        router.refresh();
+      } else {
+        setError(data.error || "Неверный логин или пароль");
+      }
+    } catch {
+      // Сеть оборвалась — раньше кнопка навсегда оставалась «Вход...»
+      setError("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.");
+    } finally {
+      setLoading(false);
     }
   }, [login, password, pdConsent, router]);
 
@@ -196,25 +203,32 @@ function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pdConsent: true }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Не удалось начать вход через Telegram");
+        return;
+      }
+      const url = telegramLoginUrl(data.token);
+      if (!url) {
+        setError("Не удалось начать вход через Telegram");
         return;
       }
 
       try {
         sessionStorage.setItem(TG_LOGIN_TOKEN_KEY, data.token);
-        sessionStorage.setItem(TG_LOGIN_URL_KEY, data.botUrl);
+        sessionStorage.setItem(TG_LOGIN_URL_KEY, url);
       } catch {
         /* ignore */
       }
 
       setBotToken(data.token);
-      setBotUrl(data.botUrl);
+      setBotUrl(url);
       setBotWaiting(true);
 
-      const bridge = `/login/tg?token=${encodeURIComponent(data.token)}&to=${encodeURIComponent(data.botUrl)}`;
-      window.location.assign(bridge);
+      // Адрес бота страница-мост строит сама по токену
+      window.location.assign(`/login/tg?token=${encodeURIComponent(data.token)}`);
+    } catch {
+      setError("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -323,26 +337,14 @@ function LoginForm() {
                     href={botUrl}
                     onClick={(e) => {
                       e.preventDefault();
-                      try {
-                        const u = new URL(botUrl);
-                        const domain = u.pathname.replace(/^\//, "").split("/")[0];
-                        const start = u.searchParams.get("start");
-                        if (domain && (u.hostname === "t.me" || u.hostname === "telegram.me")) {
-                          const deep = start
-                            ? `tg://resolve?domain=${encodeURIComponent(domain)}&start=${encodeURIComponent(start)}`
-                            : `tg://resolve?domain=${encodeURIComponent(domain)}`;
-                          window.location.assign(deep);
-                          window.setTimeout(() => {
-                            if (document.visibilityState === "visible") {
-                              window.location.assign(botUrl);
-                            }
-                          }, 400);
-                          return;
+                      const deep = telegramLoginDeepLink(botToken);
+                      if (!deep) return;
+                      window.location.assign(deep);
+                      window.setTimeout(() => {
+                        if (document.visibilityState === "visible") {
+                          window.location.assign(botUrl);
                         }
-                      } catch {
-                        /* fall through */
-                      }
-                      window.location.assign(botUrl);
+                      }, 400);
                     }}
                     className="inline-flex min-h-[44px] items-center justify-center rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--points-bg)] px-4 font-medium text-[var(--points-ink)]"
                   >

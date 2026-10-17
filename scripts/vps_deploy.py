@@ -257,6 +257,7 @@ server {{
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name startdota.ru www.startdota.ru {HOST} _;
+    server_tokens off;
     client_max_body_size 300m;
 
     location /.well-known/acme-challenge/ {{
@@ -273,6 +274,7 @@ server {{
     listen [::]:443 ssl;
     http2 on;
     server_name startdota.ru www.startdota.ru;
+    server_tokens off;
     client_max_body_size 300m;
 
     ssl_certificate /etc/letsencrypt/live/startdota.ru/fullchain.pem;

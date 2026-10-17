@@ -2,40 +2,30 @@
 
 import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { telegramLoginDeepLink, telegramLoginUrl } from "@/lib/telegram-login-url";
 
 const TG_LOGIN_TOKEN_KEY = "tg_login_token";
 const TG_LOGIN_URL_KEY = "tg_login_url";
-
-/** https://t.me/Bot?start=x → tg://resolve?domain=Bot&start=x (надёжнее на телефоне) */
-function toTelegramDeepLink(httpsUrl: string): string {
-  try {
-    const u = new URL(httpsUrl);
-    if (u.hostname !== "t.me" && u.hostname !== "telegram.me") return httpsUrl;
-    const domain = u.pathname.replace(/^\//, "").split("/")[0];
-    if (!domain) return httpsUrl;
-    const start = u.searchParams.get("start");
-    const q = start ? `?domain=${encodeURIComponent(domain)}&start=${encodeURIComponent(start)}` : `?domain=${encodeURIComponent(domain)}`;
-    return `tg://resolve${q}`;
-  } catch {
-    return httpsUrl;
-  }
-}
 
 /**
  * Промежуточная страница на нашем домене.
  * 1) Сохраняет тикет входа
  * 2) Редиректит в t.me / Telegram
  * 3) Когда iOS «◀ Telegram» вернёт в Safari — снова наша страница, уводим на /login
+ *
+ * Адрес бота НЕ берём из параметра ?to= (раньше так можно было подсунуть javascript: или чужой сайт):
+ * строим его сами из токена и имени бота. Параметр to игнорируется.
  */
 function OpenTelegram() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const leftForTelegram = useRef(false);
   const token = searchParams.get("token");
-  const to = searchParams.get("to");
+  const to = telegramLoginUrl(token);
+  const deep = telegramLoginDeepLink(token);
 
   useEffect(() => {
-    if (!token || !to) {
+    if (!token || !to || !deep) {
       router.replace("/login");
       return;
     }
@@ -67,7 +57,7 @@ function OpenTelegram() {
     const t = window.setTimeout(() => {
       leftForTelegram.current = true;
       // Сначала deep link приложения, иначе https://t.me
-      window.location.href = toTelegramDeepLink(to);
+      window.location.href = deep;
       window.setTimeout(() => {
         if (document.visibilityState === "visible") {
           window.location.href = to;
@@ -80,13 +70,13 @@ function OpenTelegram() {
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [router, token, to]);
+  }, [router, token, to, deep]);
 
   function openManual(e: React.MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
-    if (!to) return;
+    if (!to || !deep) return;
     leftForTelegram.current = true;
-    window.location.assign(toTelegramDeepLink(to));
+    window.location.assign(deep);
     window.setTimeout(() => {
       if (document.visibilityState === "visible") {
         window.location.assign(to);
