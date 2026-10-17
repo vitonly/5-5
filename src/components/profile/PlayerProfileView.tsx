@@ -216,7 +216,7 @@ export async function PlayerProfileView({
               title="Место в сезоне по неделям"
               points={placeHistory.points}
               invert
-              format={(v) => `#${v}`}
+              formatAs="place"
               emptyText="График появится после первых начислений в сезоне"
               hint={placeHistory.total ? `из ${placeHistory.total} учеников` : undefined}
             />

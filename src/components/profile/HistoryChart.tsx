@@ -13,7 +13,7 @@ export function HistoryChart({
   points,
   invert = false,
   color = "var(--points)",
-  format = (v: number) => String(v),
+  formatAs = "number",
   emptyText,
   hint,
 }: {
@@ -21,7 +21,8 @@ export function HistoryChart({
   points: HistoryPoint[];
   invert?: boolean;
   color?: string;
-  format?: (v: number) => string;
+  /** Serialisable (client component) — no function props from server. */
+  formatAs?: "number" | "place";
   emptyText: string;
   hint?: string;
 }) {
@@ -30,6 +31,7 @@ export function HistoryChart({
   const PAD_X = 8;
   const PAD_Y = 14;
   const [hover, setHover] = useState<number | null>(null);
+  const format = (v: number) => (formatAs === "place" ? `#${v}` : String(v));
 
   const last = points[points.length - 1];
   const first = points[0];
