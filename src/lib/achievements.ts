@@ -87,7 +87,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { code: "win_streak", title: "Серия побед", description: "{n} побед подряд", category: "matches", icon: "zap", metric: "matchWinStreak", tiers: [{ tier: 1, need: 3 }, { tier: 2, need: 5 }, { tier: 3, need: 7 }] },
   { code: "universal", title: "Универсал", description: "Победы на {n} разных позициях", category: "matches", icon: "shuffle", metric: "winPositions", tiers: [{ tier: 2, need: 3 }, { tier: 3, need: 5 }] },
   { code: "oracle", title: "Провидец", description: "Угадать победителей всех игр дня {n} раз", category: "matches", icon: "eye", metric: "predictionsCorrect", tiers: [{ tier: 1, need: 5 }, { tier: 2, need: 10 }, { tier: 3, need: 15 }] },
-  { code: "comeback", title: "Камбэк", description: "Проиграть первую игру дня и выиграть серию", category: "matches", icon: "rotate-ccw", metric: "comebacks", tiers: SECRET, secret: true },
+  { code: "comeback", title: "Камбэк", description: "Проиграть первую игру дня и выиграть вторую", category: "matches", icon: "rotate-ccw", metric: "comebacks", tiers: SECRET, secret: true },
   { code: "clean_sweep", title: "Всухую", description: "Выиграть 3 серии подряд со счётом 2:0", category: "matches", icon: "crown", metric: "cleanSweepStreak", tiers: [{ tier: 2, need: 3 }], secret: true },
   { code: "immortal", title: "Бессмертный", description: "Выиграть игру без единой смерти (по демке)", category: "matches", icon: "shield", metric: "immortal", tiers: SECRET, secret: true },
   { code: "butcher", title: "Мясник", description: "20+ убийств за одну игру (по демке)", category: "matches", icon: "axe", metric: "butcher", tiers: SECRET, secret: true },
@@ -283,8 +283,8 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
           ? score.radiantWins >= 2 && score.direWins === 0
           : score.direWins >= 2 && score.radiantWins === 0
         : false;
-    // Камбэк: проиграл игру 1 и его именованная команда выиграла серию
-    if (games.length >= 2 && !games[0].won && seriesWon) comebacks++;
+    // Камбэк: лично проиграл игру 1 и лично выиграл игру 2 (серия 1:1 тоже считается)
+    if (games.length >= 2 && !games[0].won && games[1].won) comebacks++;
     if (seriesLost) lostSeries.add(sid);
     sweepFlags.push(seriesSweep);
   }
