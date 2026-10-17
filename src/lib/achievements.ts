@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { countCorrectPredictionDays } from "@/lib/match-predictions";
+import { playerG1Side, seriesScoreByGame1Roster } from "@/lib/match-score";
 import { addPoints, positionForMatchGame } from "@/lib/points";
 import { absolutePublicUrl, notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { APP_TIMEZONE, displayName } from "@/lib/utils";
@@ -145,14 +146,41 @@ function longestDayRun(days: number[]) {
 type SharedData = {
   replays: { sessionId: string; radiantWin: boolean | null; data: unknown }[];
   materialsTotal: number;
+  ratingById: Record<string, number>;
+  sessionsById: Map<
+    string,
+    {
+      radiantPlayerIds: string;
+      direPlayerIds: string;
+      teamAssignments: string;
+      teamAssignmentsGame2: string | null;
+      games: { gameNumber: number; winnerTeam: string }[];
+    }
+  >;
 };
 
 async function loadShared(): Promise<SharedData> {
-  const [replays, materialsTotal] = await Promise.all([
+  const [replays, materialsTotal, profiles, sessions] = await Promise.all([
     prisma.matchReplay.findMany({ select: { sessionId: true, radiantWin: true, data: true } }),
     prisma.learningMaterial.count(),
+    prisma.playerProfile.findMany({ select: { userId: true, finalRating: true } }),
+    prisma.matchSession.findMany({
+      select: {
+        id: true,
+        radiantPlayerIds: true,
+        direPlayerIds: true,
+        teamAssignments: true,
+        teamAssignmentsGame2: true,
+        games: { select: { gameNumber: true, winnerTeam: true }, orderBy: { gameNumber: "asc" } },
+      },
+    }),
   ]);
-  return { replays, materialsTotal };
+  return {
+    replays,
+    materialsTotal,
+    ratingById: Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating])),
+    sessionsById: new Map(sessions.map((s) => [s.id, s])),
+  };
 }
 
 export async function computeAchievementStats(userId: string, shared?: SharedData): Promise<AchievementStats> {
@@ -215,7 +243,7 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
     if (sinceIssue >= 0 && sinceIssue <= 60 * 60_000) hwSpeedster++;
   }
 
-  // 5v5
+  // 5v5 — серия по капитанам G1 (как на табло), не по majority / личным W-L
   const wins = participants.filter((p) => p.won);
   const positions = new Set(
     wins
@@ -234,11 +262,31 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
   const sweepFlags: boolean[] = [];
   for (const [sid, { games }] of sessionsByDate) {
     games.sort((a, b) => a.n - b.n);
-    const w = games.filter((g) => g.won).length;
-    const l = games.length - w;
-    if (games.length >= 2 && !games[0].won && w > l) comebacks++;
-    if (l > w) lostSeries.add(sid);
-    sweepFlags.push(games.length >= 2 && l === 0);
+    const sess = common.sessionsById.get(sid);
+    const side = sess ? playerG1Side(sess, userId) : null;
+    const score = sess ? seriesScoreByGame1Roster(sess, common.ratingById) : null;
+    const seriesWon =
+      score && side
+        ? side === "RADIANT"
+          ? score.radiantWins > score.direWins
+          : score.direWins > score.radiantWins
+        : false;
+    const seriesLost =
+      score && side
+        ? side === "RADIANT"
+          ? score.direWins > score.radiantWins
+          : score.radiantWins > score.direWins
+        : false;
+    const seriesSweep =
+      score && side
+        ? side === "RADIANT"
+          ? score.radiantWins >= 2 && score.direWins === 0
+          : score.direWins >= 2 && score.radiantWins === 0
+        : false;
+    // Камбэк: проиграл игру 1 и его именованная команда выиграла серию
+    if (games.length >= 2 && !games[0].won && seriesWon) comebacks++;
+    if (seriesLost) lostSeries.add(sid);
+    sweepFlags.push(seriesSweep);
   }
 
   // Демки: ищем игрока по userId

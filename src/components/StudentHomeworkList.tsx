@@ -64,17 +64,25 @@ function deadlineOf(a: AssignmentWithRelations) {
 
 const HOUR = 3_600_000;
 
-/** «осталось 5 ч», «осталось 2 дн», «просрочено 3 дн» + цвет */
+/** «осталось 5 ч 20 мин», «осталось 2 дн», «просрочено 3 дн» + цвет */
 function deadlineInfo(date: Date | string | number, now: number): { label: string; tone: Tone } {
   const diff = new Date(date).getTime() - now;
   if (diff < 0) {
     const d = Math.max(1, Math.floor(-diff / (24 * HOUR)));
     return { label: -diff < 24 * HOUR ? "просрочено" : `просрочено ${d} дн`, tone: "danger" };
   }
-  const h = Math.floor(diff / HOUR);
-  if (h < 1) return { label: "меньше часа", tone: "danger" };
-  if (h < 24) return { label: `осталось ${h} ч`, tone: "danger" };
-  const d = Math.floor(h / 24);
+  if (diff < 24 * HOUR) {
+    const h = Math.floor(diff / HOUR);
+    const m = Math.floor((diff % HOUR) / 60_000);
+    if (h < 1) {
+      return { label: m <= 1 ? "меньше минуты" : `осталось ${m} мин`, tone: "danger" };
+    }
+    return {
+      label: m > 0 ? `осталось ${h} ч ${m} мин` : `осталось ${h} ч`,
+      tone: "danger",
+    };
+  }
+  const d = Math.floor(diff / (24 * HOUR));
   if (d < 3) return { label: `осталось ${d} дн`, tone: "warning" };
   return { label: `осталось ${d} дн`, tone: "default" };
 }

@@ -137,15 +137,15 @@ export function DaySummaryView({
 
           {summary.predictions && (
             <div className="rounded-[var(--radius-control)] bg-[var(--surface-muted)] px-3.5 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">Прогнозы</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">Прогнозы · итог дня</p>
               <p className="mt-1 text-[13px] font-semibold">
                 {summary.predictions.correctUserIds.length
-                  ? `Все игры угадали ${summary.predictions.correctUserIds.length} из ${summary.predictions.total}`
+                  ? `Угадали все игры ${summary.predictions.correctUserIds.length} из ${summary.predictions.total}`
                   : `Никто не угадал все игры (${summary.predictions.total} прогнозов)`}
               </p>
               {summary.predictions.correctUserIds.length > 0 && (
-                <p className="truncate text-[12px] text-[var(--text-3)]">
-                  {summary.predictions.correctUserIds.map((id) => userMap[id]?.firstName ?? "Игрок").join(", ")}
+                <p className="truncate text-[13px] font-medium text-[var(--success-ink)]">
+                  {summary.predictions.correctUserIds.map((id) => name(id)).join(", ")}
                 </p>
               )}
             </div>

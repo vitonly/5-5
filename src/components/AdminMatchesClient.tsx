@@ -966,7 +966,10 @@ export function AdminMatchesClient({
             collapsible={session.status === "COMPLETED"}
             title={formatDate(session.date)}
             summary={(() => {
-              const sc = seriesScoreByGame1Roster(session);
+              const ratingById = Object.fromEntries(
+                Object.entries(studentMap).map(([id, s]) => [id, s.profile?.finalRating ?? 0])
+              );
+              const sc = seriesScoreByGame1Roster(session, ratingById);
               return session.games.length
                 ? `${radiantName.replace(/^Team\s+/i, "")} ${sc.radiantWins}:${sc.direWins} ${direName.replace(/^Team\s+/i, "")}`
                 : null;
@@ -1323,6 +1326,7 @@ export function AdminMatchesClient({
                       const forGame = (session.predictions ?? []).filter(
                         (p) => p.gameNumber === gameNumber
                       );
+                      const winner = session.games.find((g) => g.gameNumber === gameNumber)?.winnerTeam;
                       const bySide = {
                         RADIANT: forGame.filter((p) => p.pick === "RADIANT"),
                         DIRE: forGame.filter((p) => p.pick === "DIRE"),
@@ -1334,6 +1338,11 @@ export function AdminMatchesClient({
                             <span className="ml-2 font-mono-num text-[12px] text-[var(--text-3)]">
                               {forGame.length} голос{forGame.length === 1 ? "" : forGame.length < 5 ? "а" : "ов"}
                             </span>
+                            {winner && (
+                              <span className="ml-2 text-[12px] font-semibold text-[var(--success-ink)]">
+                                победил {names[winner as "RADIANT" | "DIRE"] ?? winner}
+                              </span>
+                            )}
                           </p>
                           {(["RADIANT", "DIRE"] as const).map((side) => (
                             <div
@@ -1349,10 +1358,26 @@ export function AdminMatchesClient({
                               {bySide[side].length === 0 ? (
                                 <p className="text-[12px] text-[var(--text-3)]">—</p>
                               ) : (
-                                <ul className="space-y-0.5 text-[13px] text-[var(--text-2)]">
-                                  {bySide[side].map((p) => (
-                                    <li key={p.id}>{displayName(p.user)}</li>
-                                  ))}
+                                <ul className="space-y-0.5 text-[13px]">
+                                  {bySide[side].map((p) => {
+                                    const correct = winner != null && p.pick === winner;
+                                    const wrong = winner != null && p.pick !== winner;
+                                    return (
+                                      <li
+                                        key={p.id}
+                                        className={
+                                          correct
+                                            ? "font-medium text-[var(--success-ink)]"
+                                            : wrong
+                                              ? "text-[var(--danger)]"
+                                              : "text-[var(--text-2)]"
+                                        }
+                                      >
+                                        {displayName(p.user)}
+                                        {correct ? " ✓" : wrong ? " ✗" : ""}
+                                      </li>
+                                    );
+                                  })}
                                 </ul>
                               )}
                             </div>
@@ -1361,6 +1386,45 @@ export function AdminMatchesClient({
                       );
                     })}
                   </div>
+                  {session.status === "COMPLETED" &&
+                    (() => {
+                      const predGames = [1, ...(hasGame2 ? [2] : [])];
+                      const users = [
+                        ...new Set((session.predictions ?? []).map((p) => p.userId)),
+                      ];
+                      const dayCorrect = users.filter((uid) =>
+                        predGames.every((g) => {
+                          const pr = (session.predictions ?? []).find(
+                            (p) => p.userId === uid && p.gameNumber === g
+                          );
+                          const res = session.games.find((x) => x.gameNumber === g);
+                          return pr && res && res.winnerTeam === pr.pick;
+                        })
+                      );
+                      if (users.length === 0) return null;
+                      return (
+                        <div className="mt-4 rounded-[var(--radius-control)] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5">
+                          <p className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
+                            Итог дня · угадали все игры
+                          </p>
+                          <p className="mt-1 text-[13px] font-medium text-[var(--success-ink)]">
+                            {dayCorrect.length
+                              ? dayCorrect
+                                  .map((id) => {
+                                    const row = (session.predictions ?? []).find(
+                                      (p) => p.userId === id
+                                    );
+                                    return row ? displayName(row.user) : id;
+                                  })
+                                  .join(", ")
+                              : "Никто не угадал все игры"}
+                            <span className="ml-2 font-normal text-[var(--text-3)]">
+                              ({dayCorrect.length}/{users.length})
+                            </span>
+                          </p>
+                        </div>
+                      );
+                    })()}
                 </div>
               )}
 

@@ -44,13 +44,9 @@ export function categorizePointReason(reason: string): PointCategory {
   if (r.includes("5v5") || r.includes("отмена игры")) return "match";
   if (r.includes("посещение")) return "bonus";
   if (r.startsWith("ачивка:")) return "bonus";
-  if (r.startsWith("зал славы:")) {
-    // +3 за рекорд → бонус; −3 когда побили → штраф
-    return r.includes("побили") ? "penalty" : "bonus";
-  }
-  if (r.startsWith("антирекорд:")) {
-    // −3 за антирекорд → штраф; +3 когда сняли → бонус
-    return r.includes("вернул") || r.includes("перешёл") || r.includes("снят") ? "bonus" : "penalty";
+  if (r.startsWith("зал славы:") || r.startsWith("антирекорд:")) {
+    // Зал славы / антирекорды — не тренерские штрафы; в плитке профиля скрываются
+    return "other";
   }
   return "other";
 }

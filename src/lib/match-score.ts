@@ -26,20 +26,54 @@ export function playerIdsForSide(
     .map(([id]) => id);
 }
 
+/** Капитан стороны = игрок с наибольшей силой (как в teamDisplayName). */
+export function pickCaptainId(
+  playerIds: string[],
+  ratingById?: Record<string, number> | null
+): string | null {
+  if (!playerIds.length) return null;
+  if (!ratingById) return null;
+  let best = playerIds[0];
+  let bestPower = ratingById[best] ?? 0;
+  for (let i = 1; i < playerIds.length; i++) {
+    const id = playerIds[i];
+    const power = ratingById[id] ?? 0;
+    if (power > bestPower) {
+      best = id;
+      bestPower = power;
+    }
+  }
+  return best;
+}
+
+export function ratingsFromProfiles(
+  entries: { id: string; finalRating?: number | null }[]
+): Record<string, number> {
+  return Object.fromEntries(entries.map((e) => [e.id, e.finalRating ?? 0]));
+}
+
 /**
- * Счёт серии относительно составов игры 1.
- * Во 2-й игре стороны (Radiant/Dire) часто меняются после решафла —
- * победу относим к той команде игры 1, с которой больше пересечение победителей.
+ * Счёт серии относительно именованных команд игры 1.
+ * После решафла стороны Radiant/Dire часто меняются — победу относим к той
+ * команде игры 1, чей капитан (сильнейший на стороне G1) оказался на
+ * победившей стороне. Если капитан неизвестен — fallback на majority overlap.
  */
-export function seriesScoreByGame1Roster(session: {
-  radiantPlayerIds: string;
-  direPlayerIds: string;
-  teamAssignments: string;
-  teamAssignmentsGame2?: string | null;
-  games: { gameNumber: number; winnerTeam: string }[];
-}): { radiantWins: number; direWins: number } {
-  const g1R = new Set(parseJsonArray(session.radiantPlayerIds));
-  const g1D = new Set(parseJsonArray(session.direPlayerIds));
+export function seriesScoreByGame1Roster(
+  session: {
+    radiantPlayerIds: string;
+    direPlayerIds: string;
+    teamAssignments: string;
+    teamAssignmentsGame2?: string | null;
+    games: { gameNumber: number; winnerTeam: string }[];
+  },
+  ratingById?: Record<string, number> | null
+): { radiantWins: number; direWins: number } {
+  const g1R = parseJsonArray(session.radiantPlayerIds);
+  const g1D = parseJsonArray(session.direPlayerIds);
+  const g1RSet = new Set(g1R);
+  const g1DSet = new Set(g1D);
+  const radiantCaptain = pickCaptainId(g1R, ratingById);
+  const direCaptain = pickCaptainId(g1D, ratingById);
   let radiantWins = 0;
   let direWins = 0;
 
@@ -47,8 +81,19 @@ export function seriesScoreByGame1Roster(session: {
     if (g.winnerTeam !== "RADIANT" && g.winnerTeam !== "DIRE") continue;
     const assign = assignmentsForGame(session, g.gameNumber);
     const winnerIds = playerIdsForSide(assign, g.winnerTeam);
-    const oR = winnerIds.filter((id) => g1R.has(id)).length;
-    const oD = winnerIds.filter((id) => g1D.has(id)).length;
+
+    if (radiantCaptain && winnerIds.includes(radiantCaptain)) {
+      radiantWins += 1;
+      continue;
+    }
+    if (direCaptain && winnerIds.includes(direCaptain)) {
+      direWins += 1;
+      continue;
+    }
+
+    // Fallback: majority overlap with G1 rosters
+    const oR = winnerIds.filter((id) => g1RSet.has(id)).length;
+    const oD = winnerIds.filter((id) => g1DSet.has(id)).length;
     if (oR > oD) radiantWins += 1;
     else if (oD > oR) direWins += 1;
     else if (g.winnerTeam === "RADIANT") radiantWins += 1;
@@ -100,4 +145,14 @@ export function lineupsForGame(
     radiant: lineupForTeam("RADIANT", radiantIds, assign),
     dire: lineupForTeam("DIRE", direIds, assign),
   };
+}
+
+/** G1-сторона игрока (для камбэка / MVP в поражении). */
+export function playerG1Side(
+  session: { radiantPlayerIds: string; direPlayerIds: string },
+  userId: string
+): "RADIANT" | "DIRE" | null {
+  if (parseJsonArray(session.radiantPlayerIds).includes(userId)) return "RADIANT";
+  if (parseJsonArray(session.direPlayerIds).includes(userId)) return "DIRE";
+  return null;
 }

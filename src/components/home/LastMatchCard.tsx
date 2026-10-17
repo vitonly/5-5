@@ -16,16 +16,20 @@ export function LastMatchCard({
   mvp,
   mvpTeamWon,
   sessionId,
+  correctPredictors,
 }: {
   date: Date;
   radiantName: string;
   direName: string;
   radiantWins: number;
   direWins: number;
-  mvp: Person;
+  /** null — MVP ещё не определён, показываем ★ */
+  mvp: Person | null;
   mvpTeamWon: boolean | null;
   /** Для ссылки сразу на «Итоги дня» этого матча */
   sessionId?: string;
+  /** Кто угадал все игры дня */
+  correctPredictors?: Person[];
 }) {
   return (
     <Link
@@ -58,20 +62,45 @@ export function LastMatchCard({
       </div>
 
       <div className="mx-4 mb-4 flex items-center gap-3 rounded-[var(--radius-control)] border border-[var(--warning-border)] bg-[var(--warning-bg)] p-2.5 min-[720px]:mx-5">
-        <span className="relative shrink-0 rounded-full ring-2 ring-[var(--gold-light)]">
-          <Avatar photoUrl={mvp.photoUrl} firstName={mvp.firstName} lastName={mvp.lastName} size={44} className="ring-0" />
-          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--gold)] ring-2 ring-[var(--warning-bg)]">
-            <Star className="h-3 w-3 fill-white text-white" aria-hidden />
-          </span>
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--warning-ink)]">MVP дня</span>
-          <span className="block truncate font-display text-[16px] font-bold leading-tight text-[var(--text)]">
-            {displayName(mvp)}
-          </span>
-          {mvpTeamWon && <span className="block text-[12px] text-[var(--text-2)]">Команда победила</span>}
-        </span>
+        {mvp ? (
+          <>
+            <span className="relative shrink-0 rounded-full ring-2 ring-[var(--gold-light)]">
+              <Avatar photoUrl={mvp.photoUrl} firstName={mvp.firstName} lastName={mvp.lastName} size={44} className="ring-0" />
+              <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--gold)] ring-2 ring-[var(--warning-bg)]">
+                <Star className="h-3 w-3 fill-white text-white" aria-hidden />
+              </span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--warning-ink)]">MVP дня</span>
+              <span className="block truncate font-display text-[16px] font-bold leading-tight text-[var(--text)]">
+                {displayName(mvp)}
+              </span>
+              {mvpTeamWon && <span className="block text-[12px] text-[var(--text-2)]">Команда победила</span>}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--gold)]/20 ring-2 ring-[var(--gold-light)]">
+              <Star className="h-6 w-6 fill-[var(--gold)] text-[var(--gold)]" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--warning-ink)]">MVP дня</span>
+              <span className="block font-display text-[16px] font-bold leading-tight text-[var(--text-2)]">
+                Скоро определится
+              </span>
+            </span>
+          </>
+        )}
       </div>
+
+      {correctPredictors && correctPredictors.length > 0 && (
+        <div className="mx-4 mb-4 rounded-[var(--radius-control)] bg-[var(--surface-muted)] px-3 py-2 min-[720px]:mx-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-3)]">Угадали все игры</p>
+          <p className="mt-0.5 truncate text-[13px] font-medium text-[var(--success-ink)]">
+            {correctPredictors.map((p) => displayName(p)).join(", ")}
+          </p>
+        </div>
+      )}
     </Link>
   );
 }

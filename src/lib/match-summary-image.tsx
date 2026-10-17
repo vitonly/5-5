@@ -102,6 +102,7 @@ export async function buildDaySummaryImage(sessionId: string): Promise<DaySummar
   const dire = parseJsonArray(session.direPlayerIds);
   const ids = new Set<string>([...radiant, ...dire, ...summary.awards.map((a) => a.userId), ...summary.hall.map((h) => h.userId)]);
   if (summary.mvp) ids.add(summary.mvp.userId);
+  for (const uid of summary.predictions?.correctUserIds ?? []) ids.add(uid);
   const users = await prisma.user.findMany({
     where: { id: { in: [...ids] } },
     select: { id: true, firstName: true, lastName: true, username: true, photoUrl: true, profile: { select: { finalRating: true } } },
@@ -114,12 +115,17 @@ export async function buildDaySummaryImage(sessionId: string): Promise<DaySummar
     });
   const leftName = teamDisplayName(named(radiant), "Team A");
   const rightName = teamDisplayName(named(dire), "Team B");
-  const { radiantWins, direWins } = seriesScoreByGame1Roster(session);
+  const ratingById = Object.fromEntries(
+    users.map((u) => [u.id, u.profile?.finalRating ?? 0])
+  );
+  const { radiantWins, direWins } = seriesScoreByGame1Roster(session, ratingById);
   const nameOf = (uid: string) => (byId.get(uid) ? displayName(byId.get(uid)!) : "Игрок");
   const mvpUser = summary.mvp ? byId.get(summary.mvp.userId) : undefined;
   const mvpPhoto = await photoSrc(mvpUser?.photoUrl);
   const hallRecords = summary.hall.filter((h) => !h.anti);
   const heroImgs = await Promise.all(summary.awards.map((a) => remoteSrc(heroInfo(a.heroId).img)));
+  const predNames =
+    summary.predictions?.correctUserIds.map((id) => nameOf(id)).filter(Boolean) ?? [];
 
   const image = (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: F.body, padding: 72, gap: 40 }}>
@@ -191,14 +197,29 @@ export async function buildDaySummaryImage(sessionId: string): Promise<DaySummar
       </div>
 
       <div style={{ display: "flex", marginTop: "auto", justifyContent: "space-between", alignItems: "flex-end", fontSize: 23, color: C.muted, gap: 24 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, width: "100%" }}>
           {hallRecords.slice(0, 2).map((h) => (
-            <div key={h.code} style={{ display: "flex" }}>
-              <span style={{ color: C.gold, marginRight: 10 }}>Зал славы +{HALL_POINTS}</span>
-              {h.title}: {h.display} — {nameOf(h.userId)}
+            <div
+              key={h.code}
+              style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", alignItems: "center", width: "100%" }}
+            >
+              <span style={{ display: "flex", color: C.gold, marginRight: 10 }}>Зал славы +{HALL_POINTS}</span>
+              <span style={{ display: "flex" }}>
+                {h.title}: {h.display} — {nameOf(h.userId)}
+              </span>
             </div>
           ))}
-          {hallRecords.length > 2 && <div style={{ display: "flex" }}>и ещё {hallRecords.length - 2} рекорд(а) в Зале славы</div>}
+          {hallRecords.length > 2 && (
+            <div style={{ display: "flex", width: "100%" }}>
+              и ещё {hallRecords.length - 2} рекорд(а) в Зале славы
+            </div>
+          )}
+          {predNames.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", width: "100%", marginTop: 4 }}>
+              <span style={{ display: "flex", color: C.accent, marginRight: 10 }}>Прогноз дня</span>
+              <span style={{ display: "flex" }}>угадали: {predNames.join(", ")}</span>
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", fontFamily: F.display, fontSize: 24, color: C.text }}>startdota.ru</div>
       </div>

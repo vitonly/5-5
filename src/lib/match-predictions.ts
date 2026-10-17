@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { lineupsForGame } from "@/lib/match-score";
 import { teamDisplayName } from "@/lib/team-names";
 import { editTelegramMessage, notifyChatId, sendTelegramMessage, type InlineKeyboard } from "@/lib/telegram";
+import { displayName } from "@/lib/utils";
 
 /*
  * Прогнозы на матч 5v5.
@@ -208,6 +209,9 @@ export type PredictionView = {
   }[];
   /** Угадал все игры (после завершения) */
   allCorrect: boolean | null;
+  /** Кто угадал все игры дня (после завершения) */
+  dayCorrectNames: string[];
+  dayCorrectTotal: number;
 };
 
 /** Данные для блока прогнозов на странице 5×5 */
@@ -236,10 +240,31 @@ export async function getPredictionView(
     })
   );
   const finished = s.status === "COMPLETED" && games.every((g) => g.winner);
+  const gameNums = predictionGames(s);
+  const users = [...new Set(preds.map((p) => p.userId))];
+  let dayCorrectNames: string[] = [];
+  if (finished && users.length) {
+    const correctIds = users.filter((u) =>
+      gameNums.every((g) => {
+        const pr = preds.find((p) => p.userId === u && p.gameNumber === g);
+        const res = s.games.find((x) => x.gameNumber === g);
+        return pr && res && res.winnerTeam === pr.pick;
+      })
+    );
+    if (correctIds.length) {
+      const people = await prisma.user.findMany({
+        where: { id: { in: correctIds } },
+        select: { id: true, firstName: true, lastName: true, username: true },
+      });
+      dayCorrectNames = people.map((u) => displayName(u));
+    }
+  }
   return {
     open: accepting,
     closed: !accepting,
     games,
     allCorrect: finished ? games.every((g) => g.myPick && g.myPick === g.winner) : null,
+    dayCorrectNames,
+    dayCorrectTotal: users.length,
   };
 }

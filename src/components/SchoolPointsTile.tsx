@@ -24,6 +24,9 @@ export function SchoolPointsTile({
     other: 0,
   };
   for (const log of logs) {
+    const r = log.reason.toLowerCase();
+    // ±3 зала славы / антирекорды — не тренерские штрафы/бонусы, в плитке не показываем
+    if (r.startsWith("зал славы:") || r.startsWith("антирекорд:")) continue;
     sums[categorizePointReason(log.reason)] += log.delta;
   }
 

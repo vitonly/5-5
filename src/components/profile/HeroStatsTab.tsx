@@ -85,7 +85,7 @@ export function HeroStatsTab({ stats, viewer, isOwn }: { stats: ReplayStats; vie
               value={<Kda k={stats.avg.kills} d={stats.avg.deaths} a={stats.avg.assists} />}
               hint={`KDA ${kdaRatio.toFixed(1)}`}
             />
-            <StatTile label="Уровень" value={stats.avg.level} hint="в среднем к концу игры" />
+            <StatTile label="GPM" value={stats.avg.gpm} hint="золото в минуту · среднее" />
             <StatTile label="Добивания" value={stats.avg.lastHits} hint={`в среднем · денаев ${stats.avg.denies}`} />
             <StatTile
               label="Нетворс"

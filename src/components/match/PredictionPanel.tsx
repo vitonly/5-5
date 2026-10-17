@@ -121,6 +121,21 @@ export function PredictionPanel({
       {view.open && canVote && (
         <p className="mt-3 text-[11px] text-[var(--text-3)]">Можно проголосовать и в Telegram — бот присылает кнопки.</p>
       )}
+      {view.closed && view.dayCorrectTotal > 0 && (
+        <div className="mt-3 rounded-[var(--radius-control)] bg-[var(--surface)] px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
+            Угадали все игры дня
+          </p>
+          <p className="mt-0.5 text-[13px] font-medium text-[var(--success-ink)]">
+            {view.dayCorrectNames.length
+              ? view.dayCorrectNames.join(", ")
+              : "Никто не угадал все игры"}
+            <span className="ml-1.5 font-normal text-[var(--text-3)]">
+              ({view.dayCorrectNames.length}/{view.dayCorrectTotal})
+            </span>
+          </p>
+        </div>
+      )}
     </section>
   );
 }

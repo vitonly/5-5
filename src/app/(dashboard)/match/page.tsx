@@ -46,6 +46,7 @@ async function loadSessions() {
         orderBy: { gameNumber: "asc" },
       },
       replays: { orderBy: { gameNumber: "asc" } },
+      predictions: { select: { userId: true } },
     },
     orderBy: { date: "desc" },
     take: 10,
@@ -76,6 +77,8 @@ export default async function MatchPage({
           ...parseJsonArray(s.direPlayerIds),
           ...Object.keys(g2),
           ...fromReplays,
+          ...s.predictions.map((p) => p.userId),
+          ...(s.mvpWinnerId ? [s.mvpWinnerId] : []),
         ];
       })
     ),
@@ -149,7 +152,10 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
     }));
   const radiantName = teamDisplayName(named(radiant), "Team A");
   const direName = teamDisplayName(named(dire), "Team B");
-  const { radiantWins, direWins } = seriesScoreByGame1Roster(session);
+  const ratingById = Object.fromEntries(
+    Object.entries(userMap).map(([id, u]) => [id, u.profile?.finalRating ?? 0])
+  );
+  const { radiantWins, direWins } = seriesScoreByGame1Roster(session, ratingById);
   const hasG2 = Object.keys(parseTeamAssignments(session.teamAssignmentsGame2)).length > 0;
   const maxReplayGame = session.replays.reduce((m, r) => Math.max(m, r.gameNumber), 0);
   const gameCount = Math.max(session.games.length, hasG2 ? 2 : 1, maxReplayGame, 1);

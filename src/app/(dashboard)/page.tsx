@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/home/SectionHeader";
 import { LastMatchCard } from "@/components/home/LastMatchCard";
 import { teamDisplayName } from "@/lib/team-names";
 import { seriesScoreByGame1Roster } from "@/lib/match-score";
+import { hasGame2Lineup } from "@/lib/match-predictions";
 import { parseJsonArray } from "@/lib/utils";
 import { MotionChip } from "@/components/fx/MotionChip";
 import { extractTwitchLogin } from "@/lib/twitch";
@@ -20,7 +21,7 @@ export default async function HomePage() {
   const viewer = await getSessionUser();
   const seasonId = await getActiveSeasonId();
 
-  const [activeSeason, leaderboard, latestVideos, streamMaterials, lastMvpSession] =
+  const [activeSeason, leaderboard, latestVideos, streamMaterials, lastSession] =
     await Promise.all([
       seasonId ? prisma.ratingSeason.findUnique({ where: { id: seasonId } }) : null,
       getSeasonLeaderboard(seasonId),
@@ -32,11 +33,13 @@ export default async function HomePage() {
       prisma.learningMaterial.findMany({
         where: { type: "STREAM" },
       }),
+      // Показываем последний завершённый день, даже если MVP ещё не определён
       prisma.matchSession.findFirst({
-        where: { mvpResolved: true, mvpWinnerId: { not: null } },
+        where: { status: "COMPLETED", games: { some: {} } },
         orderBy: { date: "desc" },
         include: {
           games: { select: { gameNumber: true, winnerTeam: true }, orderBy: { gameNumber: "asc" } },
+          predictions: { select: { userId: true, gameNumber: true, pick: true } },
         },
       }),
     ]);
@@ -83,40 +86,77 @@ export default async function HomePage() {
   const withPoints = players.filter((p) => p.totalPoints > 0);
   const top3 = [withPoints[0] ?? null, withPoints[1] ?? null, withPoints[2] ?? null];
 
-  /* --- итоги последнего 5v5 с MVP --- */
+  /* --- итоги последнего 5v5 (MVP опционален) --- */
   let lastMatch: React.ComponentProps<typeof LastMatchCard> | null = null;
-  if (lastMvpSession?.mvpWinnerId) {
-    const radiant = parseJsonArray(lastMvpSession.radiantPlayerIds);
-    const dire = parseJsonArray(lastMvpSession.direPlayerIds);
+  if (lastSession) {
+    const radiant = parseJsonArray(lastSession.radiantPlayerIds);
+    const dire = parseJsonArray(lastSession.direPlayerIds);
+    const predIds = [...new Set(lastSession.predictions.map((p) => p.userId))];
     const people = await prisma.user.findMany({
-      where: { id: { in: [...radiant, ...dire, lastMvpSession.mvpWinnerId] } },
-      select: { id: true, firstName: true, lastName: true, username: true, photoUrl: true, profile: { select: { finalRating: true } } },
+      where: {
+        id: {
+          in: [
+            ...radiant,
+            ...dire,
+            ...(lastSession.mvpWinnerId ? [lastSession.mvpWinnerId] : []),
+            ...predIds,
+          ],
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        username: true,
+        photoUrl: true,
+        profile: { select: { finalRating: true } },
+      },
     });
     const byId = Object.fromEntries(people.map((p) => [p.id, p]));
     const named = (ids: string[]) =>
       ids.map((id) => ({ ...byId[id], id, finalRating: byId[id]?.profile?.finalRating ?? 0 }));
-    const { radiantWins, direWins } = seriesScoreByGame1Roster(lastMvpSession);
-    const mvp = byId[lastMvpSession.mvpWinnerId];
-    const mvpSide = radiant.includes(lastMvpSession.mvpWinnerId)
-      ? "RADIANT"
-      : dire.includes(lastMvpSession.mvpWinnerId)
-        ? "DIRE"
-        : null;
-    if (mvp) {
-      lastMatch = {
-        sessionId: lastMvpSession.id,
-        date: lastMvpSession.date,
-        radiantName: teamDisplayName(named(radiant), "Team A"),
-        direName: teamDisplayName(named(dire), "Team B"),
-        radiantWins,
-        direWins,
-        mvp,
-        mvpTeamWon:
-          mvpSide && radiantWins !== direWins
-            ? (mvpSide === "RADIANT") === radiantWins > direWins
-            : null,
-      };
-    }
+    const ratingById = Object.fromEntries(
+      people.map((p) => [p.id, p.profile?.finalRating ?? 0])
+    );
+    const { radiantWins, direWins } = seriesScoreByGame1Roster(lastSession, ratingById);
+    const mvpId =
+      lastSession.mvpResolved && lastSession.mvpWinnerId ? lastSession.mvpWinnerId : null;
+    const mvp = mvpId ? byId[mvpId] ?? null : null;
+    const mvpSide = mvpId
+      ? radiant.includes(mvpId)
+        ? "RADIANT"
+        : dire.includes(mvpId)
+          ? "DIRE"
+          : null
+      : null;
+
+    const games = hasGame2Lineup(lastSession) ? [1, 2] : [1];
+    const predUsers = [...new Set(lastSession.predictions.map((p) => p.userId))];
+    const correctPredictors = predUsers
+      .filter((uid) =>
+        games.every((g) => {
+          const pr = lastSession.predictions.find((p) => p.userId === uid && p.gameNumber === g);
+          const res = lastSession.games.find((x) => x.gameNumber === g);
+          return pr && res && res.winnerTeam === pr.pick;
+        })
+      )
+      .map((id) => byId[id])
+      .filter((u): u is NonNullable<typeof u> => Boolean(u));
+
+    lastMatch = {
+      sessionId: lastSession.id,
+      date: lastSession.date,
+      radiantName: teamDisplayName(named(radiant), "Team A"),
+      direName: teamDisplayName(named(dire), "Team B"),
+      radiantWins,
+      direWins,
+      mvp,
+      mvpTeamWon:
+        mvp && mvpSide && radiantWins !== direWins
+          ? (mvpSide === "RADIANT") === radiantWins > direWins
+          : null,
+      correctPredictors,
+    };
   }
 
   const seasonTitle = activeSeason ? `${SEASON_LABELS[activeSeason.name]} ${activeSeason.year}` : null;
