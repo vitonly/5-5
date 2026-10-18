@@ -343,7 +343,7 @@ export function ProgressClient({
             <CardTitle>Записи периода</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[...logs].reverse().map((l) => (
+            {[...logs].reverse().slice(0, 10).map((l) => (
               <div
                 key={l.id}
                 className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm"
