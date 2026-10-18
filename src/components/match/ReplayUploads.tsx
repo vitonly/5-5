@@ -142,7 +142,7 @@ export function ReplayUploads({
                       учеников найдено {r.matched}/{r.total}
                     </span>
                     {r.unmatched.length > 0 && (
-                      <span className="w-full text-[11px] text-[var(--text-3)]">
+                      <span className="w-full text-[12px] text-[var(--text-3)]">
                         Без Steam ID в профиле: {r.unmatched.join(", ")}
                       </span>
                     )}

@@ -45,7 +45,7 @@ export function PlayerRolesDisplay({
           title={`Основная: ${DOTA_ROLE_LABELS[primary]}`}
         >
           <RoleIcon role={primary} title={`Основная: ${DOTA_ROLE_LABELS[primary]}`} className="rounded-full" />
-          <span className="text-[10px] font-semibold uppercase tracking-wide">осн</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide">осн</span>
         </span>
       )}
       {secondary.map((role) => (

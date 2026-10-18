@@ -44,7 +44,7 @@ export function WeeklyPointsChart({ logs, weeks = 8 }: { logs: PointLog[]; weeks
           const positive = b.total >= 0;
           return (
             <div key={b.start.toISOString()} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-              <span className="font-mono-num text-[11px] text-[var(--text-3)]">
+              <span className="font-mono-num text-[12px] text-[var(--text-3)]">
                 {b.total === 0 ? "—" : formatPoints(b.total)}
               </span>
               <div className="flex h-24 w-full items-end justify-center">
@@ -56,7 +56,7 @@ export function WeeklyPointsChart({ logs, weeks = 8 }: { logs: PointLog[]; weeks
                   title={`${weekLabel(b.start)}: ${formatPoints(b.total)}`}
                 />
               </div>
-              <span className="font-mono-num text-[11px] text-[var(--text-3)]">{weekLabel(b.start)}</span>
+              <span className="font-mono-num text-[12px] text-[var(--text-3)]">{weekLabel(b.start)}</span>
             </div>
           );
         })}

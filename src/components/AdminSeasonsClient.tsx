@@ -341,7 +341,7 @@ export function AdminSeasonsClient({
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     disabled={reminding}
                     onClick={() =>
                       remindVote({
@@ -352,7 +352,7 @@ export function AdminSeasonsClient({
                     }
                     title="Отправить себе превью уведомления"
                   >
-                    Тест мне
+                    Превью себе
                   </Button>
                 </div>
               )}
@@ -473,8 +473,9 @@ export function AdminSeasonsClient({
                               Напомнить в TG
                             </Button>
                             <Button
+              title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
                               size="sm"
-                              variant="outline"
+                              variant="ghost"
                               disabled={reminding}
                               onClick={() =>
                                 remindVote({
@@ -484,7 +485,7 @@ export function AdminSeasonsClient({
                                 })
                               }
                             >
-                              Тест мне
+                              Превью себе
                             </Button>
                           </>
                         )}

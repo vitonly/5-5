@@ -138,11 +138,11 @@ export function HistoryChart({
                 <p className="whitespace-nowrap font-mono-num text-[13px] font-bold" style={{ color }}>
                   {format(hoverPoint.value)}
                 </p>
-                <p className="whitespace-nowrap text-[11px] text-[var(--text-3)]">{hoverPoint.label}</p>
+                <p className="whitespace-nowrap text-[12px] text-[var(--text-3)]">{hoverPoint.label}</p>
               </div>
             )}
           </div>
-          <div className="mt-1 flex justify-between font-mono-num text-[11px] text-[var(--text-3)]">
+          <div className="mt-1 flex justify-between font-mono-num text-[12px] text-[var(--text-3)]">
             <span>{first.label}</span>
             <span>{last.label}</span>
           </div>
@@ -152,7 +152,7 @@ export function HistoryChart({
           {emptyText}
         </p>
       )}
-      {hint && <p className="mt-2 text-[11px] text-[var(--text-3)]">{hint}</p>}
+      {hint && <p className="mt-2 text-[12px] text-[var(--text-3)]">{hint}</p>}
     </div>
   );
 }

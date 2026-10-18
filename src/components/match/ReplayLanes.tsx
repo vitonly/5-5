@@ -103,11 +103,11 @@ export function ReplayLanes({
         <div className="text-center">
           <p className="font-mono-num text-[20px] font-bold leading-none min-[720px]:text-[24px]">
             {score(leftSide)}
-            <span className="mx-1.5 text-[var(--text-4)]">:</span>
+            <span className="mx-1.5 text-[var(--text-3)]">:</span>
             {score(rightSide)}
           </p>
           {replay.durationSec > 0 && (
-            <p className="mt-1 font-mono-num text-[11px] text-[var(--text-3)]">{formatDuration(replay.durationSec)}</p>
+            <p className="mt-1 font-mono-num text-[12px] text-[var(--text-3)]">{formatDuration(replay.durationSec)}</p>
           )}
         </div>
         <SideSummary side={rightSide} name={rightName} won={won(rightSide)} nw={nwSum(right)} right />
@@ -199,7 +199,7 @@ function SideSummary({
       <p className={cn("flex items-center gap-1.5 text-[12px] font-semibold", right && "flex-row-reverse", side === "RADIANT" ? "text-[var(--success-ink)]" : "text-[var(--danger)]")}>
         {side === "RADIANT" ? "Свет" : "Тьма"}
         {won && (
-          <span className="rounded-full bg-[var(--surface)] px-1.5 py-px text-[10px] text-[var(--text)] shadow-[var(--shadow-xs)]">
+          <span className="rounded-full bg-[var(--surface)] px-1.5 py-px text-[11px] text-[var(--text)] shadow-[var(--shadow-xs)]">
             Победа
           </span>
         )}
@@ -217,7 +217,7 @@ function DraftStrip({ draft }: { draft: DraftEntry[] }) {
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="eyebrow">Драфт</p>
-        <span className="flex gap-3 text-[11px] text-[var(--text-3)]">
+        <span className="flex gap-3 text-[12px] text-[var(--text-3)]">
           <span className="flex items-center gap-1">
             <span className="h-[3px] w-3 bg-[var(--success)]" aria-hidden />
             Свет
@@ -351,7 +351,7 @@ function PlayerCell({
             )}
             {isMvp && <Star className="h-3.5 w-3.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" aria-label="MVP" />}
             {!user && (
-              <span className="shrink-0 rounded-full bg-[var(--control)] px-1.5 py-px text-[10px] font-semibold text-[var(--text-3)]">
+              <span className="shrink-0 rounded-full bg-[var(--control)] px-1.5 py-px text-[11px] font-semibold text-[var(--text-3)]">
                 гость
               </span>
             )}
@@ -361,9 +361,9 @@ function PlayerCell({
         <div className={cn("shrink-0 text-right", mirrored && "min-[900px]:text-left")}>
           <p className="font-mono-num text-[14px] font-bold">
             <span className="text-[var(--success-ink)]">{p.kills}</span>
-            <span className="text-[var(--text-4)]">/</span>
+            <span className="text-[var(--text-3)]">/</span>
             <span className="text-[var(--danger)]">{p.deaths}</span>
-            <span className="text-[var(--text-4)]">/</span>
+            <span className="text-[var(--text-3)]">/</span>
             {p.assists}
           </p>
           <p className="font-mono-num text-[12px] font-semibold text-[var(--gold-ink)]">{formatK(p.netWorth)}</p>
@@ -392,7 +392,7 @@ function PlayerCell({
             />
           )}
         </div>
-        <dl className={cn("flex flex-wrap gap-x-2.5 gap-y-0.5 font-mono-num text-[11px] text-[var(--text-3)]", mirrored ? "min-[900px]:mr-auto" : "min-[900px]:ml-auto")}>
+        <dl className={cn("flex flex-wrap gap-x-2.5 gap-y-0.5 font-mono-num text-[12px] text-[var(--text-3)]", mirrored ? "min-[900px]:mr-auto" : "min-[900px]:ml-auto")}>
           <div title="Добито / заденаено" className="font-semibold text-[var(--text-2)]">
             {p.lastHits}/{p.denies}
           </div>
@@ -431,7 +431,7 @@ function AdvantageChart({ values, leftName, rightName }: { values: number[]; lef
     <div>
       <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
         <p className="eyebrow">Преимущество по золоту</p>
-        <p className="text-[11px] text-[var(--text-3)]">
+        <p className="text-[12px] text-[var(--text-3)]">
           пик: <span className="font-semibold text-[var(--success-ink)]">{leftName.replace(/^Team\s+/i, "")} +{formatK(peakLeft)}</span>
           {" · "}
           <span className="font-semibold text-[var(--danger)]">{rightName.replace(/^Team\s+/i, "")} +{formatK(peakRight)}</span>
@@ -457,7 +457,7 @@ function AdvantageChart({ values, leftName, rightName }: { values: number[]; lef
         <line x1="0" x2={W} y1={H / 2} y2={H / 2} stroke="var(--border)" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
         <path d={line} fill="none" stroke="var(--text-2)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div className="mt-1 flex justify-between font-mono-num text-[10px] text-[var(--text-4)]">
+      <div className="mt-1 flex justify-between font-mono-num text-[11px] text-[var(--text-3)]">
         <span>0:00</span>
         <span>{Math.round((values.length - 1) / 2)}:00</span>
         <span>{values.length - 1}:00</span>

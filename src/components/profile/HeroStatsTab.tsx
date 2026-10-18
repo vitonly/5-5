@@ -19,9 +19,9 @@ function Kda({ k, d, a, className }: { k: number; d: number; a: number; classNam
   return (
     <span className={cn("font-mono-num font-semibold", className)}>
       <span className="text-[var(--success-ink)]">{k}</span>
-      <span className="text-[var(--text-4)]">/</span>
+      <span className="text-[var(--text-3)]">/</span>
       <span className="text-[var(--danger)]">{d}</span>
-      <span className="text-[var(--text-4)]">/</span>
+      <span className="text-[var(--text-3)]">/</span>
       {a}
     </span>
   );
@@ -135,7 +135,7 @@ export function HeroStatsTab({ stats, viewer, isOwn }: { stats: ReplayStats; vie
                       {/* Телефон: компактно справа */}
                       <div className="ml-auto text-right min-[720px]:hidden">
                         <p className="font-mono-num text-[13px] font-semibold">{wr}%</p>
-                        <p className="text-[11px] text-[var(--text-3)]">
+                        <p className="text-[12px] text-[var(--text-3)]">
                           {h.games} {plural(h.games, "игра", "игры", "игр")} · <Kda k={h.kills} d={h.deaths} a={h.assists} />
                         </p>
                       </div>
@@ -165,7 +165,7 @@ export function HeroStatsTab({ stats, viewer, isOwn }: { stats: ReplayStats; vie
                       <DotaImg src={info.img} alt={info.name} className="h-[26px] w-[44px] shrink-0 rounded-[4px] object-cover" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-medium">{r.label}</p>
-                        <p className="truncate text-[11px] text-[var(--text-3)]">
+                        <p className="truncate text-[12px] text-[var(--text-3)]">
                           {info.name} · {formatShortDate(r.date)}
                         </p>
                       </div>
@@ -254,7 +254,7 @@ export function HeroStatsTab({ stats, viewer, isOwn }: { stats: ReplayStats; vie
                         viewer={viewer}
                         className="block truncate text-[13px] font-semibold"
                       />
-                      <p className="text-[11px] text-[var(--text-3)]">
+                      <p className="text-[12px] text-[var(--text-3)]">
                         {m.games} {plural(m.games, "игра", "игры", "игр")} вместе · {m.wins} {plural(m.wins, "победа", "победы", "побед")}
                       </p>
                     </div>

@@ -4,7 +4,7 @@ import { heroInfo, type ReplayData } from "@/lib/replay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { POSITION_LABELS } from "@/lib/labels";
 import { formatPoints } from "@/lib/points";
-import { formatDate } from "@/lib/utils";
+import { formatShortDate } from "@/lib/format";
 import { parseTeamAssignments } from "@/lib/match-lineup";
 import { sideFallback, teamDisplayName, type SideCode } from "@/lib/team-names";
 
@@ -76,7 +76,7 @@ export function MatchHistory({
               )}
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="font-medium text-[var(--text)]">
-                  {formatDate(e.sessionDate)} · игра {e.gameNumber}
+                  {formatShortDate(e.sessionDate)} · игра {e.gameNumber}
                 </p>
                 <p className="text-xs text-[var(--text-3)]">
                   {e.teamLabel}

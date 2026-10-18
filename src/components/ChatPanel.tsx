@@ -2,7 +2,7 @@
 
 import { toast } from "@/components/ui/toast";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatDate } from "@/lib/utils";
+import { formatShortDateTime } from "@/lib/format";
 import { usePasteImage } from "@/lib/use-paste-image";
 import { uploadAppFile } from "@/lib/upload-client";
 import { QUICK_EVENTS } from "@/components/HeaderQuickActions";
@@ -159,19 +159,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-6 right-6 z-40 hidden h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full bg-[var(--points)] text-2xl text-white shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--points-hover)] active:scale-[0.97] min-[720px]:flex"
-        aria-label="Чат"
-      >
-        💬
-        {totalUnread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono-num text-xs font-bold text-white">
-            {totalUnread}
-          </span>
-        )}
-      </button>
+      {/* Кнопка открытия — в шапке (HeaderQuickActions) на всех ширинах; плавающих кнопок поверх контента больше нет */}
 
       <aside
         // Закрытая панель полностью скрыта: без тени у края экрана и без фокуса клавиатурой
@@ -271,7 +259,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
                           <p className="whitespace-pre-wrap break-words">{m.body}</p>
                         )}
                         <p className="mt-1 font-mono-num text-[11px] opacity-60">
-                          {formatDate(m.createdAt)}
+                          {formatShortDateTime(m.createdAt)}
                         </p>
                       </div>
                     </div>

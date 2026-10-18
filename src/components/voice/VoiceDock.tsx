@@ -551,7 +551,6 @@ export function VoiceDock({ role, myId }: Props) {
   };
 
   const inRoomLabel = activeRoomId ? voiceRoomLabel(activeRoomId) : null;
-  const fabTitle = inRoomLabel ? `Голос · ${inRoomLabel}` : "Голосовые комнаты";
 
   const remoteInActive = useMemo(() => {
     if (!activeRoomId) return [];
@@ -560,21 +559,7 @@ export function VoiceDock({ role, myId }: Props) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        title={fabTitle}
-        className="fixed bottom-6 right-[5.5rem] z-40 hidden h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-xl text-[var(--text)] shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--control)] active:scale-[0.97] min-[720px]:flex"
-      >
-        {activeRoomId ? (
-          <span className="relative">
-            🎧
-            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
-          </span>
-        ) : (
-          "🎙"
-        )}
-      </button>
+      {/* Кнопка открытия — в шапке (HeaderQuickActions) на всех ширинах; плавающих кнопок поверх контента больше нет */}
 
       <aside
         // Закрытая панель полностью скрыта: без тени у края экрана и без фокуса клавиатурой
@@ -722,7 +707,7 @@ export function VoiceDock({ role, myId }: Props) {
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-[var(--text-3)]">
+                  <p className="text-[12px] text-[var(--text-3)]">
                     {testingMic || activeRoomId
                       ? `Уровень: ${micLevel} · говорите в микрофон`
                       : "Нажмите «Тест», затем говорите"}
@@ -832,7 +817,7 @@ export function VoiceDock({ role, myId }: Props) {
                             {p.isAdmin ? " · тренер" : ""}
                           </p>
                           {!isMe && isHere && (
-                            <label className="mt-1 flex items-center gap-1 text-[11px] text-[var(--text-3)]">
+                            <label className="mt-1 flex items-center gap-1 text-[12px] text-[var(--text-3)]">
                               громкость
                               <input
                                 type="range"
@@ -892,13 +877,13 @@ export function VoiceDock({ role, myId }: Props) {
           })}
 
           {isAdmin && (
-            <p className="text-[11px] text-[var(--text-3)]">
+            <p className="text-[12px] text-[var(--text-3)]">
               Админ: перетащите ученика в другую комнату. Mute / Kick — кнопки справа.
             </p>
           )}
 
           {activeRoomId && remoteInActive.length > 0 && !settingsOpen && (
-            <p className="text-[11px] text-[var(--text-3)]">
+            <p className="text-[12px] text-[var(--text-3)]">
               Громкость каждого — у имени участника в вашей комнате.
             </p>
           )}

@@ -216,7 +216,7 @@ export async function Navbar() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            {/* Телефон: голос и чат — в шапке, а не плавающими кнопками поверх контента */}
+            {/* Голос и чат — в шапке, а не плавающими кнопками поверх контента */}
             <HeaderQuickActions />
             <UserMenu
             name={displayName(user)}

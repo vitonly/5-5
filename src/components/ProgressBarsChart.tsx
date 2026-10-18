@@ -24,12 +24,12 @@ export function ProgressBarsChart({
       <p className="eyebrow text-[var(--text-3)]">
         {title}
       </p>
-      <div className="mt-2 flex gap-4 text-[11px] text-[var(--text-3)]">
+      <div className="mt-2 flex gap-4 text-[12px] text-[var(--text-3)]">
         <span>
           <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[var(--points)]" /> игры
         </span>
         <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[var(--admin)]" /> реплеи
+          <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[var(--points-border)]" /> реплеи
         </span>
       </div>
       <div className="mt-4 flex h-40 items-end gap-1.5 overflow-x-auto">
@@ -45,11 +45,11 @@ export function ProgressBarsChart({
                 style={{ height: `${Math.max(4, (p.games / max) * 100)}%` }}
               />
               <div
-                className="w-[45%] max-w-[14px] rounded-t-[3px] bg-[var(--admin)]"
+                className="w-[45%] max-w-[14px] rounded-t-[3px] bg-[var(--points-border)]"
                 style={{ height: `${Math.max(4, (p.replays / max) * 100)}%` }}
               />
             </div>
-            <span className="font-mono-num text-[9px] text-[var(--text-3)]">{p.label}</span>
+            <span className="font-mono-num text-[12px] text-[var(--text-3)]">{p.label}</span>
           </div>
         ))}
       </div>

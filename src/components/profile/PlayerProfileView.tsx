@@ -18,7 +18,7 @@ import { MotionChip } from "@/components/fx/MotionChip";
 import { SHIELD_CLIP } from "@/lib/fx";
 import { DOTA_ROLE_LABELS, SEASON_LABELS, rankLabel } from "@/lib/labels";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
-import { displayName } from "@/lib/utils";
+import { cn, displayName } from "@/lib/utils";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { getVotingSeason } from "@/lib/seasons";
 import { ensureTelegramLinkToken, isTelegramLinked } from "@/lib/telegram-links";
@@ -40,7 +40,7 @@ function Fact({ label, children, note }: { label: string; children: React.ReactN
       <dt className="text-[13px] text-[var(--text-3)]">{label}</dt>
       <dd className="text-right">
         <span className="font-mono-num text-[15px] font-semibold text-[var(--text)]">{children}</span>
-        {note && <span className="block text-[11px] text-[var(--text-3)]">{note}</span>}
+        {note && <span className="block text-[12px] text-[var(--text-3)]">{note}</span>}
       </dd>
     </div>
   );
@@ -148,6 +148,7 @@ export async function PlayerProfileView({
   const isAdmin = viewer?.role === "ADMIN";
   const canSeePower = isOwn || isAdmin;
 
+  const hasPlaceChart = placeHistory.points.length >= 2;
   const placeIdx = leaderboard.findIndex((e) => e.userId === user.id);
   const place = placeIdx >= 0 ? placeIdx + 1 : null;
   const seasonPoints = placeIdx >= 0 ? leaderboard[placeIdx].totalPoints : profile.totalPoints;
@@ -211,7 +212,10 @@ export async function PlayerProfileView({
             <WeeklyPointsChart logs={logs} />
             <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
           </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* График места показываем, только когда есть хотя бы 2 точки — пустая карточка-заглушка была шумом.
+              Само место всё равно видно в шапке профиля */}
+          <div className={cn("grid grid-cols-1 gap-6", hasPlaceChart && canSeePower && "lg:grid-cols-2")}>
+            {hasPlaceChart && (
             <HistoryChart
               title="Место в сезоне по неделям"
               points={placeHistory.points}
@@ -220,6 +224,7 @@ export async function PlayerProfileView({
               emptyText="График появится после первых начислений в сезоне"
               hint={placeHistory.total ? `из ${placeHistory.total} учеников` : undefined}
             />
+            )}
             {canSeePower && (
               <HistoryChart
                 title="Рейтинг силы по неделям"
@@ -342,11 +347,7 @@ export async function PlayerProfileView({
               <Fact label="Домашки сдано">
                 <CountUp value={homeworkDone} />
               </Fact>
-              {canSeePower && (
-                <Fact label="Рейтинг силы" note="Видишь только ты и тренер">
-                  <span className="text-[var(--power)]">{profile.finalRating}</span>
-                </Fact>
-              )}
+              {/* «Рейтинг силы» здесь убран: он уже есть на карточке, в графике «по неделям» и в разборе ниже */}
               {steamLink && (
                 <div className="flex items-center justify-between gap-3 py-2.5">
                   <dt className="text-[13px] text-[var(--text-3)]">Статистика Dota</dt>

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 /**
- * Кнопки «Голос» и «Чат» в шапке — только на телефоне.
- * Раньше на телефоне это были плавающие круглые кнопки над нижней панелью, и они закрывали карточки.
+ * Кнопки «Голос» и «Чат» в шапке (телефон и компьютер).
+ * Раньше это были плавающие круглые кнопки в правом нижнем углу, и они закрывали карточки.
  * Сами панели живут в VoiceDock / ChatPanel; связь — через события window:
  *   startplus:voice-toggle / startplus:chat-toggle   — открыть/закрыть панель
  *   startplus:voice-state {inRoom} / startplus:chat-unread {count} — состояние для значков
@@ -38,7 +38,7 @@ export function HeaderQuickActions() {
     "press relative flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[17px] transition-colors hover:border-[var(--border-field)]";
 
   return (
-    <div className="flex items-center gap-1.5 min-[720px]:hidden">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         className={btn}

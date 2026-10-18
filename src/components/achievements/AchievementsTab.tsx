@@ -155,7 +155,7 @@ export function AchievementsTab({
                           <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--control)]">
                             <div className="h-full rounded-full bg-[var(--points)]" style={{ width: `${progress * 100}%` }} />
                           </div>
-                          <span className="font-mono-num text-[11px] text-[var(--text-3)]">
+                          <span className="font-mono-num text-[12px] text-[var(--text-3)]">
                             {Math.min(a.value, a.nextNeed)}/{a.nextNeed}
                           </span>
                         </div>

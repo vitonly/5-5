@@ -425,13 +425,14 @@ export function AdminHomeworkClient({
             {remindingAll ? "Отправка…" : `Напомнить всем${remindableCount ? ` (${remindableCount})` : ""}`}
           </Button>
           <Button
+              title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
             type="button"
             size="sm"
             variant="ghost"
             disabled={remindingAll || remindableCount === 0}
             onClick={() => remindAll(true)}
           >
-            Тест мне
+            Превью себе
           </Button>
         </div>
       </div>
@@ -441,7 +442,7 @@ export function AdminHomeworkClient({
           <CardHeader>
             <CardTitle>Новая домашка</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="max-w-3xl space-y-4" /* форма не шире ~770px: на широком экране поля были по 1200px */>
             <div>
               <Label>Название</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -625,12 +626,13 @@ export function AdminHomeworkClient({
                                 Напомнить
                               </Button>
                               <Button
+              title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
                                 className="h-7 px-2 text-xs"
                                 onClick={() => remind(a.id, true)}
                               >
-                                Тест мне
+                                Превью себе
                               </Button>
                             </>
                           )}

@@ -129,8 +129,8 @@ export function StudentHomeworkList({
 
   const filtered = useMemo(() => {
     if (tab === "active") {
-      const rank = (a: AssignmentWithRelations) =>
-        a.status === "REVISION" ? 0 : needsAction(a) ? 1 : 2;
+      // Сначала то, что надо сдать (и новые, и доработки) — строго по ближайшему сроку; затем «на проверке»
+      const rank = (a: AssignmentWithRelations) => (needsAction(a) ? 0 : 1);
       return visible
         .filter((a) => ACTIVE_STATUSES.has(a.status))
         .sort(
@@ -193,9 +193,11 @@ export function StudentHomeworkList({
         </p>
       ) : (
         <div className="space-y-3">
-          {filtered.map((a) => (
+          {filtered.map((a, i) => (
             <HomeworkCard
               key={a.id}
+              // Раскрыта только первая (самая срочная) карточка, остальные свёрнуты — страница не превращается в простыню форм
+              defaultOpen={i === 0}
               assignment={a}
               materials={materials}
               now={now}
@@ -232,7 +234,9 @@ function HomeworkCard({
   materials,
   now,
   onSubmitted,
+  defaultOpen = false,
 }: {
+  defaultOpen?: boolean;
   assignment: AssignmentWithRelations;
   materials: LearningMaterial[];
   now: number;
@@ -249,7 +253,7 @@ function HomeworkCard({
   const canSubmit = needsAction(assignment);
   const isRevision = assignment.status === "REVISION";
   const tone = STATUS_TONE[assignment.status] ?? "default";
-  const [open, setOpen] = useState(canSubmit);
+  const [open, setOpen] = useState(canSubmit && defaultOpen);
 
   const deadline = deadlineOf(assignment);
   const showCountdown = canSubmit || assignment.status === "OVERDUE";
@@ -266,8 +270,9 @@ function HomeworkCard({
       setError("Допустимы: dem, mp4, png, jpg, pdf и документы");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Максимум 10 МБ на файл");
+    // Лимит совпадает с сервером (/api/upload, 64 МБ): раньше здесь было 10 МБ и демки не пролезали
+    if (file.size > 64 * 1024 * 1024) {
+      setError("Максимум 64 МБ на файл");
       return;
     }
     setUploading(true);
@@ -464,7 +469,7 @@ function HomeworkCard({
                   <p className="text-sm font-medium text-[var(--text)]">
                     {busy ? "Загрузка…" : "Прикрепить файл"}
                   </p>
-                  <p className="text-[12px] text-[var(--text-3)]">dem, mp4, png, pdf · до 10 МБ</p>
+                  <p className="text-[12px] text-[var(--text-3)]">dem, mp4, png, pdf · до 64 МБ</p>
                 </div>
               </div>
 

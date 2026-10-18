@@ -243,7 +243,8 @@ async function MatchCard({
             <p className="eyebrow">Матч #{number}</p>
             <p className="text-[15px] font-semibold text-[var(--text)]">{formatShortDateTime(session.date)}</p>
           </div>
-          <Badge variant={live ? "points" : session.status === "COMPLETED" ? "default" : "power"}>
+          {/* Синий (power) — только для чисел силы; статусы матча — бирюза или нейтральный */}
+          <Badge variant={live ? "points" : session.status === "LINEUPS_CONFIRMED" ? "success" : "default"}>
             {live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--points)]" aria-hidden />}
             {MATCH_STATUS_LABELS[session.status]}
           </Badge>
@@ -415,9 +416,10 @@ function PastMatchRow({
   return (
     <details className="group" open={defaultOpen || undefined}>
       <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--surface-muted)] min-[720px]:px-6 [&::-webkit-details-marker]:hidden">
-        <span className="w-9 shrink-0 font-mono-num text-[12px] text-[var(--text-3)]">#{number}</span>
+        {/* Номер матча на телефоне скрыт — место отдаём названию победителя */}
+        <span className="hidden w-9 shrink-0 font-mono-num text-[12px] text-[var(--text-3)] min-[480px]:inline">#{number}</span>
         <span className="w-14 shrink-0 text-[13px] text-[var(--text-2)]">{formatShortDate(session.date)}</span>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
+        <span className="min-w-0 flex-1 line-clamp-2 break-words text-[14px] font-semibold leading-snug text-[var(--text)]">
           {winner ? winner.name : MATCH_STATUS_LABELS[session.status]}
         </span>
         {myHeroes.length > 0 && (

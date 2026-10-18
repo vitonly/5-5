@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDate } from "@/lib/utils";
+import { formatShortDateTime } from "@/lib/format";
 import {
   formatPoints,
   categorizePointReason,
@@ -90,7 +90,7 @@ export function PointHistory({
                     return (
                       <tr key={log.id} className="border-t border-[var(--border-soft)]">
                         <td className="px-3 py-2.5 font-mono-num text-[12px] text-[var(--text-3)]">
-                          {formatDate(log.createdAt)}
+                          {formatShortDateTime(log.createdAt)}
                         </td>
                         <td className="px-3 py-2.5 text-[var(--text)]">{log.reason}</td>
                         <td className="px-3 py-2.5 text-[var(--text-2)]">
@@ -125,7 +125,7 @@ export function PointHistory({
                   <div className="min-w-0 flex-1">
                     <p className="text-[var(--text)]">{log.reason}</p>
                     <p className="font-mono-num text-[12px] text-[var(--text-3)]">
-                      {formatDate(log.createdAt)} · {POINT_CATEGORY_LABELS[categorizePointReason(log.reason)]}
+                      {formatShortDateTime(log.createdAt)} · {POINT_CATEGORY_LABELS[categorizePointReason(log.reason)]}
                     </p>
                   </div>
                   <span

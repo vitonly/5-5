@@ -266,13 +266,14 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                 {notifyingCreds ? "Отправка…" : "Разослать всем в TG"}
               </Button>
               <Button
+              title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
                 disabled={notifyingCreds}
                 onClick={() => notifyCredentials({ testToAdmin: true })}
               >
-                Тест мне
+                Превью себе
               </Button>
             </div>
             <p className="text-sm text-[var(--text-3)]">
@@ -352,6 +353,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                 {reminding ? "Отправка…" : "Напомнить всем"}
               </Button>
               <Button
+              title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
                 type="button"
                 size="sm"
                 variant="ghost"
@@ -359,7 +361,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                 disabled={reminding}
                 onClick={() => remindRoles({ allIncomplete: true, testToAdmin: true })}
               >
-                Тест мне
+                Превью себе
               </Button>
             </>
           }
@@ -471,7 +473,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                       <button
                         type="button"
                         onClick={() => selectStudent(s)}
-                        className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left text-[11px] text-[var(--text-3)]"
+                        className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left text-[12px] text-[var(--text-3)]"
                       >
                         {s.login && <span className="font-mono-num">@{s.login}</span>}
                         <span className="font-mono-num">сила {s.profile?.finalRating ?? "—"}</span>

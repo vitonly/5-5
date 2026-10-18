@@ -104,7 +104,8 @@ export function PredictionPanel({
                           style={{ width: `${pct}%`, opacity: 0.6 }}
                         />
                       )}
-                      <span className="relative min-w-0 truncate">{g.names[side]}</span>
+                      {/* Название команды переносится на 2 строки, а не обрезается «Team Влад Кар…» */}
+                      <span className="relative min-w-0 line-clamp-2 break-words leading-snug">{g.names[side]}</span>
                       <span className="relative flex shrink-0 items-center gap-1.5">
                         {pct != null && <span className="font-mono-num text-[12px] text-[var(--text-3)]">{pct}%</span>}
                         {won && <Check className="h-4 w-4 text-[var(--success-ink)]" aria-label="Победила" />}
@@ -119,11 +120,11 @@ export function PredictionPanel({
         })}
       </div>
       {view.open && canVote && (
-        <p className="mt-3 text-[11px] text-[var(--text-3)]">Можно проголосовать и в Telegram — бот присылает кнопки.</p>
+        <p className="mt-3 text-[12px] text-[var(--text-3)]">Можно проголосовать и в Telegram — бот присылает кнопки.</p>
       )}
       {view.closed && view.dayCorrectTotal > 0 && (
         <div className="mt-3 rounded-[var(--radius-control)] bg-[var(--surface)] px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
             Угадали все игры дня
           </p>
           <p className="mt-0.5 text-[13px] font-medium text-[var(--success-ink)]">

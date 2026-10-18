@@ -148,7 +148,7 @@ export function AdminMatchesClient({
             style={{ "--val": `${((reshuffleIntensity - 1) / 4) * 100}%` } as React.CSSProperties}
             disabled={saving}
           />
-          <span className="flex justify-between text-[11px] text-[var(--text-3)]">
+          <span className="flex justify-between text-[12px] text-[var(--text-3)]">
             <span>мягко</span>
             <span>жёстко</span>
           </span>
@@ -163,7 +163,7 @@ export function AdminMatchesClient({
           />
           <span>
             Не ставить на роль, которой нет у игрока
-            <span className="block text-[11px] text-[var(--text-3)]">
+            <span className="block text-[12px] text-[var(--text-3)]">
               Для 1-й и 2-й игры: только роли из профиля. Если собрать нельзя — ошибка, без
               «подстановок»
             </span>
@@ -865,12 +865,13 @@ export function AdminMatchesClient({
               Всем с Telegram ({withTelegram.length})
             </Button>
             <Button
-              variant="outline"
+              size="sm"
+              variant="ghost"
               onClick={() => createOpenSignup(false, true)}
               disabled={!openDate || creatingOpen}
               title="Отправить себе превью опроса в Telegram"
             >
-              Тест мне
+              Превью себе
             </Button>
           </div>
             </div>
@@ -1938,7 +1939,7 @@ function DraggableLineupEditor({
       <DragOverlay>
         {activeSlot && activeParsed ? (
           <div className="rounded-[var(--radius-control)] border border-[var(--points-border)] bg-[var(--surface)] px-3 py-2 shadow-[var(--shadow-popover)]">
-            <span className="font-mono-num text-[11px] text-[var(--text-3)]">
+            <span className="font-mono-num text-[12px] text-[var(--text-3)]">
               {POSITION_LABELS[activeParsed.position]}
             </span>{" "}
             <span className="text-sm font-medium text-[var(--text)]">

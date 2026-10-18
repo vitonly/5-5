@@ -668,3 +668,10 @@ input[type="number"].appearance-none::-webkit-outer-spin-button {
     animation: none;
   }
 }
+
+/* Поля даты/времени не растягиваем на всю ширину формы — на ПК от них оставалась длинная пустая полоса */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"] {
+  max-width: 18rem;
+}

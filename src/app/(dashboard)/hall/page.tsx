@@ -117,7 +117,9 @@ function RecordCard({
   return (
     <article
       className={cn(
-        "surface-card relative overflow-visible flex flex-col gap-3 p-3 min-[400px]:p-4",
+        "relative overflow-visible flex flex-col gap-3 p-3 min-[400px]:p-4",
+        // Пустая номинация — пунктирная «свободная» плашка, а не белая карточка с дырой посередине
+        record ? "surface-card" : "rounded-[var(--radius-card)] border border-dashed border-[var(--border-field)]/50 bg-[var(--surface-muted)]",
         me && "ring-2 ring-[var(--points-border)]"
       )}
     >
@@ -200,10 +202,26 @@ function RecordCard({
         </>
       ) : (
         <>
-          <p className="text-[13px] font-semibold leading-snug text-[var(--text-2)]">{title}</p>
-          <p className="py-6 text-[13px] text-[var(--text-3)]">
-            {anti ? "Пока никто не «отличился»." : "Рекорд ещё не установлен — стань первым."}
-          </p>
+          <div className="my-auto flex flex-col items-center gap-2 py-6 text-center">
+            <span
+              aria-hidden
+              className={cn(
+                "flex h-11 w-11 items-center justify-center rounded-full text-[20px]",
+                anti ? "bg-[var(--danger-bg)]" : "bg-[var(--points-bg)]"
+              )}
+            >
+              {anti ? "💀" : "🏆"}
+            </span>
+            <p className="max-w-[240px] text-[14px] font-semibold leading-snug text-[var(--text)]">{title}</p>
+            <p className="text-[13px] text-[var(--text-3)]">
+              {anti ? "Пока никто не «отличился»." : "Рекорд ещё не установлен — стань первым."}
+            </p>
+            {!anti && !allTime && (
+              <span className="mt-1 rounded-full bg-[var(--points-bg)] px-2.5 py-0.5 font-mono-num text-[12px] font-semibold text-[var(--points-ink)]">
+                +{HALL_POINTS} очка ждут
+              </span>
+            )}
+          </div>
         </>
       )}
     </article>

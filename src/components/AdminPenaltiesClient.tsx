@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { displayName, formatDate } from "@/lib/utils";
+import { Segmented } from "@/components/ui/segmented";
+import { displayName } from "@/lib/utils";
+import { formatShortDateTime } from "@/lib/format";
 import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
 import type { Penalty, User } from "@prisma/client";
@@ -51,22 +53,16 @@ export function AdminPenaltiesClient({
           <CardTitle>Корректировка очков</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={mode === "penalty" ? "destructive" : "outline"}
-              onClick={() => setMode("penalty")}
-            >
-              Штраф (−)
-            </Button>
-            <Button
-              type="button"
-              variant={mode === "bonus" ? "default" : "outline"}
-              onClick={() => setMode("bonus")}
-            >
-              Бонус (+)
-            </Button>
-          </div>
+          {/* Тип корректировки — общий переключатель-вкладки сайта */}
+          <Segmented
+            value={mode}
+            onChange={setMode}
+            stretch={false}
+            items={[
+              { value: "penalty", label: "Штраф (−)" },
+              { value: "bonus", label: "Бонус (+)" },
+            ]}
+          />
           <div>
             <Label>Игрок</Label>
             <select
@@ -129,7 +125,7 @@ export function AdminPenaltiesClient({
                       <span className="text-[var(--text-2)]"> · {p.reason}</span>
                     </span>
                     <span className="block text-xs text-[var(--text-3)]">
-                      {formatDate(p.createdAt)} · {p.admin?.firstName}
+                      {formatShortDateTime(p.createdAt)} · {p.admin?.firstName}
                     </span>
                   </span>
                 </li>

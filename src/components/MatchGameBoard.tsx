@@ -99,7 +99,7 @@ export function MatchGameBoard({
             <p className="font-display text-[20px] font-bold text-[var(--text-3)]">VS</p>
           )}
           {hasPlayed && multi && (
-            <p className="mt-1 text-[11px] text-[var(--text-3)]">
+            <p className="mt-1 text-[12px] text-[var(--text-3)]">
               серия · {game.radiantName.replace(/^Team\s+/i, "")} — {game.direName.replace(/^Team\s+/i, "")}
             </p>
           )}
@@ -239,7 +239,9 @@ function TeamHead({
   const right = side === "dire";
   return (
     <div className={cn("min-w-0", right && "text-right")}>
-      <div className={cn("mb-2 flex", right && "justify-end")}>
+      {/* Стопка аватаров — только на компьютере: на телефоне 5 кружков по 28px налезали друг на друга,
+          а те же игроки всё равно перечислены ниже */}
+      <div className={cn("mb-2 hidden min-[720px]:flex", right && "justify-end")}>
         {lineup.map((slot, i) => {
           const u = userMap[slot.userId];
           return (
@@ -260,7 +262,7 @@ function TeamHead({
         })}
       </div>
       <p className={cn("flex items-center", right && "flex-row-reverse")}>
-        <span className="truncate text-[14px] font-semibold text-[var(--text)] min-[720px]:text-[16px]">{name}</span>
+        <span className="line-clamp-2 break-words text-[14px] font-semibold leading-snug text-[var(--text)] min-[720px]:text-[16px]">{name}</span>
       </p>
     </div>
   );
@@ -332,7 +334,7 @@ function RoomLineup({
               <PlayerLink
                 user={u}
                 viewer={viewer}
-                className={cn("min-w-0 truncate text-[13px] min-[720px]:text-[14px]", me && "text-[var(--points-ink)]")}
+                className={cn("min-w-0 line-clamp-2 break-words text-[13px] leading-tight min-[720px]:text-[14px]", me && "text-[var(--points-ink)]")}
               >
                 {me ? "Ты" : undefined}
               </PlayerLink>
@@ -343,7 +345,7 @@ function RoomLineup({
               <Star className="h-3.5 w-3.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" aria-label="MVP" />
             )}
           </span>
-          <span className="block truncate text-[11px] text-[var(--text-3)]">
+          <span className="block truncate text-[12px] text-[var(--text-3)]">
             {POSITION_LABELS[slot.position]?.split("·")[1]?.trim()}
             {showPower && u?.profile && (
               <span className="ml-1.5 font-mono-num text-[var(--power)]">{u.profile.finalRating}</span>

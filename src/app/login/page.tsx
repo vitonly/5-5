@@ -247,6 +247,15 @@ function LoginForm() {
     }
   }, [router]);
 
+  // Почему «Войти» неактивна — подсказка под кнопкой
+  const loginHint = loading
+    ? null
+    : !login || !password
+      ? "Введите логин и пароль от тренера"
+      : !pdConsent
+        ? "Отметьте согласие на обработку данных"
+        : null;
+
   return (
     <Card className="rise-in w-full max-w-[420px] shadow-[var(--shadow-raised)]">
       <CardHeader className="items-center pb-5 text-center">
@@ -260,21 +269,6 @@ function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <label className="flex cursor-pointer items-start gap-3 text-[13px] leading-snug text-[var(--text-2)]">
-          <input
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--points)]"
-            checked={pdConsent}
-            onChange={(e) => setPdConsent(e.target.checked)}
-          />
-          <span>
-            Согласен(на) на обработку персональных данных согласно{" "}
-            <Link href="/privacy" className="text-[var(--points)] underline" target="_blank">
-              Политике конфиденциальности
-            </Link>
-          </span>
-        </label>
-
         <div className="space-y-3">
           <div>
             <Label htmlFor="login">Логин</Label>
@@ -298,14 +292,36 @@ function LoginForm() {
               autoComplete="current-password"
             />
           </div>
+          {/* Согласие — прямо над кнопкой «Войти»: раньше галочка стояла над полями,
+              и было непонятно, почему кнопка неактивна */}
+          <label className="flex cursor-pointer items-start gap-3 text-[13px] leading-snug text-[var(--text-2)]">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--points)]"
+              checked={pdConsent}
+              onChange={(e) => setPdConsent(e.target.checked)}
+            />
+            <span>
+              Согласен(на) на обработку персональных данных согласно{" "}
+              <Link href="/privacy" className="text-[var(--points)] underline" target="_blank">
+                Политике конфиденциальности
+              </Link>
+            </span>
+          </label>
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
           <Button
             onClick={handlePasswordLogin}
             disabled={loading || !login || !password || !pdConsent}
             className="w-full"
+            aria-describedby={loginHint ? "login-hint" : undefined}
           >
             {loading ? "Вход..." : "Войти"}
           </Button>
+          {loginHint && (
+            <p id="login-hint" className="text-center text-[13px] text-[var(--text-3)]">
+              {loginHint}
+            </p>
+          )}
         </div>
 
         <details className="group rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">

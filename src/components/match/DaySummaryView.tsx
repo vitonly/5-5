@@ -42,7 +42,7 @@ export function DaySummaryView({
         <p className="truncate text-right font-display text-[15px] font-semibold min-[720px]:text-[17px]">{score.leftName}</p>
         <p className="font-display text-[34px] font-bold leading-none min-[720px]:text-[44px]">
           {score.left}
-          <span className="mx-2 text-[var(--text-4)]">:</span>
+          <span className="mx-2 text-[var(--text-3)]">:</span>
           {score.right}
         </p>
         <p className="truncate font-display text-[15px] font-semibold text-[var(--text-2)] min-[720px]:text-[17px]">{score.rightName}</p>
@@ -93,7 +93,7 @@ export function DaySummaryView({
                   <div key={a.key} className="flex items-center gap-3 rounded-[var(--radius-control)] border border-[var(--border-soft)] px-3 py-2.5">
                     <Avatar photoUrl={u?.photoUrl} firstName={u?.firstName} lastName={u?.lastName} size={38} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--text-3)]">{a.title}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--text-3)]">{a.title}</p>
                       <p className="truncate text-[14px] font-semibold">{name(a.userId)}</p>
                       <p className="flex items-center gap-1.5 truncate text-[12px] text-[var(--text-3)]">
                         <DotaImg src={hero.img} alt={hero.name} className="h-[14px] w-[24px] shrink-0 rounded-[2px] object-cover" />
@@ -157,7 +157,7 @@ export function DaySummaryView({
               <ol className="mt-1 space-y-0.5">
                 {summary.topPoints.map((t, i) => (
                   <li key={t.userId} className="flex items-center gap-2 text-[13px]">
-                    <span className="w-3 font-mono-num text-[11px] text-[var(--text-3)]">{i + 1}</span>
+                    <span className="w-3 font-mono-num text-[12px] text-[var(--text-3)]">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{name(t.userId)}</span>
                     <span className="font-mono-num font-bold text-[var(--points-ink)]">+{t.points}</span>
                   </li>

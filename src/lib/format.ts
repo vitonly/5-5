@@ -1,5 +1,16 @@
 import { APP_TIMEZONE } from "@/lib/utils";
 
+/** Год показываем, только если дата не из текущего года: «12 окт» / «12 окт 2025» */
+function yearIfOther(d: Date): { year?: "numeric" } {
+  const y = (x: Date) => new Intl.DateTimeFormat("ru-RU", { year: "numeric", timeZone: APP_TIMEZONE }).format(x);
+  return y(d) === y(new Date()) ? {} : { year: "numeric" };
+}
+
+/*
+ * Единый формат дат в интерфейсе: коротко, по-русски — «12 окт», «сб, 12 окт · 12:00».
+ * Длинный formatDate («12 октября 2026 г. в 12:00») остаётся для сообщений в Telegram.
+ */
+
 /** «сб, 12 окт · 12:00» */
 export function formatShortDateTime(date: Date | string) {
   const d = new Date(date);
@@ -7,10 +18,12 @@ export function formatShortDateTime(date: Date | string) {
     weekday: "short",
     day: "numeric",
     month: "short",
+    ...yearIfOther(d),
     timeZone: APP_TIMEZONE,
   })
     .format(d)
-    .replace(".", "");
+    .replace(".", "")
+    .replace(/\s*г\.?$/, "");
   const time = new Intl.DateTimeFormat("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
@@ -21,13 +34,16 @@ export function formatShortDateTime(date: Date | string) {
 
 /** «12 окт» */
 export function formatShortDate(date: Date | string) {
+  const d = new Date(date);
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
     month: "short",
+    ...yearIfOther(d),
     timeZone: APP_TIMEZONE,
   })
-    .format(new Date(date))
-    .replace(".", "");
+    .format(d)
+    .replace(".", "")
+    .replace(/\s*г\.?$/, "");
 }
 
 /** «через 2 дн», «через 5 ч», «сегодня», «просрочено» */

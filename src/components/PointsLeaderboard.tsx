@@ -40,7 +40,7 @@ function Place({ index }: { index: number }) {
 
 function You() {
   return (
-    <span className="ml-1.5 shrink-0 rounded-full bg-[var(--points)] px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">
+    <span className="ml-1.5 shrink-0 rounded-full bg-[var(--points)] px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-white">
       вы
     </span>
   );
@@ -129,7 +129,7 @@ export function PointsLeaderboard({
                 {formatPoints(entry.totalPoints)}
               </span>
               {showLifetime && (
-                <p className="whitespace-nowrap font-mono-num text-[11px] text-[var(--text-3)] min-[720px]:hidden">
+                <p className="whitespace-nowrap font-mono-num text-[12px] text-[var(--text-3)] min-[720px]:hidden">
                   всего {formatPoints(entry.lifetimePoints ?? entry.totalPoints)}
                 </p>
               )}

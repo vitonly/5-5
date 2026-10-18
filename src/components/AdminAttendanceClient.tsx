@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { toast } from "@/components/ui/toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -232,18 +234,25 @@ export function AdminAttendanceClient() {
 
       <div className="flex flex-wrap items-center gap-2">
         {sessions.map((s) => (
-          <Button
+          // Выбор занятия — чип-фильтр (как сезоны в «Статистике»), а не ряд основных кнопок
+          <button
             key={s.id}
-            size="sm"
-            variant={s.id === activeId ? "default" : "outline"}
+            type="button"
+            aria-pressed={s.id === activeId}
             onClick={() => setActiveId(s.id)}
+            className={cn(
+              "press inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 font-mono-num text-[13px] font-medium transition-colors",
+              s.id === activeId
+                ? "border-[var(--points-border)] bg-[var(--points-bg)] text-[var(--points-ink)]"
+                : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]"
+            )}
           >
             {formatDateOnly(s.date)} ·{" "}
             {(s.id === activeId
               ? presentSet.size
               : s.attendances.filter((a) => a.present).length)}
             /{students.length}
-          </Button>
+          </button>
         ))}
         {syncing && (
           <span className="text-xs text-[var(--text-3)]">Сохранение очков…</span>

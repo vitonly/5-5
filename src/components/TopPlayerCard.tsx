@@ -5,6 +5,7 @@ import { CountUp } from "@/components/fx/CountUp";
 import { TiltCard } from "@/components/fx/TiltCard";
 import { PENNANT_CLIP } from "@/lib/fx";
 import { cn, shortDisplayName, playerProfilePath } from "@/lib/utils";
+import { initials } from "@/lib/format";
 import type { DotaRole } from "@prisma/client";
 
 export interface TopPlayer {
@@ -86,7 +87,7 @@ function Numeral({ rank, first }: { rank: number; first: boolean }) {
 function SeasonLeaderLabel() {
   return (
     <p
-      className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-[0.1em] min-[720px]:mb-2.5 min-[720px]:text-[12px]"
+      className="mb-1.5 text-center text-[10px] font-bold uppercase tracking-[0.1em] min-[720px]:mb-2.5 min-[720px]:text-[12px]"
       style={{ color: "var(--gold-ink)" }}
     >
       Лидер сезона
@@ -117,7 +118,7 @@ export function TopPlayerCard({
               <span className="opacity-50">
                 <Numeral rank={rank} first={first} />
               </span>
-              <p className="mt-auto text-center text-[11px] text-[var(--text-3)] min-[720px]:text-sm">Свободно</p>
+              <p className="mt-auto text-center text-[12px] text-[var(--text-3)] min-[720px]:text-sm">Свободно</p>
             </div>
           </Frame>
         </div>
@@ -148,7 +149,16 @@ export function TopPlayerCard({
                   className="absolute inset-0 h-full w-full object-cover object-top"
                 />
               ) : (
-                <div className="img-placeholder absolute inset-0" />
+                <>
+                  <div className="img-placeholder absolute inset-0" />
+                  {/* Нет фото — крупные инициалы (только на ПК: на телефоне карточка маленькая и они налезали на имя) */}
+                  <span
+                    aria-hidden
+                    className="absolute left-1/2 top-[36%] hidden h-[64px] w-[64px] -translate-x-1/2 items-center justify-center rounded-full border-2 border-white/50 bg-[rgba(8,18,20,0.55)] font-display text-[22px] font-bold leading-none text-white backdrop-blur-sm min-[720px]:flex"
+                  >
+                    {initials(player.firstName, player.lastName)}
+                  </span>
+                </>
               )}
               <div
                 className="absolute inset-0"
@@ -171,7 +181,16 @@ export function TopPlayerCard({
 
               <div className="mt-auto min-w-0 text-center">
                 <ViewTransition name={`player-name-${player.id}`} share="morph">
-                  <p className="truncate font-display text-[11px] font-bold uppercase leading-tight text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.45)] min-[400px]:text-[12px] min-[720px]:text-[16px]">
+                  {/* Длинные имена не обрезаются «МАКСИ…»: шрифт меньше и перенос на 2 строки */}
+                  <p
+                    className={cn(
+                      "line-clamp-2 break-words font-bold uppercase leading-tight text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]",
+                      // Длинное имя на телефоне — более узким шрифтом и строчными, чтобы «Максимилиан» влезал целиком
+                      name.length > 9
+                        ? "font-sans text-[11px] tracking-[-0.01em] normal-case min-[400px]:text-[12px] min-[720px]:tracking-normal min-[720px]:font-display min-[720px]:text-[15px] min-[720px]:uppercase"
+                        : "font-display text-[11px] min-[400px]:text-[12px] min-[720px]:text-[16px]"
+                    )}
+                  >
                     {name}
                   </p>
                 </ViewTransition>

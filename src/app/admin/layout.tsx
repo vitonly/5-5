@@ -18,7 +18,7 @@ export default async function AdminLayout({
   return (
     <div className="admin-scope">
       <Navbar />
-      <main className="rise-in page-shell py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] min-[720px]:py-10 min-[720px]:pb-28">
+      <main className="rise-in page-shell py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] min-[720px]:py-10 min-[720px]:pb-10">
         <ViewTransition>{children}</ViewTransition>
       </main>
       <VoiceDock role={user.role} myId={user.id} />

@@ -56,7 +56,7 @@ export function RankMedalPicker({
               <span className="block font-display text-[13px] font-bold uppercase tracking-wide">
                 {label}
               </span>
-              <span className="mt-0.5 block font-mono-num text-[11px] text-[var(--text-3)]">
+              <span className="mt-0.5 block font-mono-num text-[12px] text-[var(--text-3)]">
                 база {baseFor(m, m === 8 ? 0 : stars || 1)}
               </span>
             </button>

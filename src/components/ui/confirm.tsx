@@ -84,7 +84,7 @@ export function ConfirmHost() {
           <span
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-              pending.danger ? "bg-[var(--danger-bg)] text-[var(--danger)]" : "bg-[var(--admin-bg)] text-[var(--admin)]"
+              pending.danger ? "bg-[var(--danger-bg)] text-[var(--danger)]" : "bg-[var(--points-bg)] text-[var(--points)]" /* фиолетовый — только для админ-интерфейса */
             )}
           >
             <Icon className="h-5 w-5" aria-hidden />

@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDate } from "@/lib/utils";
+import { formatShortDate } from "@/lib/format";
 import type { LessonDto } from "@/components/AdminLessonsClient";
 
 function fileLabel(name: string) {
@@ -29,7 +29,7 @@ export function LessonsArchiveClient({ lessons }: { lessons: LessonDto[] }) {
             <div>
               <p className="font-semibold text-[var(--text)]">{lesson.title}</p>
               <p className="font-mono-num text-xs text-[var(--text-3)]">
-                {formatDate(lesson.createdAt)}
+                {formatShortDate(lesson.createdAt)}
               </p>
             </div>
             {lesson.description && (

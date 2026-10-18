@@ -14,7 +14,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[var(--points)] text-[var(--on-points)] shadow-[var(--shadow-xs)] hover:bg-[var(--points-hover)]",
+          // Неактивная — серая с читаемым текстом (бледно-бирюзовая с белым текстом была 2.1:1)
+          "bg-[var(--points)] text-[var(--on-points)] shadow-[var(--shadow-xs)] hover:bg-[var(--points-hover)] disabled:bg-[var(--control)] disabled:text-[var(--text-3)] disabled:opacity-100 disabled:shadow-none",
         secondary:
           "bg-[var(--control)] text-[var(--text)] hover:bg-[var(--border-soft)]",
         admin:
