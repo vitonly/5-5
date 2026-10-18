@@ -8,7 +8,6 @@ import { NavLinks } from "@/components/NavLinks";
 import { DesktopNav } from "@/components/DesktopNav";
 import { UserMenu } from "@/components/UserMenu";
 import { HeaderQuickActions } from "@/components/HeaderQuickActions";
-import { getVotingSeason } from "@/lib/seasons";
 
 const studentLinks = [
   { href: "/homework", label: "Домашки" },
@@ -51,58 +50,30 @@ export async function Navbar() {
   ];
   const navLinks = isAdmin ? adminLinks : studentLinks;
 
+  // У учеников бейдж только на домашках. На 5v5 уведомлений нет
+  // (раньше сюда ошибочно вешали недооценённых в сезоне голосования).
   let pendingHomework = 0;
-  let pendingVotes = 0;
 
   if (isAdmin) {
     pendingHomework = await prisma.homeworkAssignment.count({
       where: { status: "SUBMITTED" },
     });
   } else {
-    const votingSeason = await getVotingSeason();
-    const openSeason =
-      votingSeason?.status === "OPEN"
-        ? await prisma.ratingSeason.findUnique({
-            where: { id: votingSeason.id },
-            include: {
-              peerRatings: { where: { raterId: user.id }, select: { targetId: true } },
-              vibeVotes: { where: { voterId: user.id }, select: { targetId: true } },
-            },
-          })
-        : null;
-
-    const [hwCount, students] = await Promise.all([
-      prisma.homeworkAssignment.count({
-        where: {
-          studentId: user.id,
-          OR: [
-            { status: "ASSIGNED" },
-            {
-              status: "REVISION",
-              OR: [
-                { revisionDeadline: null },
-                { revisionDeadline: { gte: new Date() } },
-              ],
-            },
-          ],
-        },
-      }),
-      openSeason
-        ? prisma.user.findMany({
-            where: { role: "STUDENT", id: { not: user.id } },
-            select: { id: true },
-          })
-        : Promise.resolve([]),
-    ]);
-    pendingHomework = hwCount;
-
-    if (openSeason && students.length) {
-      const skillDone = new Set(openSeason.peerRatings.map((r) => r.targetId));
-      const vibeDone = new Set(openSeason.vibeVotes.map((v) => v.targetId));
-      for (const s of students) {
-        if (!skillDone.has(s.id) || !vibeDone.has(s.id)) pendingVotes++;
-      }
-    }
+    pendingHomework = await prisma.homeworkAssignment.count({
+      where: {
+        studentId: user.id,
+        OR: [
+          { status: "ASSIGNED" },
+          {
+            status: "REVISION",
+            OR: [
+              { revisionDeadline: null },
+              { revisionDeadline: { gte: new Date() } },
+            ],
+          },
+        ],
+      },
+    });
   }
 
   // Телефон, ученик: 4 основных раздела + «Ещё» (лист со второстепенными)
@@ -119,7 +90,6 @@ export async function Navbar() {
       label: "5v5",
       icon: "match" as const,
       matchPrefix: "/match",
-      badge: pendingVotes,
     },
     { href: "/materials", label: "Материалы", icon: "mat" as const },
   ];
@@ -163,9 +133,7 @@ export async function Navbar() {
     badge:
       link.href === "/homework" || link.href === "/admin/homework"
         ? pendingHomework
-        : link.href === "/match"
-          ? pendingVotes
-          : 0,
+        : 0,
   }));
 
   const primaryItems = PRIMARY.map((h) => desktopItems.find((i) => i.href === h)!).filter(Boolean);
