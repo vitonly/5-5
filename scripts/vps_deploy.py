@@ -282,10 +282,17 @@ server {{
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
+    # Загруженные файлы: опасные типы не отдаём, скрипты в файлах не исполняются
+    location ~* ^/uploads/.*\\.(html?|xhtml|shtml|svgz?|xml|js|mjs)$ {{
+        return 403;
+    }}
+
     location /uploads/ {{
         alias /var/www/startplus/uploads/;
         access_log off;
         expires 7d;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Content-Security-Policy "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox" always;
     }}
 
     location / {{

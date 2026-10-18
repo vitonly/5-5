@@ -118,6 +118,11 @@ async function telegramApiMultipart(
 }
 
 /** Абсолютный URL для Telegram (локальные /uploads → NEXT_PUBLIC_APP_URL). */
+/** Экранировать текст для сообщений Telegram с parse_mode HTML */
+export function escapeTelegramHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export function absolutePublicUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;

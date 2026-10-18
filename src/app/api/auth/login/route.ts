@@ -3,6 +3,12 @@ import { prisma } from "@/lib/db";
 import { setSessionCookieOnResponse } from "@/lib/session";
 import { verifyPassword } from "@/lib/password";
 import { recordPdConsent } from "@/lib/pd-consent";
+import { clientIp, hit, reset, retryAfterSec } from "@/lib/rate-limit";
+
+/** Не больше 10 неудачных попыток на логин и 30 с одного IP за 15 минут */
+const WINDOW_MS = 15 * 60 * 1000;
+const PER_LOGIN = 10;
+const PER_IP = 30;
 
 const MAX_LEN = 200;
 
@@ -33,10 +39,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ip = clientIp(request.headers);
+  const loginKey = `login:${login.trim().toLowerCase()}`;
+  const ipKey = `ip:${ip}`;
+  const wait = Math.max(retryAfterSec(loginKey, PER_LOGIN), retryAfterSec(ipKey, PER_IP));
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: `Слишком много попыток входа. Попробуйте через ${Math.ceil(wait / 60)} мин.` },
+      { status: 429, headers: { "Retry-After": String(wait) } }
+    );
+  }
+
   const user = await prisma.user.findUnique({ where: { login: login.trim() } });
   if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    hit(loginKey, WINDOW_MS);
+    hit(ipKey, WINDOW_MS);
     return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
   }
+  reset(loginKey);
 
   await recordPdConsent(user.id);
   const response = NextResponse.json({ success: true, role: user.role });

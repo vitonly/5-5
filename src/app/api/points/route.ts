@@ -1,3 +1,4 @@
+import { publicUserSelect } from "@/lib/public-user";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
@@ -7,13 +8,13 @@ export async function GET() {
 
   const logs = await prisma.pointLog.findMany({
     where: user.role === "ADMIN" ? {} : { userId: user.id },
-    include: { user: true },
+    include: { user: { select: publicUserSelect } },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
 
   const leaderboard = await prisma.playerProfile.findMany({
-    include: { user: true },
+    include: { user: { select: publicUserSelect } },
     orderBy: { totalPoints: "desc" },
   });
 

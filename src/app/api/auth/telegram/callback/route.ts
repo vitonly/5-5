@@ -44,6 +44,10 @@ export async function GET(request: NextRequest) {
       username: params.username,
       photo_url: params.photo_url,
     });
+    if (!user) {
+      loginUrl.searchParams.set("error", "telegram_not_linked");
+      return NextResponse.redirect(loginUrl);
+    }
 
     const dest = user.role === "ADMIN" ? "/admin" : "/";
     const response = NextResponse.redirect(new URL(dest, appUrl));

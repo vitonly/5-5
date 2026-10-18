@@ -1,3 +1,4 @@
+import { publicUserSelect } from "@/lib/public-user";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
@@ -30,13 +31,17 @@ export async function GET() {
     await migrateLegacySeasonDeadlines();
   }
 
+  // Ученик видит только свои голоса; тренер — все. Пользователи — только публичные поля.
+  const isAdmin = user.role === "ADMIN";
   const seasons = await prisma.ratingSeason.findMany({
     include: {
       peerRatings: {
-        include: { rater: true, target: true },
+        where: isAdmin ? undefined : { raterId: user.id },
+        include: { rater: { select: publicUserSelect }, target: { select: publicUserSelect } },
       },
       vibeVotes: {
-        include: { voter: true, target: true },
+        where: isAdmin ? undefined : { voterId: user.id },
+        include: { voter: { select: publicUserSelect }, target: { select: publicUserSelect } },
       },
     },
     orderBy: [{ year: "desc" }, { name: "desc" }],
@@ -44,7 +49,7 @@ export async function GET() {
 
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
-    include: { profile: true },
+    select: { ...publicUserSelect, profile: isAdmin ? true : { select: { finalRating: true } } },
     orderBy: { firstName: "asc" },
   });
 

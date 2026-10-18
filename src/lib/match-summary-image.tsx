@@ -53,12 +53,29 @@ async function photoSrc(url: string | null | undefined) {
   return remoteSrc(absolutePublicUrl(url));
 }
 
+/**
+ * Откуда сервер может скачивать картинки. Адрес аватарки задаёт сам ученик,
+ * поэтому без списка сервер можно было заставить обращаться к любым адресам (SSRF).
+ */
+const IMAGE_HOSTS = [/(^|\.)steamstatic\.com$/i, /^t\.me$/i, /(^|\.)telesco\.pe$/i, /(^|\.)userapi\.com$/i, /(^|\.)vk\.com$/i];
+
+function isAllowedImageUrl(url: string) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const own = process.env.NEXT_PUBLIC_APP_URL ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname : null;
+    return u.hostname === own || IMAGE_HOSTS.some((re) => re.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 const heroCache = new Map<string, string | null>();
 async function remoteSrc(url: string | null) {
-  if (!url) return null;
+  if (!url || !isAllowedImageUrl(url)) return null;
   if (heroCache.has(url)) return heroCache.get(url)!;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000), redirect: "error" });
     if (!res.ok) throw new Error(String(res.status));
     const type = res.headers.get("content-type") || "image/png";
     const data = `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString("base64")}`;

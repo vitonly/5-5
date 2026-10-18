@@ -5,7 +5,7 @@ import {
   sendTelegramMessage,
   type ReplyKeyboard,
 } from "@/lib/telegram";
-import { upsertTelegramUser } from "@/lib/telegram-auth";
+import { TELEGRAM_NOT_LINKED, upsertTelegramUser } from "@/lib/telegram-auth";
 import { handleMatchSignupCallback } from "@/lib/match-signup";
 import { castMvpVote, formatMvpStatusTelegram } from "@/lib/match-mvp";
 import { displayName, formatDate, parseJsonArray } from "@/lib/utils";
@@ -282,6 +282,7 @@ async function linkByTelegramId(from: TelegramUserMsg, chatId: string) {
       last_name: from.last_name,
       username: from.username,
     });
+    if (!admin) return null;
     await prisma.user.update({
       where: { id: admin.id },
       data: { telegramChatId: chatId },
@@ -310,6 +311,8 @@ async function linkByToken(token: string, from: TelegramUserMsg, chatId: string)
       firstName: from.first_name,
       lastName: from.last_name || null,
       username: from.username || null,
+      // Одноразовый: после привязки токен больше не работает
+      telegramLinkToken: null,
     },
   });
 
@@ -328,6 +331,8 @@ async function completeWebLogin(token: string, from: TelegramUserMsg, chatId: st
     last_name: from.last_name,
     username: from.username,
   });
+  // Аккаунт с этим Telegram не заведён — вход не подтверждаем
+  if (!user) return "not_linked" as const;
 
   await prisma.user.update({
     where: { id: user.id },
@@ -502,7 +507,9 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   if (param?.startsWith("login_")) {
     const token = param.slice(6);
     const ok = await completeWebLogin(token, message.from, chatId);
-    if (ok) {
+    if (ok === "not_linked") {
+      await sendTelegramMessage(chatId, `❌ ${TELEGRAM_NOT_LINKED}`);
+    } else if (ok) {
       await sendTelegramMessage(
         chatId,
         "✅ Вход подтверждён! Вернитесь на сайт — страница обновится сама.",

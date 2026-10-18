@@ -298,13 +298,16 @@ export async function upsertVkUser(
     });
   }
 
+  // Новые аккаунты через VK создаются только для тренера (ADMIN_VK_IDS)
+  if (!isAdmin) return null;
+
   const user = await prisma.user.create({
     data: {
       vkId,
       firstName: info.first_name || "Игрок",
       lastName: info.last_name || null,
       photoUrl: info.avatar || null,
-      role: isAdmin ? "ADMIN" : "STUDENT",
+      role: "ADMIN",
       telegramLinkToken: generateTelegramLinkToken(),
       pdConsentAt: opts?.pdConsent ? new Date() : null,
       profile: { create: {} },

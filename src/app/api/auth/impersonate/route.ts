@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  await stopImpersonation();
+  const adminId = await stopImpersonation();
+  if (!adminId) return NextResponse.json({ error: "Нет активного входа под учеником" }, { status: 403 });
   return NextResponse.json({ success: true });
 }

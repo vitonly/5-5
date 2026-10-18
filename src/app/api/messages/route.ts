@@ -6,6 +6,7 @@ import {
   notifyChatId,
   sendTelegramInviteDetailed,
   sendTelegramMessage,
+  escapeTelegramHtml,
 } from "@/lib/telegram";
 
 async function getCoach() {
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
 
   const text = typeof body === "string" ? body.trim() : "";
   const image = typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null;
+  // Фото в чате — только из наших загрузок
+  if (image && !/^\/uploads\/[A-Za-z0-9._-]+$/.test(image)) {
+    return NextResponse.json({ error: "Некорректное фото" }, { status: 400 });
+  }
 
   if (!text && !image) {
     return NextResponse.json({ error: "Пустое сообщение" }, { status: 400 });
@@ -86,9 +91,10 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const notifyText = `💬 <b>Новое сообщение от ${displayName(me)}</b>\n\n${
+  // Имя и текст экранируем: иначе в уведомление можно вставить свою разметку и ссылки
+  const notifyText = `💬 <b>Новое сообщение от ${escapeTelegramHtml(displayName(me))}</b>\n\n${escapeTelegramHtml(
     text || "📷 Фото"
-  }\n\nОтветить можно на сайте.`;
+  )}\n\nОтветить можно на сайте.`;
 
   // Не блокируем ответ клиенту ожиданием Telegram
   void (async () => {

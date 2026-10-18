@@ -1,3 +1,4 @@
+import { publicUserSelect } from "@/lib/public-user";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
@@ -76,7 +77,7 @@ export async function GET() {
   const user = await requireUser();
   const sessions = await prisma.matchSession.findMany({
     include: {
-      games: { include: { participants: { include: { user: true } } } },
+      games: { include: { participants: { include: { user: { select: publicUserSelect } } } } },
     },
     orderBy: { date: "desc" },
   });

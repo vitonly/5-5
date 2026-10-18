@@ -4,6 +4,7 @@ import { VotingClient } from "@/components/VotingClient";
 import { MatchNav } from "@/components/MatchNav";
 import { PageHeader } from "@/components/ui/page-header";
 import { getVotingSeason } from "@/lib/seasons";
+import { publicUserSelect } from "@/lib/public-user";
 
 export const metadata = { title: "Голосование" };
 
@@ -18,16 +19,17 @@ export default async function VotePage() {
     votingSeason?.status === "OPEN"
       ? await prisma.ratingSeason.findUnique({
           where: { id: votingSeason.id },
+          // Только свои голоса: чужие оценки и данные аккаунтов на клиент не уходят
           include: {
-            peerRatings: { include: { rater: true, target: true } },
-            vibeVotes: { include: { voter: true, target: true } },
+            peerRatings: { where: { raterId: user.id } },
+            vibeVotes: { where: { voterId: user.id } },
           },
         })
       : null;
 
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
-    include: { profile: true },
+    select: publicUserSelect,
     orderBy: { firstName: "asc" },
   });
 

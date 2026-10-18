@@ -20,12 +20,14 @@ import {
   Lock,
   ShieldCheck,
 } from "lucide-react";
-import type { RatingSeason, User, PlayerProfile, PeerRating, VibeVote, VibeValue } from "@prisma/client";
+import type { RatingSeason, PeerRating, VibeVote, VibeValue } from "@prisma/client";
+import type { PublicUser } from "@/lib/public-user";
 
-type Student = User & { profile: PlayerProfile | null };
+type Student = PublicUser;
+/** Только собственные голоса ученика (чужие оценки на клиент не отдаём) */
 type SeasonWithRatings = RatingSeason & {
-  peerRatings: (PeerRating & { rater: User; target: User })[];
-  vibeVotes?: (VibeVote & { voter: User; target: User })[];
+  peerRatings: PeerRating[];
+  vibeVotes?: VibeVote[];
 };
 
 const TILT_OPTIONS: VibeValue[] = ["STABLE", "UNSURE", "TILT"];

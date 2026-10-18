@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSession } from "@/lib/session";
-import { upsertTelegramUser, validateTelegramAuth, type TelegramUser } from "@/lib/telegram-auth";
+import { TELEGRAM_NOT_LINKED, upsertTelegramUser, validateTelegramAuth, type TelegramUser } from "@/lib/telegram-auth";
 import { recordPdConsent } from "@/lib/pd-consent";
 
 export async function POST(request: NextRequest) {
@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
 
   const data = body as TelegramUser;
   const user = await upsertTelegramUser(data);
+  if (!user) {
+    return NextResponse.json({ error: TELEGRAM_NOT_LINKED }, { status: 403 });
+  }
   await recordPdConsent(user.id);
   await createSession(user.id);
   return NextResponse.json({ success: true, role: user.role });

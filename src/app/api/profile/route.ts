@@ -45,7 +45,12 @@ export async function PATCH(request: NextRequest) {
     lastName = body.lastName ? String(body.lastName).trim() : null;
   }
   if (body.photoUrl !== undefined) {
-    photoUrl = body.photoUrl || null;
+    // Только свои загрузки или https-картинка; javascript:, data: и прочее не принимаем
+    const raw = body.photoUrl ? String(body.photoUrl).trim() : "";
+    if (raw && !/^\/uploads\/[A-Za-z0-9._-]+$/.test(raw) && !/^https:\/\/[^\s"'<>]+$/i.test(raw)) {
+      return NextResponse.json({ error: "Некорректная ссылка на фото" }, { status: 400 });
+    }
+    photoUrl = raw || null;
   }
 
   if (body.mmr !== undefined) {
@@ -234,8 +239,8 @@ export async function POST(request: NextRequest) {
   }
   if (password !== undefined && password !== null && String(password).length > 0) {
     const pwd = String(password);
-    if (pwd.length < 4) {
-      return NextResponse.json({ error: "Пароль слишком короткий (мин. 4)" }, { status: 400 });
+    if (pwd.length < 6) {
+      return NextResponse.json({ error: "Пароль слишком короткий (мин. 6)" }, { status: 400 });
     }
     userData.passwordHash = hashPassword(pwd);
     userData.loginPasswordTemp = pwd;

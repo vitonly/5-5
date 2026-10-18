@@ -5,6 +5,21 @@ import { requireUser } from "@/lib/session";
 
 const MAX_BYTES = 64 * 1024 * 1024;
 
+/**
+ * Разрешённые расширения. Файлы из /uploads nginx отдаёт напрямую с домена сайта,
+ * поэтому .html/.svg/.js и т.п. запрещены: в них можно спрятать скрипт (XSS).
+ */
+const ALLOWED_EXT = new Set([
+  // картинки
+  "png", "jpg", "jpeg", "webp", "gif", "bmp", "heic", "heif", "avif", "tif", "tiff",
+  // видео
+  "mp4", "mov", "webm",
+  // документы
+  "pdf", "txt", "doc", "docx", "ppt", "pptx", "odt", "odp",
+  // демки Dota
+  "dem",
+]);
+
 function uploadsDir(): string {
   return (
     process.env.UPLOADS_DIR?.trim() || path.join(process.cwd(), "public", "uploads")
@@ -50,13 +65,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Максимальный размер файла — 64 МБ" }, { status: 400 });
     }
 
-    const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const cleaned = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const ext = cleaned.includes(".") ? cleaned.split(".").pop()!.toLowerCase() : "";
+    if (!ALLOWED_EXT.has(ext)) {
+      return NextResponse.json(
+        { error: "Такой тип файла загружать нельзя. Разрешены картинки, видео, PDF, документы и демки." },
+        { status: 400 }
+      );
+    }
+    const base = cleaned.slice(0, -(ext.length + 1)).replace(/\./g, "_").slice(0, 80) || "file";
+    const safeName = `${Date.now()}-${base}.${ext}`;
     const url = await saveToDisk(file, safeName);
     return NextResponse.json({ url });
   } catch (e) {
     console.error("[upload]", e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Ошибка записи файла на сервер" },
+      { error: "Ошибка записи файла на сервер" },
       { status: 500 }
     );
   }

@@ -91,7 +91,8 @@ export async function GET(request: NextRequest) {
         avatar: info.avatar ?? null,
       },
       { pdConsent }
-    )
+    );
+    if (!user) return fail("vk_not_linked");
     const dest = user.role === "ADMIN" ? "/admin" : "/";
     const response = NextResponse.redirect(new URL(dest, appUrl));
     await setSessionCookieOnResponse(response, user.id);

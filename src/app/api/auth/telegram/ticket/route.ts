@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (ticket.status === "USED") {
-    return NextResponse.json({ status: "READY", role: "STUDENT", reused: true });
+    return NextResponse.json({ status: "USED" });
   }
 
   if (ticket.status === "READY" && ticket.userId) {
@@ -98,14 +98,22 @@ async function completeTicket(token: string) {
       );
     }
 
-    if (ticket.expiresAt < new Date() && ticket.status !== "USED") {
+    // Тикет одноразовый: повторно (и после истечения) сессию не выдаём
+    if (ticket.status === "USED") {
+      return NextResponse.json(
+        { error: "Этот вход уже использован. Нажмите «Войти через Telegram» ещё раз.", status: "USED" },
+        { status: 400 }
+      );
+    }
+
+    if (ticket.expiresAt < new Date()) {
       return NextResponse.json(
         { error: "Ссылка истекла. Нажмите «Войти через бота» ещё раз.", status: "EXPIRED" },
         { status: 400 }
       );
     }
 
-    if (ticket.status !== "READY" && ticket.status !== "USED") {
+    if (ticket.status !== "READY") {
       return NextResponse.json(
         { error: "Ещё не подтверждено в Telegram. Нажмите Start в боте.", status: ticket.status },
         { status: 400 }
@@ -127,14 +135,19 @@ async function completeTicket(token: string) {
       role: user?.role ?? "STUDENT",
     });
 
-    await setSessionCookieOnResponse(response, ticket.userId);
-
-    if (ticket.status !== "USED") {
-      await prisma.loginTicket.update({
-        where: { id: ticket.id },
-        data: { status: "USED" },
-      });
+    // Помечаем использованным атомарно: два параллельных запроса не получат две сессии
+    const claimed = await prisma.loginTicket.updateMany({
+      where: { id: ticket.id, status: "READY" },
+      data: { status: "USED" },
+    });
+    if (claimed.count !== 1) {
+      return NextResponse.json(
+        { error: "Этот вход уже использован. Нажмите «Войти через Telegram» ещё раз.", status: "USED" },
+        { status: 400 }
+      );
     }
+
+    await setSessionCookieOnResponse(response, ticket.userId);
 
     return response;
   } catch (e) {

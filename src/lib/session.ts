@@ -50,9 +50,51 @@ export async function destroySession() {
   cookieStore.delete(IMPERSONATOR_COOKIE);
 }
 
+/*
+ * Режим «войти как ученик».
+ * В cookie лежит ПОДПИСАННЫЙ токен {adminId, studentId}: раньше там был голый id админа,
+ * и любой мог подставить его и через «Вернуться» получить сессию админа.
+ */
+type ImpersonationClaims = { adminId: string; studentId: string };
+
+async function signImpersonation(claims: ImpersonationClaims) {
+  return new SignJWT({ ...claims, kind: "impersonation" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("1d")
+    .sign(getSecret());
+}
+
+async function readImpersonation(): Promise<ImpersonationClaims | null> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(IMPERSONATOR_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    const { payload } = await jwtVerify(raw, getSecret());
+    if (payload.kind !== "impersonation") return null;
+    const adminId = typeof payload.adminId === "string" ? payload.adminId : null;
+    const studentId = typeof payload.studentId === "string" ? payload.studentId : null;
+    return adminId && studentId ? { adminId, studentId } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** id пользователя из основной сессии (без запроса в БД) */
+async function sessionUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    return typeof payload.userId === "string" ? payload.userId : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function startImpersonation(adminId: string, studentId: string) {
   const cookieStore = await cookies();
-  cookieStore.set(IMPERSONATOR_COOKIE, adminId, {
+  cookieStore.set(IMPERSONATOR_COOKIE, await signImpersonation({ adminId, studentId }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -62,17 +104,26 @@ export async function startImpersonation(adminId: string, studentId: string) {
   await createSession(studentId);
 }
 
+/**
+ * Вернуться в аккаунт тренера. Сработает только если токен подписан нами,
+ * текущая сессия — именно тот ученик, а в токене действительно админ.
+ */
 export async function stopImpersonation() {
+  const claims = await readImpersonation();
   const cookieStore = await cookies();
-  const adminId = cookieStore.get(IMPERSONATOR_COOKIE)?.value;
   cookieStore.delete(IMPERSONATOR_COOKIE);
-  if (adminId) await createSession(adminId);
-  return adminId;
+  if (!claims) return null;
+  if ((await sessionUserId()) !== claims.studentId) return null;
+  const admin = await prisma.user.findUnique({ where: { id: claims.adminId }, select: { role: true } });
+  if (admin?.role !== "ADMIN") return null;
+  await createSession(claims.adminId);
+  return claims.adminId;
 }
 
 export async function getImpersonatorId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  return cookieStore.get(IMPERSONATOR_COOKIE)?.value ?? null;
+  const claims = await readImpersonation();
+  if (!claims) return null;
+  return (await sessionUserId()) === claims.studentId ? claims.adminId : null;
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {

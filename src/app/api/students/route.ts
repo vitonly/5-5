@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
   if (!loginTrim || !passwordStr) {
     return NextResponse.json({ error: "Имя, логин и пароль обязательны" }, { status: 400 });
   }
-  if (passwordStr.length < 4) {
-    return NextResponse.json({ error: "Пароль слишком короткий (мин. 4)" }, { status: 400 });
+  if (passwordStr.length < 6) {
+    return NextResponse.json({ error: "Пароль слишком короткий (мин. 6)" }, { status: 400 });
   }
   const existing = await prisma.user.findUnique({ where: { login: loginTrim } });
   if (existing) {

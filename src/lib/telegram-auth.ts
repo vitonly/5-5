@@ -41,7 +41,12 @@ export function validateTelegramAuth(
   return hmac === hash;
 }
 
-/** Создаёт или обновляет пользователя по данным Telegram. */
+/**
+ * Вход через Telegram: находит аккаунт по Telegram ID и обновляет данные.
+ * Новый аккаунт создаётся ТОЛЬКО для тренера (ADMIN_TELEGRAM_IDS) — остальных
+ * тренер заводит сам, иначе любой человек с Telegram получал доступ к платформе.
+ * Возвращает null, если такого аккаунта нет.
+ */
 export async function upsertTelegramUser(data: {
   id: number | string;
   first_name: string;
@@ -51,6 +56,9 @@ export async function upsertTelegramUser(data: {
 }) {
   const telegramId = String(data.id);
   const isAdmin = isAdminTelegramId(telegramId);
+
+  const existing = await prisma.user.findUnique({ where: { telegramId }, select: { id: true } });
+  if (!existing && !isAdmin) return null;
 
   const user = await prisma.user.upsert({
     where: { telegramId },
@@ -69,7 +77,7 @@ export async function upsertTelegramUser(data: {
       lastName: data.last_name || null,
       username: data.username || null,
       photoUrl: data.photo_url || null,
-      role: isAdmin ? "ADMIN" : "STUDENT",
+      role: "ADMIN",
       profile: { create: {} },
     },
     include: { profile: true },
@@ -81,6 +89,10 @@ export async function upsertTelegramUser(data: {
 
   return user;
 }
+
+/** Сообщение для тех, у кого Telegram не привязан к аккаунту */
+export const TELEGRAM_NOT_LINKED =
+  "Этот Telegram не привязан к аккаунту СТАРТ+. Войдите по логину и паролю от тренера и привяжите Telegram в профиле.";
 
 export function normalizeBotUsername(raw: string | undefined | null): string {
   return (raw || "").trim().replace(/^@/, "");
