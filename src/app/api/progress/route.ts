@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { APP_TIMEZONE, parseAppDateTime } from "@/lib/utils";
+import { syncProgressFromOpenDota } from "@/lib/progress-opendota";
 
 export type ProgressRange = "day" | "week" | "month" | "halfyear";
 
@@ -34,9 +35,13 @@ function toDayDate(dateStr: string) {
   return parseAppDateTime(`${dateStr.slice(0, 10)}T12:00`);
 }
 
-function sumLogs(rows: { gamesPlayed: number; replaysWatched: number }[]) {
+function sumLogs(
+  rows: { gamesPlayed: number; soloGames: number; partyGames: number; replaysWatched: number }[]
+) {
   return {
     games: rows.reduce((s, r) => s + r.gamesPlayed, 0),
+    solo: rows.reduce((s, r) => s + r.soloGames, 0),
+    party: rows.reduce((s, r) => s + r.partyGames, 0),
     replays: rows.reduce((s, r) => s + r.replaysWatched, 0),
     days: rows.length,
   };
@@ -51,6 +56,7 @@ export async function GET(request: NextRequest) {
     ["day", "week", "month", "halfyear"].includes(rangeRaw) ? rangeRaw : "week"
   ) as ProgressRange;
   const dateParam = sp.get("date");
+  const sync = sp.get("sync") === "1";
 
   let userId = me.id;
   if (userIdParam && userIdParam !== me.id) {
@@ -58,6 +64,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     userId = userIdParam;
+  }
+
+  // Мягкий sync при открытии своей вкладки (throttled внутри)
+  if (sync && userId === me.id && me.role === "STUDENT") {
+    await syncProgressFromOpenDota(userId).catch((e) =>
+      console.error("[progress] opendota sync", e)
+    );
   }
 
   const { from, to } = rangeBounds(range);
@@ -87,6 +100,15 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  const profile = await prisma.playerProfile.findUnique({
+    where: { userId },
+    select: {
+      steamAccountId: true,
+      dotaMatchesPrivate: true,
+      dotaMatchesSyncedAt: true,
+    },
+  });
+
   return NextResponse.json({
     logs,
     current: sumLogs(logs),
@@ -96,6 +118,12 @@ export async function GET(request: NextRequest) {
     to,
     today,
     dayKey,
+    dota: {
+      steamAccountId: profile?.steamAccountId ?? null,
+      private: Boolean(profile?.dotaMatchesPrivate),
+      syncedAt: profile?.dotaMatchesSyncedAt?.toISOString() ?? null,
+      noSteam: !profile?.steamAccountId,
+    },
   });
 }
 
@@ -106,9 +134,8 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { date, gamesPlayed, replaysWatched, replayNotes, takeaways } = body as {
+  const { date, replaysWatched, replayNotes, takeaways } = body as {
     date?: string;
-    gamesPlayed?: number;
     replaysWatched?: number;
     replayNotes?: string;
     takeaways?: string;
@@ -116,21 +143,26 @@ export async function PUT(request: NextRequest) {
 
   const key = (date || moscowDayKey()).slice(0, 10);
   const dayDate = toDayDate(key);
-  const games = Math.max(0, Math.min(100, Math.round(Number(gamesPlayed) || 0)));
   const replays = Math.max(0, Math.min(100, Math.round(Number(replaysWatched) || 0)));
+
+  // Игры только из OpenDota — PUT меняет реплеи и текст
+  const existing = await prisma.progressLog.findUnique({
+    where: { userId_date: { userId: me.id, date: dayDate } },
+  });
 
   const log = await prisma.progressLog.upsert({
     where: { userId_date: { userId: me.id, date: dayDate } },
     create: {
       userId: me.id,
       date: dayDate,
-      gamesPlayed: games,
+      gamesPlayed: existing?.gamesPlayed ?? 0,
+      soloGames: existing?.soloGames ?? 0,
+      partyGames: existing?.partyGames ?? 0,
       replaysWatched: replays,
       replayNotes: String(replayNotes ?? "").slice(0, 4000),
       takeaways: String(takeaways ?? "").slice(0, 4000),
     },
     update: {
-      gamesPlayed: games,
       replaysWatched: replays,
       replayNotes: String(replayNotes ?? "").slice(0, 4000),
       takeaways: String(takeaways ?? "").slice(0, 4000),

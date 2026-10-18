@@ -192,7 +192,10 @@ model ProgressLog {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /** Календарный день (полночь МСК как Date) */
   date           DateTime
+  /** Кэш soloGames + partyGames (рейтинг из OpenDota) */
   gamesPlayed    Int      @default(0)
+  soloGames      Int      @default(0)
+  partyGames     Int      @default(0)
   replaysWatched Int      @default(0)
   replayNotes    String   @default("")
   takeaways      String   @default("")
@@ -234,6 +237,10 @@ model PlayerProfile {
   userId            String    @unique
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   steamAccountId    Int?
+  /** История матчей Steam/OpenDota недоступна (профиль скрыт) */
+  dotaMatchesPrivate Boolean  @default(false)
+  /** Последний успешный/неуспешный sync рейтинговых матчей в дневник */
+  dotaMatchesSyncedAt DateTime?
   mmr               Int?
   rankTier          Int?
   seasonCoefficient Float     @default(1.0)

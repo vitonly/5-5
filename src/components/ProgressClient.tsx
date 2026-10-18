@@ -2,6 +2,7 @@
 
 import { toast } from "@/components/ui/toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,9 +21,18 @@ type Log = {
   id: string;
   date: string;
   gamesPlayed: number;
+  soloGames: number;
+  partyGames: number;
   replaysWatched: number;
   replayNotes: string;
   takeaways: string;
+};
+
+type DotaMeta = {
+  steamAccountId: number | null;
+  private: boolean;
+  syncedAt: string | null;
+  noSteam: boolean;
 };
 
 const RANGE_LABELS: Record<Range, string> = {
@@ -50,7 +60,7 @@ function shortLabel(iso: string) {
   }).format(d);
 }
 
-/** Счётчик с кнопками − / + (на телефоне удобнее, чем вводить число с клавиатуры) */
+/** Счётчик с кнопками − / + (для реплеев) */
 function Stepper({
   id,
   value,
@@ -99,12 +109,14 @@ export function ProgressClient({
   const [range, setRange] = useState<Range>("week");
   const [dayKey, setDayKey] = useState(moscowToday());
   const [logs, setLogs] = useState<Log[]>([]);
-  const [current, setCurrent] = useState({ games: 0, replays: 0, days: 0 });
-  const [previous, setPrevious] = useState({ games: 0, replays: 0, days: 0 });
-  const [gamesPlayed, setGamesPlayed] = useState(0);
+  const [current, setCurrent] = useState({ games: 0, solo: 0, party: 0, replays: 0, days: 0 });
+  const [previous, setPrevious] = useState({ games: 0, solo: 0, party: 0, replays: 0, days: 0 });
+  const [soloGames, setSoloGames] = useState(0);
+  const [partyGames, setPartyGames] = useState(0);
   const [replaysWatched, setReplaysWatched] = useState(0);
   const [replayNotes, setReplayNotes] = useState("");
   const [takeaways, setTakeaways] = useState("");
+  const [dota, setDota] = useState<DotaMeta | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -113,19 +125,24 @@ export function ProgressClient({
     try {
       const q = new URLSearchParams({ range, date: dayKey });
       if (userId) q.set("userId", userId);
+      // Sync OpenDota for own editable diary (throttled на сервере)
+      if (!readOnly) q.set("sync", "1");
       const res = await fetch(`/api/progress?${q}`);
       const data = await res.json();
       setLogs(data.logs || []);
-      setCurrent(data.current || { games: 0, replays: 0, days: 0 });
-      setPrevious(data.previous || { games: 0, replays: 0, days: 0 });
+      setCurrent(data.current || { games: 0, solo: 0, party: 0, replays: 0, days: 0 });
+      setPrevious(data.previous || { games: 0, solo: 0, party: 0, replays: 0, days: 0 });
+      setDota(data.dota ?? null);
       const t = data.today;
       if (t) {
-        setGamesPlayed(t.gamesPlayed ?? 0);
+        setSoloGames(t.soloGames ?? 0);
+        setPartyGames(t.partyGames ?? 0);
         setReplaysWatched(t.replaysWatched ?? 0);
         setReplayNotes(t.replayNotes ?? "");
         setTakeaways(t.takeaways ?? "");
       } else if (!readOnly) {
-        setGamesPlayed(0);
+        setSoloGames(0);
+        setPartyGames(0);
         setReplaysWatched(0);
         setReplayNotes("");
         setTakeaways("");
@@ -143,7 +160,8 @@ export function ProgressClient({
     () =>
       logs.map((l) => ({
         label: shortLabel(l.date),
-        games: l.gamesPlayed,
+        solo: l.soloGames ?? 0,
+        party: l.partyGames ?? 0,
         replays: l.replaysWatched,
       })),
     [logs]
@@ -157,7 +175,6 @@ export function ProgressClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: dayKey,
-          gamesPlayed,
           replaysWatched,
           replayNotes,
           takeaways,
@@ -177,18 +194,79 @@ export function ProgressClient({
 
   const gamesDelta = current.games - previous.games;
   const replaysDelta = current.replays - previous.replays;
+  const todayRanked = soloGames + partyGames;
+  const showBanner = !readOnly && dota && (dota.noSteam || dota.private);
 
   return (
     <div className="space-y-6">
-      {/* Период — тот же переключатель-вкладки, что на остальных страницах (а не ряд кнопок) */}
       <Segmented
         value={range}
         onChange={setRange}
         items={(Object.keys(RANGE_LABELS) as Range[]).map((r) => ({ value: r, label: RANGE_LABELS[r] }))}
       />
 
+      {showBanner && (
+        <div
+          role="status"
+          className="rounded-[var(--radius-card)] border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger-ink)]"
+        >
+          {dota?.noSteam ? (
+            <>
+              <p className="font-semibold">Привяжите аккаунт Dota</p>
+              <p className="mt-1 text-[var(--text-2)]">
+                Игры подтягиваются из OpenDota по Steam ID. Укажите ссылку на профиль в{" "}
+                <Link href="/profile?tab=settings" className="font-medium text-[var(--points)] underline">
+                  настройках профиля
+                </Link>
+                .
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">История матчей скрыта — игры не видны</p>
+              <p className="mt-1 text-[var(--text-2)]">
+                Откройте профиль в Steam, иначе OpenDota и Dotabuff не видят рейтинговые игры:
+              </p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-[var(--text-2)]">
+                <li>
+                  Steam → <b>Профиль</b> → <b>Редактировать профиль</b> → <b>Конфиденциальность</b>
+                </li>
+                <li>
+                  «Сведения об игре» / Game details → <b>Открытый</b> (Public)
+                </li>
+                <li>
+                  Подождите несколько минут и обновите эту страницу — синк подтянет матчи с понедельника
+                  недели
+                </li>
+              </ol>
+              {dota?.steamAccountId ? (
+                <p className="mt-2">
+                  <a
+                    href={`https://www.opendota.com/players/${dota.steamAccountId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-[var(--points)] underline"
+                  >
+                    Проверить на OpenDota
+                  </a>
+                  {" · "}
+                  <a
+                    href={`https://www.dotabuff.com/players/${dota.steamAccountId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-[var(--points)] underline"
+                  >
+                    Dotabuff
+                  </a>
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricTile label="Игр за период" value={current.games} />
+        <MetricTile label="Рейтинг за период" value={current.games} hint={`соло ${current.solo} · пати ${current.party}`} />
         <MetricTile label="Реплеев за период" value={current.replays} />
         <MetricTile
           label="Игры vs прошлый"
@@ -205,26 +283,32 @@ export function ProgressClient({
       {!loading && <ProgressBarsChart points={chartPoints} title={`За ${RANGE_LABELS[range].toLowerCase()}`} />}
 
       {!compact && !readOnly && (
-        // Одна карточка «за день» и одна кнопка сохранения (раньше было две карточки и две одинаковые кнопки)
         <Card>
           <CardHeader>
             <CardTitle>Мой день</CardTitle>
-            <p className="text-sm text-[var(--text-3)]">Без баллов — просто дневник: тренер видит его в профиле.</p>
+            <p className="text-sm text-[var(--text-3)]">
+              Рейтинговые игры подтягиваются из OpenDota. Реплеи и выводы пишете сами.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="max-w-[220px]">
               <Label htmlFor="progress-date">Дата</Label>
               <Input id="progress-date" type="date" value={dayKey} onChange={(e) => setDayKey(e.target.value)} />
             </div>
-            <div className="flex flex-wrap gap-x-8 gap-y-4">
-              <div>
-                <Label htmlFor="progress-games">Игр сыграно</Label>
-                <Stepper id="progress-games" value={gamesPlayed} onChange={setGamesPlayed} />
-              </div>
-              <div>
-                <Label htmlFor="progress-replays">Реплеев посмотрено</Label>
-                <Stepper id="progress-replays" value={replaysWatched} onChange={setReplaysWatched} />
-              </div>
+            <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+              <p className="text-[12px] font-medium uppercase tracking-wide text-[var(--text-3)]">
+                Рейтинг за день (авто)
+              </p>
+              <p className="mt-1 font-mono-num text-[22px] font-bold text-[var(--text)]">
+                {todayRanked}
+                <span className="ml-2 text-[14px] font-medium text-[var(--text-3)]">
+                  соло {soloGames} · пати {partyGames}
+                </span>
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="progress-replays">Реплеев посмотрено</Label>
+              <Stepper id="progress-replays" value={replaysWatched} onChange={setReplaysWatched} />
             </div>
             <div>
               <Label htmlFor="progress-notes">Какие реплеи</Label>
@@ -265,8 +349,8 @@ export function ProgressClient({
                 className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm"
               >
                 <p className="font-medium text-[var(--text)]">
-                  {formatShortDate(l.date)} · игр {l.gamesPlayed} · реплеев{" "}
-                  {l.replaysWatched}
+                  {formatShortDate(l.date)} · рейтинг {l.gamesPlayed} (соло {l.soloGames ?? 0} / пати{" "}
+                  {l.partyGames ?? 0}) · реплеев {l.replaysWatched}
                 </p>
                 {l.replayNotes && (
                   <p className="mt-1 text-[var(--text-2)]">Реплеи: {l.replayNotes}</p>

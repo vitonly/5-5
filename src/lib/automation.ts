@@ -7,6 +7,7 @@ import { processMvpDeadlines } from "@/lib/match-mvp";
 import { checkAllAchievements } from "@/lib/achievements";
 import { snapshotRatings } from "@/lib/rating-history";
 import { syncHallPoints } from "@/lib/hall-of-fame";
+import { syncAllStudentsProgressFromOpenDota } from "@/lib/progress-opendota";
 
 export async function processOverdueHomework() {
   const now = new Date();
@@ -96,6 +97,11 @@ export async function runAutomation() {
     return { changed: 0 };
   });
 
+  const progressDota = await syncAllStudentsProgressFromOpenDota().catch((e) => {
+    console.error("[automation] progress opendota", e);
+    return { students: 0, synced: 0, privateCount: 0, errors: [String(e)] };
+  });
+
   return {
     hallChanged: hall.changed,
     overdueProcessed,
@@ -104,6 +110,7 @@ export async function runAutomation() {
     mvpClosed,
     snapshots,
     achievementsUnlocked,
+    progressDota,
     ranAt: new Date().toISOString(),
   };
 }
