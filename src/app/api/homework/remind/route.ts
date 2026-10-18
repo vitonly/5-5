@@ -5,11 +5,21 @@ import { formatDate, displayName } from "@/lib/utils";
 import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 
-/** Статусы, где ученик ещё должен что-то сдать / доработать */
-const REMINDABLE = ["ASSIGNED", "OVERDUE", "REVISION"] as const;
+/** Статусы, где ещё можно сдать / доработать. OVERDUE не напоминаем — сдавать уже нельзя. */
+const REMINDABLE = ["ASSIGNED", "REVISION"] as const;
 
 function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Эффективный дедлайн: для доработки — revisionDeadline, иначе обычный. */
+function effectiveDeadline(a: { deadline: Date; revisionDeadline?: Date | null; status: string }) {
+  if (a.status === "REVISION" && a.revisionDeadline) return a.revisionDeadline;
+  return a.deadline;
+}
+
+function stillOpen(a: { deadline: Date; revisionDeadline?: Date | null; status: string }, now = new Date()) {
+  return (REMINDABLE as readonly string[]).includes(a.status) && effectiveDeadline(a) > now;
 }
 
 function remindText(title: string, deadline: Date) {
@@ -37,14 +47,20 @@ export async function POST(request: NextRequest) {
   };
 
   if (allIncomplete) {
-    const assignments = await prisma.homeworkAssignment.findMany({
+    const now = new Date();
+    const candidates = await prisma.homeworkAssignment.findMany({
       where: { status: { in: [...REMINDABLE] } },
       include: { homework: true, student: true },
       orderBy: { deadline: "asc" },
     });
+    // Просроченные (дедлайн прошёл) не шлём — сдать уже нельзя
+    const assignments = candidates.filter((a) => stillOpen(a, now));
 
     if (assignments.length === 0) {
-      return NextResponse.json({ error: "Некого напоминать — нет незакрытых домашек" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Некого напоминать — нет домашек с ещё не истёкшим сроком" },
+        { status: 400 }
+      );
     }
 
     // одно сообщение на ученика со списком его домашек
@@ -60,7 +76,7 @@ export async function POST(request: NextRequest) {
       const text = remindBundleText(
         sample.map((a) => ({
           title: a.homework.title,
-          deadline: a.revisionDeadline ?? a.deadline,
+          deadline: effectiveDeadline(a),
         }))
       );
       try {
@@ -94,7 +110,7 @@ export async function POST(request: NextRequest) {
       const text = remindBundleText(
         group.map((a) => ({
           title: a.homework.title,
-          deadline: a.revisionDeadline ?? a.deadline,
+          deadline: effectiveDeadline(a),
         }))
       );
       const ok = await sendTelegramMessage(chatId, text);
@@ -122,9 +138,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Задание не найдено" }, { status: 404 });
   }
 
+  if (!stillOpen(assignment)) {
+    return NextResponse.json(
+      { error: "Просроченную домашку напоминать не нужно — сдать её уже нельзя" },
+      { status: 400 }
+    );
+  }
+
   const text = remindText(
     assignment.homework.title,
-    assignment.revisionDeadline ?? assignment.deadline
+    effectiveDeadline(assignment)
   );
 
   if (testToAdmin) {

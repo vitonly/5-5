@@ -374,12 +374,16 @@ export function AdminHomeworkClient({
     });
   }
 
+  const now = Date.now();
   const remindableStudentIds = new Set<string>();
   for (const hw of initial) {
     for (const a of hw.assignments) {
-      if (a.status === "ASSIGNED" || a.status === "OVERDUE" || a.status === "REVISION") {
-        remindableStudentIds.add(a.studentId);
-      }
+      // Просроченные не считаем — напоминать бессмысленно
+      if (a.status !== "ASSIGNED" && a.status !== "REVISION") continue;
+      const due = new Date(
+        a.status === "REVISION" && a.revisionDeadline ? a.revisionDeadline : a.deadline
+      ).getTime();
+      if (due > now) remindableStudentIds.add(a.studentId);
     }
   }
   const remindableCount = remindableStudentIds.size;
@@ -605,7 +609,12 @@ export function AdminHomeworkClient({
                           <Badge variant={badgeVariant}>
                             {HOMEWORK_STATUS_LABELS[a.status]}
                           </Badge>
-                          {a.status !== "GRADED" && (
+                          {(a.status === "ASSIGNED" || a.status === "REVISION") &&
+                            new Date(
+                              a.status === "REVISION" && a.revisionDeadline
+                                ? a.revisionDeadline
+                                : a.deadline
+                            ).getTime() > now && (
                             <>
                               <Button
                                 size="sm"
