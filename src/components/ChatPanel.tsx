@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate } from "@/lib/utils";
 import { usePasteImage } from "@/lib/use-paste-image";
 import { uploadAppFile } from "@/lib/upload-client";
+import { QUICK_EVENTS } from "@/components/HeaderQuickActions";
 
 interface Message {
   id: string;
@@ -39,6 +40,19 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
 
   const isAdmin = role === "ADMIN";
   const conversationActive = isAdmin ? peerId !== null : true;
+
+  // Связь с кнопкой в шапке на телефоне (см. HeaderQuickActions)
+  useEffect(() => {
+    const toggle = () => setOpen((v) => !v);
+    const sync = () => window.dispatchEvent(new CustomEvent(QUICK_EVENTS.chatUnread, { detail: { count: totalUnread } }));
+    window.addEventListener(QUICK_EVENTS.chatToggle, toggle);
+    window.addEventListener(QUICK_EVENTS.sync, sync);
+    sync();
+    return () => {
+      window.removeEventListener(QUICK_EVENTS.chatToggle, toggle);
+      window.removeEventListener(QUICK_EVENTS.sync, sync);
+    };
+  }, [totalUnread]);
 
   const loadContacts = useCallback(async () => {
     const res = await fetch("/api/messages/contacts");
@@ -148,7 +162,7 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 z-40 flex h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full bg-[var(--points)] text-2xl text-white shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--points-hover)] active:scale-[0.97] min-[720px]:bottom-6 min-[720px]:right-6"
+        className="fixed bottom-6 right-6 z-40 hidden h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full bg-[var(--points)] text-2xl text-white shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--points-hover)] active:scale-[0.97] min-[720px]:flex"
         aria-label="Чат"
       >
         💬
@@ -160,8 +174,11 @@ export function ChatPanel({ role, myId }: { role: "ADMIN" | "STUDENT"; myId: str
       </button>
 
       <aside
-        className={`drawer-panel fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-popover)] ${
-          open ? "translate-x-0" : "translate-x-full"
+        // Закрытая панель полностью скрыта: без тени у края экрана и без фокуса клавиатурой
+        inert={!open}
+        aria-hidden={!open}
+        className={`drawer-panel fixed right-0 top-0 z-[60] flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] ${
+          open ? "is-open translate-x-0 shadow-[var(--shadow-popover)]" : "translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] p-4">

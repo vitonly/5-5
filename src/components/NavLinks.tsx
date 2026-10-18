@@ -1,16 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { isNavActive } from "@/lib/nav-active";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; badge?: number };
 
-function isActive(pathname: string, href: string) {
-  const path = href.split("?")[0] || href;
-  if (path === "/" || path === "/admin") return pathname === path;
-  return pathname === path || pathname.startsWith(path + "/");
-}
 
 /** Пункты навигации с подсветкой текущего раздела. */
 export function NavLinks({
@@ -21,11 +17,13 @@ export function NavLinks({
   variant?: "desktop" | "strip";
 }) {
   const pathname = usePathname();
+  const search = useSearchParams();
+  const hrefs = items.map((i) => i.href);
 
   return (
     <>
       {items.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = isNavActive(pathname, search, item.href, hrefs);
         return (
           <Link
             key={item.href}

@@ -299,8 +299,19 @@ h3,
 }
 
 /* Боковые панели чата / голоса */
+/* Выезжающие панели (чат, голос). Закрытая панель становится visibility:hidden
+   после того, как доедет за край, — чтобы не было видно тени и её нельзя было «нащупать» Tab-ом */
 .drawer-panel {
-  transition: transform var(--duration-drawer) var(--ease-drawer);
+  visibility: hidden;
+  transition:
+    transform var(--duration-drawer) var(--ease-drawer),
+    visibility 0s linear var(--duration-drawer);
+}
+.drawer-panel.is-open {
+  visibility: visible;
+  transition:
+    transform var(--duration-drawer) var(--ease-drawer),
+    visibility 0s;
 }
 
 /* Появление контента страницы */

@@ -11,6 +11,7 @@ import {
 } from "livekit-client";
 import type { VoiceRoomId } from "@/lib/voice-rooms";
 import { VOICE_ROOMS, isVoiceRoomId, voiceRoomLabel } from "@/lib/voice-rooms";
+import { QUICK_EVENTS } from "@/components/HeaderQuickActions";
 
 type RoomParticipant = {
   identity: string;
@@ -78,6 +79,19 @@ export function VoiceDock({ role, myId }: Props) {
   const vadThresholdRef = useRef(15);
   const [testingMic, setTestingMic] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
+
+  // Связь с кнопкой в шапке на телефоне (см. HeaderQuickActions)
+  useEffect(() => {
+    const toggle = () => setOpen((v) => !v);
+    const sync = () => window.dispatchEvent(new CustomEvent(QUICK_EVENTS.voiceState, { detail: { inRoom: Boolean(activeRoomId) } }));
+    window.addEventListener(QUICK_EVENTS.voiceToggle, toggle);
+    window.addEventListener(QUICK_EVENTS.sync, sync);
+    sync();
+    return () => {
+      window.removeEventListener(QUICK_EVENTS.voiceToggle, toggle);
+      window.removeEventListener(QUICK_EVENTS.sync, sync);
+    };
+  }, [activeRoomId]);
 
   useEffect(() => {
     speakModeRef.current = speakMode;
@@ -550,7 +564,7 @@ export function VoiceDock({ role, myId }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={fabTitle}
-        className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-[4.75rem] z-40 flex h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-xl text-[var(--text)] shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--control)] active:scale-[0.97] min-[720px]:bottom-6 min-[720px]:right-[5.5rem]"
+        className="fixed bottom-6 right-[5.5rem] z-40 hidden h-14 w-14 touch-manipulation select-none items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-xl text-[var(--text)] shadow-[var(--shadow-popover)] transition-[background-color,transform] duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-[var(--control)] active:scale-[0.97] min-[720px]:flex"
       >
         {activeRoomId ? (
           <span className="relative">
@@ -563,8 +577,11 @@ export function VoiceDock({ role, myId }: Props) {
       </button>
 
       <aside
-        className={`drawer-panel fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-popover)] ${
-          open ? "translate-x-0" : "translate-x-full"
+        // Закрытая панель полностью скрыта: без тени у края экрана и без фокуса клавиатурой
+        inert={!open}
+        aria-hidden={!open}
+        className={`drawer-panel fixed right-0 top-0 z-[60] flex h-full w-full max-w-sm flex-col border-l border-[var(--border)] bg-[var(--surface)] ${
+          open ? "is-open translate-x-0 shadow-[var(--shadow-popover)]" : "translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] p-4">

@@ -417,7 +417,7 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
         </CollapsibleCard>
       )}
 
-      <div className="grid gap-4 pt-2 lg:grid-cols-2 lg:gap-6">
+      <div className="grid grid-cols-1 gap-4 pt-2 lg:grid-cols-2 lg:gap-6" /* grid-cols-1 = minmax(0,1fr): иначе колонка растягивалась по самому широкому полю и вылезала на телефоне */>
         <Card className="lg:self-start">
           <CardHeader>
             <CardTitle className="flex items-baseline gap-2">

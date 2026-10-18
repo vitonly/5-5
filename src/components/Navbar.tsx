@@ -7,17 +7,18 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { NavLinks } from "@/components/NavLinks";
 import { DesktopNav } from "@/components/DesktopNav";
 import { UserMenu } from "@/components/UserMenu";
+import { HeaderQuickActions } from "@/components/HeaderQuickActions";
 import { getVotingSeason } from "@/lib/seasons";
 
 const studentLinks = [
   { href: "/homework", label: "Домашки" },
   { href: "/materials", label: "Материалы" },
   { href: "/lessons", label: "Архив" },
-  { href: "/match", label: "5x5" },
+  { href: "/match", label: "5v5" },
   { href: "/hall", label: "Зал славы" },
   { href: "/progress", label: "Мой прогресс" },
   { href: "/profile?tab=achievements", label: "Ачивки" },
-  { href: "/rules", label: "Rule book" },
+  { href: "/rules", label: "Правила" },
   { href: "/stats", label: "Статистика" },
 ];
 
@@ -104,28 +105,31 @@ export async function Navbar() {
     }
   }
 
+  // Телефон, ученик: 4 основных раздела + «Ещё» (лист со второстепенными)
   const studentTabs = [
+    { href: "/", label: "Главная", icon: "home" as const, exact: true },
     {
       href: "/homework",
       label: "Домашки",
       icon: "hw" as const,
       badge: pendingHomework,
     },
-    { href: "/materials", label: "Материалы", icon: "mat" as const },
     {
       href: "/match",
-      label: "5x5",
+      label: "5v5",
       icon: "match" as const,
       matchPrefix: "/match",
       badge: pendingVotes,
     },
-    {
-      href: "/profile",
-      label: "Профиль",
-      icon: "profile" as const,
-      matchPrefix: "/profile",
-      alsoMatch: [`/player/${user.id}`],
-    },
+    { href: "/materials", label: "Материалы", icon: "mat" as const },
+  ];
+  const studentMore = [
+    { href: "/profile", label: "Профиль" },
+    { href: "/hall", label: "Зал славы" },
+    { href: "/stats", label: "Статистика" },
+    { href: "/progress", label: "Мой прогресс" },
+    { href: "/rules", label: "Правила" },
+    { href: "/lessons", label: "Архив" },
   ];
 
   const adminTabs = [
@@ -167,6 +171,7 @@ export async function Navbar() {
   const primaryItems = PRIMARY.map((h) => desktopItems.find((i) => i.href === h)!).filter(Boolean);
   const moreItems = desktopItems.filter((i) => !PRIMARY.includes(i.href));
 
+  // Полоска под шапкой осталась только у тренера; у ученика эти разделы — в «Ещё» нижней панели
   const mobileStripItems = isAdmin
     ? adminLinks.filter(
         (l) =>
@@ -174,14 +179,7 @@ export async function Navbar() {
             l.href
           )
       )
-    : [
-        { href: "/hall", label: "Зал славы" },
-        { href: "/progress", label: "Мой прогресс" },
-        { href: "/profile?tab=achievements", label: "Ачивки" },
-        { href: "/rules", label: "Rule book" },
-        { href: "/stats", label: "Статистика" },
-        { href: "/lessons", label: "Архив" },
-      ];
+    : [];
 
   return (
     <>
@@ -217,26 +215,32 @@ export async function Navbar() {
             <DesktopNav primary={primaryItems} more={moreItems} />
           </div>
 
-          <UserMenu
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Телефон: голос и чат — в шапке, а не плавающими кнопками поверх контента */}
+            <HeaderQuickActions />
+            <UserMenu
             name={displayName(user)}
             firstName={user.firstName}
             lastName={user.lastName}
             photoUrl={user.photoUrl}
             profileHref={isAdmin ? (user.profile ? playerProfilePath(user.id, user) : "/admin") : "/profile"}
             profileLabel={isAdmin ? (user.profile ? "Мой профиль игрока" : "Панель тренера") : "Мой профиль"}
-          />
+            />
+          </div>
         </div>
 
-        {/* mobile: второстепенные разделы — тонкая лента */}
+        {/* mobile (тренер): второстепенные разделы — тонкая лента */}
+        {mobileStripItems.length > 0 && (
         <nav
           aria-label="Дополнительные разделы"
           className="no-scrollbar flex gap-1 overflow-x-auto border-t border-[var(--border-soft)] px-3 py-1.5 min-[720px]:hidden"
         >
           <NavLinks items={mobileStripItems} variant="strip" />
         </nav>
+        )}
       </header>
 
-      <MobileTabBar tabs={isAdmin ? adminTabs : studentTabs} />
+      <MobileTabBar tabs={isAdmin ? adminTabs : studentTabs} more={isAdmin ? [] : studentMore} />
     </>
   );
 }

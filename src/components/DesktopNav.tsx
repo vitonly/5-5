@@ -1,18 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { isNavActive } from "@/lib/nav-active";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; badge?: number };
 
-function isActive(pathname: string, href: string) {
-  const path = href.split("?")[0] || href;
-  if (path === "/" || path === "/admin") return pathname === path;
-  return pathname === path || pathname.startsWith(path + "/");
-}
 
 function Badge({ n }: { n?: number }) {
   if (!n) return null;
@@ -37,6 +33,9 @@ const itemClass = (active: boolean) =>
  */
 export function DesktopNav({ primary, more }: { primary: NavItem[]; more: NavItem[] }) {
   const pathname = usePathname();
+  const search = useSearchParams();
+  const hrefs = [...primary, ...more].map((i) => i.href);
+  const isActive = (_p: string, href: string) => isNavActive(pathname, search, href, hrefs);
   const activeMore = more.find((m) => isActive(pathname, m.href));
   const moreBadge = more.reduce((s, m) => s + (m.badge ?? 0), 0);
 

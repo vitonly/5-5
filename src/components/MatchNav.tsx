@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/match", label: "Матчи" },
-  { href: "/match/seasons", label: "Сезоны" },
+  // Таблица очков по сезонам живёт в одном месте — «Статистика»; здесь только ссылка на неё
+  { href: "/stats", label: "Сезоны" },
   { href: "/match/vote", label: "Голосование" },
 ];
 

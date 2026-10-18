@@ -207,11 +207,11 @@ export async function PlayerProfileView({
               </span>
             </Link>
           )}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <WeeklyPointsChart logs={logs} />
             <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
           </div>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <HistoryChart
               title="Место в сезоне по неделям"
               points={placeHistory.points}

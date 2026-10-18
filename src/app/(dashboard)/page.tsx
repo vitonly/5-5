@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { TopPlayerCard } from "@/components/TopPlayerCard";
@@ -192,6 +193,14 @@ export default async function HomePage() {
         <div className="mt-4 flex justify-center empty:hidden">
           <MotionChip />
         </div>
+        {/* На главной — только пьедестал; вся таблица в «Статистике» */}
+        {players.length > 0 && (
+          <div className="mt-4 flex justify-center">
+            <Link href="/stats" className="press inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-[14px] font-medium text-[var(--points)] hover:bg-[var(--points-bg)]">
+              Вся таблица очков <span aria-hidden>→</span>
+            </Link>
+          </div>
+        )}
       </section>
 
       {lastMatch && <LastMatchCard {...lastMatch} />}
