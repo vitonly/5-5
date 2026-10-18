@@ -15,15 +15,16 @@ import paramiko
 
 HOST = "201.34.159.109"
 USER = "root"
-PASSWORD = os.environ.get("VPS_ROOT_PASSWORD", "")
-if not PASSWORD:
-    raise SystemExit("Set VPS_ROOT_PASSWORD env var")
+PASSWORD = os.environ.get("VPS_ROOT_PASSWORD", "")  # optional after key-only SSH
 REMOTE_APP = "/var/www/startplus/app"
 _PG_PASS = os.environ.get("VPS_PG_PASSWORD", "")
 if not _PG_PASS:
     raise SystemExit("Set VPS_PG_PASSWORD env var")
 PG_URL = f"postgresql://startplus:{quote_plus(_PG_PASS)}@127.0.0.1:5432/startplus"
 ROOT = Path(__file__).resolve().parents[1]
+SSH_KEY = Path(
+    os.environ.get("VPS_SSH_KEY", str(Path.home() / ".ssh" / "id_ed25519_startdota"))
+)
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -32,16 +33,25 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 def connect() -> paramiko.SSHClient:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        HOST,
+    kw: dict = dict(
+        hostname=HOST,
         username=USER,
-        password=PASSWORD,
         timeout=60,
         banner_timeout=60,
         auth_timeout=60,
         allow_agent=False,
         look_for_keys=False,
     )
+    # Prefer SSH key (password login disabled on VPS after security audit)
+    if SSH_KEY.exists():
+        kw["pkey"] = paramiko.Ed25519Key.from_private_key_file(str(SSH_KEY))
+    elif PASSWORD:
+        kw["password"] = PASSWORD
+    else:
+        raise SystemExit(
+            f"No SSH key at {SSH_KEY} and VPS_ROOT_PASSWORD not set"
+        )
+    client.connect(**kw)
     t = client.get_transport()
     if t:
         t.set_keepalive(30)
