@@ -1,6 +1,6 @@
 /**
  * Синк рейтинговых матчей OpenDota → ProgressLog (соло / пати по дням МСК).
- * Окно: с понедельника текущей недели МСК. Реплеи/заметки не трогаем.
+ * Окно по умолчанию: с 1-го числа текущего месяца МСК. Реплеи/заметки не трогаем.
  */
 import { prisma } from "@/lib/db";
 import { APP_TIMEZONE, parseAppDateTime } from "@/lib/utils";
@@ -29,34 +29,15 @@ function toDayDate(dateStr: string) {
   return parseAppDateTime(`${dateStr.slice(0, 10)}T12:00`);
 }
 
-/** Понедельник текущей недели МСК (день ключ YYYY-MM-DD). */
-export function moscowWeekMondayKey(anchor = new Date()): string {
+/** 1-е число текущего месяца МСК (YYYY-MM-DD). */
+export function moscowMonthStartKey(anchor = new Date()): string {
   const key = moscowDayKey(anchor);
-  // Полдень МСК этого дня → день недели в МСК
-  const noon = parseAppDateTime(`${key}T12:00`);
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone: APP_TIMEZONE,
-    weekday: "short",
-  }).format(noon);
-  const map: Record<string, number> = {
-    Mon: 0,
-    Tue: 1,
-    Wed: 2,
-    Thu: 3,
-    Fri: 4,
-    Sat: 5,
-    Sun: 6,
-  };
-  const offset = map[weekday] ?? 0;
-  const mon = new Date(noon);
-  mon.setDate(mon.getDate() - offset);
-  return moscowDayKey(mon);
+  return `${key.slice(0, 8)}01`;
 }
 
-function daysSinceMondayInclusive(): number {
+function daysFromKeyInclusive(fromKey: string): number {
   const today = moscowDayKey();
-  const monday = moscowWeekMondayKey();
-  const t0 = parseAppDateTime(`${monday}T00:00`).getTime();
+  const t0 = parseAppDateTime(`${fromKey}T00:00`).getTime();
   const t1 = parseAppDateTime(`${today}T23:59`).getTime();
   return Math.max(1, Math.ceil((t1 - t0) / 86_400_000));
 }
@@ -91,11 +72,11 @@ export type SyncUserResult = {
 
 /**
  * Синк одного ученика. Перезаписывает solo/party/gamesPlayed только в днях,
- * где OpenDota вернул рейтинговые матчи (с понедельника недели).
+ * где OpenDota вернул рейтинговые матчи (с fromDayKey или с 1-го числа месяца).
  */
 export async function syncProgressFromOpenDota(
   userId: string,
-  opts?: { force?: boolean }
+  opts?: { force?: boolean; fromDayKey?: string }
 ): Promise<SyncUserResult> {
   const profile = await prisma.playerProfile.findUnique({ where: { userId } });
   if (!profile?.steamAccountId) {
@@ -118,9 +99,9 @@ export async function syncProgressFromOpenDota(
   }
 
   const accountId = profile.steamAccountId;
-  const days = daysSinceMondayInclusive();
-  const mondayKey = moscowWeekMondayKey();
-  const mondayStartSec = Math.floor(parseAppDateTime(`${mondayKey}T00:00`).getTime() / 1000);
+  const fromKey = opts?.fromDayKey ?? moscowMonthStartKey();
+  const days = daysFromKeyInclusive(fromKey);
+  const fromStartSec = Math.floor(parseAppDateTime(`${fromKey}T00:00`).getTime() / 1000);
 
   const playerRes = await fetchJson<{
     profile?: { account_id?: number; personaname?: string } | null;
@@ -151,7 +132,7 @@ export async function syncProgressFromOpenDota(
     (m) =>
       m.lobby_type === RANKED_LOBBY &&
       typeof m.start_time === "number" &&
-      m.start_time >= mondayStartSec
+      m.start_time >= fromStartSec
   );
 
   // Приватность: нет profile в OpenDota, либо recent matches совсем пустые
@@ -170,7 +151,7 @@ export async function syncProgressFromOpenDota(
   for (const m of matches) {
     const start = (m.start_time ?? 0) * 1000;
     const day = moscowDayKey(new Date(start));
-    if (day < mondayKey) continue;
+    if (day < fromKey) continue;
     const cur = byDay.get(day) ?? { solo: 0, party: 0 };
     const partySize = m.party_size;
     if (typeof partySize === "number" && partySize > 1) cur.party += 1;
@@ -218,25 +199,40 @@ export async function syncProgressFromOpenDota(
   };
 }
 
-/** Cron: все ученики с steamAccountId */
-export async function syncAllStudentsProgressFromOpenDota() {
+/** Cron / ручной прогон: все ученики с steamAccountId */
+export async function syncAllStudentsProgressFromOpenDota(opts?: { fromDayKey?: string }) {
   const profiles = await prisma.playerProfile.findMany({
     where: { steamAccountId: { not: null }, user: { role: "STUDENT" } },
     select: { userId: true },
   });
   let synced = 0;
   let privateCount = 0;
+  let rankedTotal = 0;
+  let daysUpdated = 0;
   const errors: string[] = [];
   for (const p of profiles) {
     try {
-      const r = await syncProgressFromOpenDota(p.userId, { force: true });
+      const r = await syncProgressFromOpenDota(p.userId, {
+        force: true,
+        fromDayKey: opts?.fromDayKey,
+      });
       if (r.ok) synced++;
       if (r.private) privateCount++;
+      rankedTotal += r.rankedFound;
+      daysUpdated += r.daysUpdated;
       if (r.error) errors.push(`${p.userId}:${r.error}`);
     } catch (e) {
       errors.push(`${p.userId}:${e instanceof Error ? e.message : String(e)}`);
     }
     await sleep(CRON_PAUSE_MS);
   }
-  return { students: profiles.length, synced, privateCount, errors: errors.slice(0, 20) };
+  return {
+    students: profiles.length,
+    synced,
+    privateCount,
+    rankedTotal,
+    daysUpdated,
+    fromDayKey: opts?.fromDayKey ?? moscowMonthStartKey(),
+    errors: errors.slice(0, 20),
+  };
 }
