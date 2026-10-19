@@ -35,6 +35,89 @@ export function moscowMonthStartKey(anchor = new Date()): string {
   return `${key.slice(0, 8)}01`;
 }
 
+/** Понедельник недели МСК для даты. */
+export function moscowWeekMondayKey(anchor = new Date()): string {
+  const key = moscowDayKey(anchor);
+  const noon = parseAppDateTime(`${key}T12:00`);
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIMEZONE,
+    weekday: "short",
+  }).format(noon);
+  const map: Record<string, number> = {
+    Mon: 0,
+    Tue: 1,
+    Wed: 2,
+    Thu: 3,
+    Fri: 4,
+    Sat: 5,
+    Sun: 6,
+  };
+  const offset = map[weekday] ?? 0;
+  const mon = new Date(noon);
+  mon.setDate(mon.getDate() - offset);
+  return moscowDayKey(mon);
+}
+
+export type WeeklyProgressPoint = {
+  label: string;
+  solo: number;
+  party: number;
+  replays: number;
+};
+
+/** Агрегат ProgressLog по неделям (пн МСК) — для графика в профиле. */
+export async function getWeeklyProgressSeries(
+  userId: string,
+  weeks = 8
+): Promise<WeeklyProgressPoint[]> {
+  const thisMonday = moscowWeekMondayKey();
+  const startNoon = parseAppDateTime(`${thisMonday}T12:00`);
+  startNoon.setDate(startNoon.getDate() - (weeks - 1) * 7);
+  const fromKey = moscowDayKey(startNoon);
+  const from = parseAppDateTime(`${fromKey}T00:00`);
+  const to = parseAppDateTime(`${moscowDayKey()}T23:59`);
+
+  const logs = await prisma.progressLog.findMany({
+    where: { userId, date: { gte: from, lte: to } },
+    orderBy: { date: "asc" },
+  });
+
+  const weekKeys: string[] = [];
+  for (let i = 0; i < weeks; i++) {
+    const d = parseAppDateTime(`${thisMonday}T12:00`);
+    d.setDate(d.getDate() - (weeks - 1 - i) * 7);
+    weekKeys.push(moscowDayKey(d));
+  }
+
+  const byWeek = new Map<string, { solo: number; party: number; replays: number }>();
+  for (const k of weekKeys) byWeek.set(k, { solo: 0, party: 0, replays: 0 });
+
+  for (const log of logs) {
+    const wk = moscowWeekMondayKey(log.date);
+    if (!byWeek.has(wk)) continue;
+    const cur = byWeek.get(wk)!;
+    cur.solo += log.soloGames;
+    cur.party += log.partyGames;
+    cur.replays += log.replaysWatched;
+  }
+
+  const labelFmt = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: APP_TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+  });
+
+  return weekKeys.map((k) => {
+    const cur = byWeek.get(k)!;
+    return {
+      label: labelFmt.format(parseAppDateTime(`${k}T12:00`)),
+      solo: cur.solo,
+      party: cur.party,
+      replays: cur.replays,
+    };
+  });
+}
+
 function daysFromKeyInclusive(fromKey: string): number {
   const today = moscowDayKey();
   const t0 = parseAppDateTime(`${fromKey}T00:00`).getTime();

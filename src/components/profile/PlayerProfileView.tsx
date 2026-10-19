@@ -24,10 +24,12 @@ import { getVotingSeason } from "@/lib/seasons";
 import { ensureTelegramLinkToken, isTelegramLinked } from "@/lib/telegram-links";
 import type { VibeValue } from "@/lib/rating";
 import { getAchievementOverview } from "@/lib/achievements";
-import { getPowerHistory, getSeasonPlaceHistory } from "@/lib/rating-history";
+import { getSeasonPlaceHistory } from "@/lib/rating-history";
+import { getWeeklyProgressSeries } from "@/lib/progress-opendota";
 import { AchievementsTab } from "@/components/achievements/AchievementsTab";
 import { AchievementBadge } from "@/components/achievements/AchievementBadge";
 import { HistoryChart } from "@/components/profile/HistoryChart";
+import { ProgressBarsChart } from "@/components/ProgressBarsChart";
 import { HeroStatsEmpty, HeroStatsTab } from "@/components/profile/HeroStatsTab";
 import { getReplayStats } from "@/lib/replay-stats";
 import type { User, PlayerProfile } from "@prisma/client";
@@ -67,7 +69,7 @@ export async function PlayerProfileView({
   const ratingSeason = await getVotingSeason();
   const isOwn = viewer?.id === user.id;
 
-  const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, powerHistory, replayStats] = await Promise.all([
+  const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, weeklyProgress, replayStats] = await Promise.all([
     prisma.pointLog.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -91,7 +93,7 @@ export async function PlayerProfileView({
     prisma.user.count({ where: { role: "STUDENT" } }),
     getAchievementOverview(userId, { revealSecrets: isOwn }),
     getSeasonPlaceHistory(userId),
-    getPowerHistory(userId),
+    user.role === "STUDENT" ? getWeeklyProgressSeries(userId, 8) : Promise.resolve([]),
     getReplayStats(userId),
   ]);
 
@@ -212,27 +214,33 @@ export async function PlayerProfileView({
             <WeeklyPointsChart logs={logs} />
             <SchoolPointsTile totalPoints={profile.totalPoints} logs={logs} />
           </div>
-          {/* График места показываем, только когда есть хотя бы 2 точки — пустая карточка-заглушка была шумом.
-              Само место всё равно видно в шапке профиля */}
-          <div className={cn("grid grid-cols-1 gap-6", hasPlaceChart && canSeePower && "lg:grid-cols-2")}>
-            {hasPlaceChart && (
-            <HistoryChart
-              title="Место в сезоне по неделям"
-              points={placeHistory.points}
-              invert
-              formatAs="place"
-              emptyText="График появится после первых начислений в сезоне"
-              hint={placeHistory.total ? `из ${placeHistory.total} учеников` : undefined}
-            />
+          {/* Место в сезоне + прогресс игр/реплеев по неделям (вместо бесполезного графика силы) */}
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-6",
+              hasPlaceChart && user.role === "STUDENT" && "lg:grid-cols-2"
             )}
-            {canSeePower && (
+          >
+            {hasPlaceChart && (
               <HistoryChart
-                title="Рейтинг силы по неделям"
-                points={powerHistory}
-                color="var(--power)"
-                emptyText="Сила записывается раз в день — график появится через пару недель"
-                hint="Видишь только ты и тренер"
+                title="Место в сезоне по неделям"
+                points={placeHistory.points}
+                invert
+                formatAs="place"
+                emptyText="График появится после первых начислений в сезоне"
+                hint={placeHistory.total ? `из ${placeHistory.total} учеников` : undefined}
               />
+            )}
+            {user.role === "STUDENT" && (
+              <div className="space-y-2">
+                <ProgressBarsChart
+                  points={weeklyProgress}
+                  title="Игры и реплеи по неделям"
+                />
+                <p className="px-1 text-[12px] text-[var(--text-3)]">
+                  Рейтинг соло/пати из OpenDota · реплеи — из дневника · подпись — понедельник недели
+                </p>
+              </div>
             )}
           </div>
           {canSeePower && (
