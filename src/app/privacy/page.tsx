@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Политика конфиденциальности",
-  description: "Обработка персональных данных на платформе СТАРТ+ dota2 education",
+  description: "Обработка персональных данных на платформе СТАРТ+ dota 2 education",
 };
 
 export default function PrivacyPage() {
@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           Политика конфиденциальности
         </h1>
         <p className="mt-2 text-sm text-[var(--text-3)]">
-          Платформа «СТАРТ+ dota2 education». Документ носит информационный характер и не заменяет
+          Платформа «СТАРТ+ dota 2 education». Документ носит информационный характер и не заменяет
           юридическую консультацию. Актуальная редакция: октябрь 2026.
         </p>
       </div>

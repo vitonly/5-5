@@ -166,14 +166,14 @@ export async function Navbar() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/start-plus.png?v=2"
+              src="/brand/start-plus.png?v=3"
               alt=""
               className="h-9 w-9 shrink-0 object-contain min-[720px]:h-10 min-[720px]:w-10"
             />
             <span className="truncate font-display text-[15px] font-bold tracking-[-0.01em] text-[var(--text)] min-[720px]:text-[17px]">
               СТАРТ<span className="text-[var(--points)]">+</span>
               <span className="ml-1.5 hidden font-sans text-[13px] font-medium tracking-normal text-[var(--text-3)] min-[1200px]:inline">
-                dota2 education
+                dota 2 education
               </span>
             </span>
           </Link>

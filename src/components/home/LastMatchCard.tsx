@@ -15,6 +15,7 @@ export function LastMatchCard({
   direWins,
   mvp,
   mvpTeamWon,
+  mvpTied,
   sessionId,
   correctPredictors,
 }: {
@@ -26,11 +27,15 @@ export function LastMatchCard({
   /** null — MVP ещё не определён, показываем ★ */
   mvp: Person | null;
   mvpTeamWon: boolean | null;
+  /** Ничья за 1-е место по голосам — два (или больше) лидера */
+  mvpTied?: Person[];
   /** Для ссылки сразу на «Итоги дня» этого матча */
   sessionId?: string;
   /** Кто угадал все игры дня */
   correctPredictors?: Person[];
 }) {
+  const tied = !mvp && mvpTied && mvpTied.length >= 2 ? mvpTied.slice(0, 2) : null;
+
   return (
     <Link
       href={sessionId ? `/match?open=${sessionId}#m-${sessionId}` : "/match"}
@@ -78,6 +83,36 @@ export function LastMatchCard({
               {mvpTeamWon && <span className="block text-[12px] text-[var(--text-2)]">Команда победила</span>}
             </span>
           </>
+        ) : tied ? (
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <span className="relative shrink-0 rounded-full ring-2 ring-[var(--gold-light)]">
+              <Avatar
+                photoUrl={tied[0].photoUrl}
+                firstName={tied[0].firstName}
+                lastName={tied[0].lastName}
+                size={40}
+                className="ring-0"
+              />
+            </span>
+            <span className="min-w-0 flex-1 text-center">
+              <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--warning-ink)]">MVP дня</span>
+              <span className="block truncate font-display text-[14px] font-bold leading-tight text-[var(--text)] min-[720px]:text-[15px]">
+                {displayName(tied[0])}
+                <span className="mx-1 font-sans font-semibold text-[var(--text-3)]">&</span>
+                {displayName(tied[1])}
+              </span>
+              <span className="block text-[12px] text-[var(--text-2)]">очень сильные пацаны))</span>
+            </span>
+            <span className="relative shrink-0 rounded-full ring-2 ring-[var(--gold-light)]">
+              <Avatar
+                photoUrl={tied[1].photoUrl}
+                firstName={tied[1].firstName}
+                lastName={tied[1].lastName}
+                size={40}
+                className="ring-0"
+              />
+            </span>
+          </div>
         ) : (
           <>
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--gold)]/20 ring-2 ring-[var(--gold-light)]">

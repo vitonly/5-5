@@ -41,6 +41,7 @@ export default async function HomePage() {
         include: {
           games: { select: { gameNumber: true, winnerTeam: true }, orderBy: { gameNumber: "asc" } },
           predictions: { select: { userId: true, gameNumber: true, pick: true } },
+          mvpVotes: { select: { nomineeId: true } },
         },
       }),
     ]);
@@ -93,6 +94,7 @@ export default async function HomePage() {
     const radiant = parseJsonArray(lastSession.radiantPlayerIds);
     const dire = parseJsonArray(lastSession.direPlayerIds);
     const predIds = [...new Set(lastSession.predictions.map((p) => p.userId))];
+    const voteNomineeIds = [...new Set(lastSession.mvpVotes.map((v) => v.nomineeId))];
     const people = await prisma.user.findMany({
       where: {
         id: {
@@ -101,6 +103,7 @@ export default async function HomePage() {
             ...dire,
             ...(lastSession.mvpWinnerId ? [lastSession.mvpWinnerId] : []),
             ...predIds,
+            ...voteNomineeIds,
           ],
         },
       },
@@ -131,6 +134,30 @@ export default async function HomePage() {
           : null
       : null;
 
+    /** Ничья за 1-е место — только когда голосование уже закрыто без победителя. */
+    let mvpTied: (typeof people)[number][] | undefined;
+    if (!mvp && lastSession.mvpResolved && lastSession.mvpVotes.length > 0) {
+      const counts = new Map<string, number>();
+      for (const v of lastSession.mvpVotes) {
+        counts.set(v.nomineeId, (counts.get(v.nomineeId) ?? 0) + 1);
+      }
+      let best = 0;
+      let leaders: string[] = [];
+      for (const [id, n] of counts) {
+        if (n > best) {
+          best = n;
+          leaders = [id];
+        } else if (n === best) {
+          leaders.push(id);
+        }
+      }
+      if (best > 0 && leaders.length >= 2) {
+        mvpTied = leaders
+          .map((id) => byId[id])
+          .filter((u): u is NonNullable<typeof u> => Boolean(u));
+      }
+    }
+
     const games = hasGame2Lineup(lastSession) ? [1, 2] : [1];
     const predUsers = [...new Set(lastSession.predictions.map((p) => p.userId))];
     const correctPredictors = predUsers
@@ -156,6 +183,7 @@ export default async function HomePage() {
         mvp && mvpSide && radiantWins !== direWins
           ? (mvpSide === "RADIANT") === radiantWins > direWins
           : null,
+      mvpTied,
       correctPredictors,
     };
   }

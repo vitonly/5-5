@@ -28,14 +28,14 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "СТАРТ+ · dota2 education",
+    default: "СТАРТ+ · dota 2 education",
     template: "%s · СТАРТ+",
   },
   applicationName: "СТАРТ+",
   description: "СТАРТ+ — платформа обучения Dota 2: домашки, рейтинги, 5v5. Сайт в разработке v1.01",
   icons: {
-    icon: [{ url: "/brand/start-plus.png?v=2", type: "image/png" }],
-    apple: [{ url: "/pwa/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    icon: [{ url: "/brand/start-plus-icon.png?v=3", type: "image/png" }],
+    apple: [{ url: "/pwa/apple-touch-icon.png?v=3", sizes: "180x180", type: "image/png" }],
   },
   appleWebApp: {
     capable: true,
