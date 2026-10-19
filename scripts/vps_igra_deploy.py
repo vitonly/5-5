@@ -130,8 +130,15 @@ def main() -> None:
 
     # 2. Python-окружение
     run(client, "command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3)")
-    run(client, "python3 -m venv --help >/dev/null 2>&1 || apt-get install -y -qq python3-venv")
-    run(client, f"test -x {REMOTE_IGRA}/venv/bin/python || python3 -m venv {REMOTE_IGRA}/venv")
+    # Для venv в Debian/Ubuntu нужен пакет pythonX.Y-venv под точную версию Python
+    run(client, "PYV=$(python3 -c 'import sys; print(f\"{sys.version_info[0]}.{sys.version_info[1]}\")'); "
+                "python3 -c 'import ensurepip' 2>/dev/null || "
+                "(apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python$PYV-venv "
+                "|| DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-venv)", timeout=900)
+    # Недоделанный venv (без pip) пересоздаём
+    code, _ = run(client, f"test -x {REMOTE_IGRA}/venv/bin/pip || (rm -rf {REMOTE_IGRA}/venv && python3 -m venv {REMOTE_IGRA}/venv)")
+    if code != 0:
+        raise SystemExit("Не удалось создать Python-окружение на сервере")
     code, _ = run(client, f"{REMOTE_IGRA}/venv/bin/pip install -q --upgrade -r {REMOTE_IGRA}/requirements.txt", timeout=900)
     if code != 0:
         raise SystemExit("Не удалось установить aiohttp")
