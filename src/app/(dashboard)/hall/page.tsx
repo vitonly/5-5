@@ -129,7 +129,7 @@ function RecordCard({
             <span
               aria-label={anti ? `−${HALL_POINTS} очка` : `+${HALL_POINTS} очка`}
               className={cn(
-                "absolute -right-2.5 -top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full font-mono-num text-[11px] font-bold text-white shadow-[var(--shadow-xs)]",
+                "absolute -right-2 -top-2 z-10 flex h-7 min-w-7 items-center justify-center rounded-full px-2 font-mono-num text-[11px] font-bold leading-none text-white shadow-[var(--shadow-xs)]",
                 anti ? "bg-[var(--danger)]" : "bg-[var(--success)]"
               )}
             >
