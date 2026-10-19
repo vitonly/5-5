@@ -15,6 +15,8 @@ const studentLinks = [
   { href: "/lessons", label: "Архив" },
   { href: "/match", label: "5v5" },
   { href: "/hall", label: "Зал славы" },
+  // «Своя игра» — отдельная служба на сервере (не страница Next.js), открывается по /igra/
+  { href: "/igra/", label: "Своя игра" },
   { href: "/progress", label: "Мой прогресс" },
   { href: "/profile?tab=achievements", label: "Ачивки" },
   { href: "/rules", label: "Правила" },
@@ -32,6 +34,8 @@ const adminLinksBase = [
   { href: "/admin/seasons", label: "Сезоны" },
   { href: "/admin/penalties", label: "Очки" },
   { href: "/hall", label: "Зал славы" },
+  // Пульт ведущего «Своей игры»
+  { href: "/igra/host", label: "Своя игра" },
 ];
 
 export async function Navbar() {

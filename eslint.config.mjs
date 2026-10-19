@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // «Своя игра» — отдельная служба на Python со своими страницами
+    "igra/**",
   ]),
 ]);
 

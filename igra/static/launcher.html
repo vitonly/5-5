@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Своя игра</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Стартовый экран приложения: выбор роли и поиск игры в сети */
+  .home { position: relative; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5vh; padding: 24px; }
+  .big-logo { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .tiles { display: flex; gap: 8px; }
+  .tiles span {
+    display: grid; place-items: center; width: clamp(54px, 7vw, 96px); height: clamp(54px, 7vw, 96px);
+    font-family: var(--display); font-size: clamp(34px, 4.6vw, 64px); border-radius: 10px;
+    background: linear-gradient(180deg, #fff, #dfe6ff); color: var(--bg-1);
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: zoomIn .5s cubic-bezier(.2,1.4,.4,1) both;
+  }
+  .tiles span.g { background: linear-gradient(180deg, var(--gold), var(--gold-2)); }
+  .tiles span:nth-child(2) { animation-delay: .05s; } .tiles span:nth-child(3) { animation-delay: .1s; } .tiles span:nth-child(4) { animation-delay: .15s; }
+  .row2 span { animation-delay: .25s !important; }
+
+  .choices { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+  .choice {
+    width: min(360px, 80vw); padding: 30px 26px; border-radius: 22px; cursor: pointer; text-align: left;
+    border: 2px solid var(--line); color: var(--text);
+    background: linear-gradient(180deg, rgba(34,56,184,.55), rgba(20,34,122,.55));
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .choice:hover { transform: translateY(-4px); border-color: var(--gold); box-shadow: 0 16px 50px rgba(255,190,40,.25); }
+  .choice .t { font-family: var(--display); font-size: 34px; }
+  .choice .d { color: var(--muted); font-weight: 600; line-height: 1.4; }
+  .choice.main .t { color: var(--gold); }
+
+  .panel-box { width: min(720px, 92vw); display: flex; flex-direction: column; gap: 14px; }
+  .games { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+  .game {
+    display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 16px; cursor: pointer;
+    background: var(--panel); border: 2px solid var(--line); transition: border-color .15s, transform .15s;
+    animation: fadeIn .3s ease both;
+  }
+  .game:hover { border-color: var(--gold); transform: translateX(4px); }
+  .game .info { flex: 1; }
+  .game .h { font-weight: 800; font-size: 20px; }
+  .game .p { color: var(--muted); font-weight: 600; }
+  .game .go { font-family: var(--display); color: var(--gold); font-size: 22px; }
+  .searching { display: flex; align-items: center; gap: 12px; color: var(--muted); font-weight: 700; justify-content: center; padding: 20px; }
+  .spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid rgba(255,255,255,.15); border-top-color: var(--gold); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .manual { display: flex; gap: 10px; }
+  .manual input { flex: 1; }
+  .hint { color: var(--muted); font-size: 14px; text-align: center; }
+  .exit { position: fixed; top: 16px; right: 16px; }
+  .back { position: fixed; top: 16px; left: 16px; }
+  .err { color: #ffb3c0; font-weight: 700; text-align: center; min-height: 1.4em; }
+</style>
+</head>
+<body>
+  <button class="btn ghost small exit" id="exitBtn">Выход ✕</button>
+
+  <!-- Главный экран: выбор роли -->
+  <div class="home" id="homeView">
+    <div class="big-logo">
+      <div class="tiles"><span>С</span><span>В</span><span>О</span><span class="g">Я</span></div>
+      <div class="tiles row2"><span>И</span><span>Г</span><span>Р</span><span class="g">А</span></div>
+    </div>
+    <div class="choices">
+      <button class="choice main" id="playBtn">
+        <div class="t">Играть</div>
+        <div class="d">Найти игру в сети класса и подключиться</div>
+      </button>
+      <button class="choice" id="hostBtn">
+        <div class="t">Вести игру</div>
+        <div class="d">Запустить игру на этом компьютере. Только для ведущего</div>
+      </button>
+    </div>
+    <div class="err" id="homeErr"></div>
+  </div>
+
+  <!-- Поиск игры -->
+  <div class="home" id="searchView" style="display:none">
+    <button class="btn ghost small back" id="backBtn">← Назад</button>
+    <div class="mega" style="font-size:clamp(34px,5vw,64px)">Поиск игры</div>
+    <div class="panel-box">
+      <div class="games" id="games"><div class="searching"><div class="spinner"></div>Ищем игры в сети…</div></div>
+      <div class="hint">Не нашлась? Введите адрес, который показывает ведущий:</div>
+      <form class="manual" id="manualForm">
+        <input type="text" id="addr" placeholder="например 192.168.1.10" autocomplete="off">
+        <button class="btn gold">Подключиться</button>
+      </form>
+      <div class="err" id="searchErr"></div>
+    </div>
+  </div>
+
+<script>
+/* Стартовый экран. Вызовы window.pywebview.api.* уходят в Python (app.py). */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let api = null;
+let searchTimer = null;
+
+// pywebview подключает мост к Python чуть позже загрузки страницы
+function ready() { api = window.pywebview && window.pywebview.api; }
+window.addEventListener("pywebviewready", ready);
+ready();
+
+const PHASES = { lobby: "ждёт игроков", game_over: "игра окончена" };
+
+$("#exitBtn").onclick = () => api && api.quit();
+
+$("#hostBtn").onclick = async () => {
+  $("#homeErr").textContent = "Запускаю игру…";
+  const r = await api.host();
+  if (!r.ok) $("#homeErr").textContent = r.msg;
+};
+
+$("#playBtn").onclick = async () => {
+  $("#homeView").style.display = "none";
+  $("#searchView").style.display = "";
+  const last = await api.last_address();
+  if (last) $("#addr").value = last.replace(/^http:\/\//, "");
+  search();
+};
+
+$("#backBtn").onclick = () => {
+  clearTimeout(searchTimer);
+  $("#searchView").style.display = "none";
+  $("#homeView").style.display = "";
+};
+
+// Ищем игры каждые 3 секунды, пока открыт этот экран
+async function search() {
+  clearTimeout(searchTimer);
+  const list = await api.discover();
+  if ($("#searchView").style.display === "none") return;
+  const box = $("#games");
+  if (!list.length) {
+    box.innerHTML = `<div class="searching"><div class="spinner"></div>Ищем игры в сети…</div>`;
+  } else {
+    box.innerHTML = list.map(g => `
+      <div class="game" data-url="${esc(g.url)}">
+        <div class="info">
+          <div class="h">Игра на компьютере ${esc(g.host)}</div>
+          <div class="p">${g.pack ? "Пак: " + esc(g.pack) + " · " : ""}игроков: ${g.players}${PHASES[g.phase] ? " · " + PHASES[g.phase] : " · идёт игра"}</div>
+        </div>
+        <div class="go">Войти →</div>
+      </div>`).join("");
+    box.querySelectorAll(".game").forEach(el => el.onclick = () => join(el.dataset.url));
+  }
+  searchTimer = setTimeout(search, 3000);
+}
+
+async function join(addr) {
+  $("#searchErr").textContent = "Подключаюсь…";
+  const r = await api.join(addr);
+  if (!r.ok) $("#searchErr").textContent = r.msg;
+  else clearTimeout(searchTimer);
+}
+
+$("#manualForm").onsubmit = e => {
+  e.preventDefault();
+  const a = $("#addr").value.trim();
+  if (a) join(a);
+};
+</script>
+</body>
+</html>
