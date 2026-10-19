@@ -91,7 +91,8 @@ def load_env() -> dict[str, str]:
 
 def make_tarball() -> bytes:
     buf = io.BytesIO()
-    exclude_dirs = {"node_modules", ".next", ".git", ".vercel", "scripts", "public/uploads"}
+    # igra — «Своя игра», выкладывается отдельно скриптом vps_igra_deploy.py
+    exclude_dirs = {"node_modules", ".next", ".git", ".vercel", "scripts", "public/uploads", "igra"}
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for path in ROOT.rglob("*"):
             if not path.is_file():
@@ -303,6 +304,25 @@ server {{
         expires 7d;
         add_header X-Content-Type-Options "nosniff" always;
         add_header Content-Security-Policy "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox" always;
+    }}
+
+    # «Своя игра»: отдельная служба на порту 8090 (см. igra/ и scripts/vps_igra_deploy.py)
+    location = /igra {{
+        return 301 /igra/;
+    }}
+
+    location /igra/ {{
+        proxy_pass http://127.0.0.1:8090/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        client_max_body_size 1024m;
+        proxy_request_buffering off;
+        proxy_buffering off;
     }}
 
     location / {{

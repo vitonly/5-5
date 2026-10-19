@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Своя игра — табло</title>
+<link rel="stylesheet" href="static/style.css">
+<style>
+  /* На проекторе всё чуть крупнее */
+  .chip { min-width: 150px; padding: 10px 18px; }
+  .chip .n { font-size: 17px; }
+  .chip .s { font-size: 28px; }
+  .join-url {
+    font-family: var(--display); font-size: clamp(28px, 5vw, 80px); color: var(--gold);
+    padding: 16px 36px; border-radius: 18px; border: 2px dashed rgba(255,207,64,.5); background: rgba(4,9,37,.5);
+  }
+  .lobby-players { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 1200px; }
+  .lobby-players span { padding: 10px 18px; border-radius: 99px; background: rgba(255,255,255,.08); font-weight: 800; font-size: 20px; animation: zoomIn .4s ease both; }
+</style>
+</head>
+<body>
+  <div class="overlay" id="soundOverlay">
+    <div class="center">
+      <div class="mega" style="font-size:48px">Табло</div>
+      <div class="sub">Нажмите в любом месте, чтобы включить звук, и разверните окно на весь экран (F11)</div>
+    </div>
+  </div>
+
+  <div class="app">
+    <div class="topbar">
+      <div class="logo"><span>С</span><span>В</span><span>О</span><span class="g">Я</span>&nbsp;<span>И</span><span>Г</span><span>Р</span><span class="g">А</span></div>
+      <div class="round-label" id="roundLabel"></div>
+      <div class="spacer"></div>
+      <div class="pack-label" id="packLabel"></div>
+      <div class="conn" id="conn"></div>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="timerbar" id="timer"><i></i></div>
+    <div class="players" id="players"></div>
+  </div>
+
+<script src="static/common.js"></script>
+<script>
+/* Табло для проектора: всё видно, но без правильных ответов до их показа */
+let state = null;
+const playersEl = $("#players");
+const timer = new TimerBar($("#timer"));
+const view = new GameView($("#stage"), {
+  role: "screen",
+  muted: () => false,
+  renderLobby(el, s) {
+    const online = s.players.filter(p => p.online);
+    el.innerHTML = `
+      <div class="mega">Своя игра</div>
+      <div class="sub">Откройте в браузере на своём компьютере:</div>
+      <div class="join-url">${esc(s.join_url)}</div>
+      <div class="sub">${online.length ? "В игре:" : "Ждём игроков…"}</div>
+      <div class="lobby-players">${online.map(p => `<span>${esc(p.name)}</span>`).join("")}</div>`;
+  },
+});
+
+$("#soundOverlay").addEventListener("click", () => {
+  Sound.init();
+  $("#soundOverlay").remove();
+  try { document.documentElement.requestFullscreen(); } catch (e) {}
+});
+
+connect("screen", msg => {
+  if (msg.type === "need_login") {
+    document.body.innerHTML = `<div class="app"><div class="center"><div class="mega" style="font-size:48px">Табло</div>
+      <div class="sub">Войдите на сайт, чтобы открыть табло</div></div></div>`;
+  } else if (msg.type === "state") {
+    state = msg.state;
+    view.update(state);
+    renderPause(state);
+    renderPlayers(playersEl, state);
+    timer.set(["open", "answering", "writing", "final_bets"].includes(state.phase) ? state.timer : null);
+    $("#roundLabel").textContent = state.round && state.phase !== "lobby" ? state.round.name : "";
+    $("#packLabel").textContent = state.pack || "";
+  } else if (msg.type === "fx") {
+    if (msg.name !== "falstart") Sound.play(msg.name);
+    if (msg.name === "correct" || msg.name === "wrong") flashPlayer(playersEl, msg.pid, msg.name === "correct");
+  }
+});
+</script>
+</body>
+</html>
