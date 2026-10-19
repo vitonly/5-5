@@ -65,7 +65,7 @@ export function RatingBreakdown({
   const vibeMod = Math.round(profile.vibeMod ?? 0);
   const table = getRankBaseTable();
 
-  const rankBar = Math.min(100, (rankBase / 50) * 100);
+  const rankBar = Math.min(100, (rankBase / 65) * 100);
   const skillBar = Math.min(100, (skillMod / 30) * 100);
 
   return (
@@ -91,7 +91,7 @@ export function RatingBreakdown({
       {open && (
         <CardContent className="space-y-4 border-t border-[var(--border-soft)] pt-4 text-sm">
           <p className="text-[13px] text-[var(--text-3)]">
-            Виден только тебе и тренеру. Итог = РангБаза (1–50) + SkillMod (0…+30) + TiltMod (−5…+5).
+            Виден только тебе и тренеру. Итог = РангБаза (1–65) + SkillMod (0…+30) + TiltMod (−5…+5).
             {seasonLabel && (
               <>
                 {" "}
@@ -149,9 +149,7 @@ export function RatingBreakdown({
                 <span key={medal} className="text-[var(--text-3)]">
                   {name}:{" "}
                   <b className="font-mono-num text-[var(--power)]">
-                    {Number(medal) === 8
-                      ? "75"
-                      : (table[Number(medal)] ?? [MEDAL_BASE_RATING[Number(medal)]]).join("–")}
+                    {(table[Number(medal)] ?? [MEDAL_BASE_RATING[Number(medal)]]).join("–")}
                   </b>
                 </span>
               ))}

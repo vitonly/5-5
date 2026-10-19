@@ -6,7 +6,7 @@ import { getRankBaseTable } from "@/lib/rating";
 /** Превью базы силы для подписи под пикером */
 function baseFor(medal: number, stars: number): number {
   const table = getRankBaseTable();
-  if (medal === 8) return 75;
+  if (medal === 8) return table[8]?.[0] ?? 65;
   const row = table[medal] ?? table[1];
   const s = Math.min(5, Math.max(1, stars || 1));
   return row[s - 1] ?? row[0];

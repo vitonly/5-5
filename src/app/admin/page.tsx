@@ -258,7 +258,7 @@ export default async function AdminDashboardPage() {
             </summary>
             <div className="space-y-3 border-t border-[var(--border-soft)] px-4 py-4 text-[13px] leading-relaxed text-[var(--text-3)]">
               <p>
-                Раз в сутки (08:00 МСК) cron вызывает <Code>/api/cron/automation</Code>: штраф −0.5 за просроченные
+                Раз в сутки (08:00 МСК) cron вызывает <Code>/api/cron/automation</Code>: штраф −1 за просроченные
                 домашки и автозакрытие сезона по <Code>closesAt</Code>. Нужен <Code>CRON_SECRET</Code>. Вручную —
                 кнопкой ниже или <Code>npm run automation</Code>.
               </p>

@@ -4,7 +4,7 @@ import { prisma } from "./db";
 export const POINT_VALUES = {
   HOMEWORK_DONE: 0.5,
   HOMEWORK_EXCELLENT: 1,
-  HOMEWORK_OVERDUE: -0.5,
+  HOMEWORK_OVERDUE: -1,
   MATCH_WIN: 1,
   /** Вторая победа подряд в тот же игровой день (сумма с первой = 3) */
   MATCH_WIN_STREAK: 2,
@@ -698,4 +698,50 @@ export async function deleteMatchSession(sessionId: string) {
 
   await prisma.matchSession.delete({ where: { id: sessionId } });
   return { id: sessionId };
+}
+
+/** Просроченные домашки: −0.5 → −1 во всех PointLog, затем sync totalPoints. */
+export async function rescaleHomeworkOverduePenalties(
+  fromDelta = -0.5,
+  toDelta = POINT_VALUES.HOMEWORK_OVERDUE
+) {
+  const result = await prisma.pointLog.updateMany({
+    where: {
+      reason: { contains: "не сдана к дедлайну" },
+      delta: fromDelta,
+    },
+    data: { delta: toDelta },
+  });
+  return result.count;
+}
+
+/**
+ * Зал славы / антирекорды: |3| → |1.5| во всех связанных PointLog
+ * (HALL_OF_FAME, PAST, LOSS и записи по тексту reason).
+ */
+export async function rescaleHallOfFamePoints(fromAbs = 3, toAbs = 1.5) {
+  const hallTypes = ["HALL_OF_FAME", "HALL_OF_FAME_PAST", "HALL_OF_FAME_LOSS"];
+  const logs = await prisma.pointLog.findMany({
+    where: {
+      OR: [
+        { sourceType: { in: hallTypes } },
+        { reason: { startsWith: "Зал славы:" } },
+        { reason: { startsWith: "Антирекорд:" } },
+      ],
+    },
+    select: { id: true, delta: true },
+  });
+
+  const targets = logs.filter((l) => Math.abs(l.delta) === fromAbs);
+  if (!targets.length) return 0;
+
+  await prisma.$transaction(
+    targets.map((l) =>
+      prisma.pointLog.update({
+        where: { id: l.id },
+        data: { delta: roundPoints(Math.sign(l.delta) * toAbs) },
+      })
+    )
+  );
+  return targets.length;
 }

@@ -88,13 +88,13 @@ export const RANK_MEDALS: Record<number, string> = {
 /** Ориентир базы ★1 (полная таблица со звёздами — в rating.ts) */
 export const MEDAL_BASE_RATING: Record<number, number> = {
   1: 1,
-  2: 6,
-  3: 12,
-  4: 21,
-  5: 28,
-  6: 37,
-  7: 46,
-  8: 50,
+  2: 8,
+  3: 16,
+  4: 27,
+  5: 36,
+  6: 48,
+  7: 60,
+  8: 65,
 };
 
 export function decodeRankTier(rankTier?: number | null): {

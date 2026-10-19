@@ -2,21 +2,23 @@
  * Сила игрока (целое 1–100):
  * finalRating = clamp(rankBase + skillMod + tiltMod, 1, 100)
  *
- * rankBase 1…50 по медали
+ * rankBase 1…65 по медали (Титан = 65)
  * skillMod 0…+30 из оценок 0–100 (тренер 50% + ученики 50%)
  * tiltMod −5…+5 из голосов тильта
  */
 
-/** База по медали OpenDota (1–8). Титан = 50. */
+/** База по медали OpenDota (1–8). Титан = 65; остальные пропорционально старой шкале 1…50. */
+export const RANK_BASE_MAX = 65;
+
 const RANK_BASE_TABLE: Record<number, number[]> = {
-  1: [1, 2, 3, 4, 5], // Рекрут
-  2: [6, 7, 8, 9, 11], // Страж
-  3: [12, 14, 16, 18, 20], // Рыцарь
-  4: [21, 22, 24, 26, 27], // Герой
-  5: [28, 30, 32, 34, 36], // Легенда
-  6: [37, 39, 41, 43, 45], // Властелин
-  7: [46, 47, 48, 49, 49], // Божество (★5 = 49)
-  8: [50], // Титан
+  1: [1, 3, 4, 5, 7], // Рекрут
+  2: [8, 9, 10, 12, 14], // Страж
+  3: [16, 18, 21, 23, 26], // Рыцарь
+  4: [27, 29, 31, 34, 35], // Герой
+  5: [36, 39, 42, 44, 47], // Легенда
+  6: [48, 51, 53, 56, 59], // Властелин
+  7: [60, 61, 62, 64, 64], // Божество (★5 = 64)
+  8: [65], // Титан
 };
 
 export function clampRating(value: number): number {
@@ -26,7 +28,7 @@ export function clampRating(value: number): number {
 export function rankTierToBase(rankTier?: number | null): number {
   if (!rankTier) return RANK_BASE_TABLE[1][0];
   const medal = Math.floor(rankTier / 10);
-  if (medal === 8) return 50;
+  if (medal === 8) return RANK_BASE_MAX;
   let stars = rankTier % 10;
   if (stars <= 0) stars = 1;
   if (stars > 5) stars = 5;
