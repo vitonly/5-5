@@ -96,8 +96,14 @@ export function HistoryChart({
 
       {points.length >= 2 ? (
         <>
-          <div className="relative mt-3">
-            <svg viewBox={`0 0 ${W} ${H}`} className="h-[120px] w-full overflow-visible" preserveAspectRatio="none" aria-hidden>
+          <div className="relative mt-3 h-[120px]">
+            {/* Линия тянется на всю ширину; точки — HTML-кружки фиксированного px-размера (не овалы) */}
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="absolute inset-0 h-full w-full overflow-visible"
+              preserveAspectRatio="none"
+              aria-hidden
+            >
               <defs>
                 <linearGradient id={`fill-${title.length}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={color} stopOpacity="0.18" />
@@ -105,34 +111,50 @@ export function HistoryChart({
                 </linearGradient>
               </defs>
               <path d={area} fill={`url(#fill-${title.length})`} />
-              <path d={path} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-              {dots.map((d, i) => {
-                const isTurn = inflection.has(i) || i === dots.length - 1 || i === 0;
-                const active = hover === i;
-                return (
-                  <circle
-                    key={i}
-                    cx={d.x}
-                    cy={d.y}
-                    r={active ? 5 : i === dots.length - 1 ? 4 : isTurn ? 3.5 : 2.5}
-                    fill={active || i === dots.length - 1 ? color : "var(--surface)"}
-                    stroke={color}
-                    strokeWidth="2"
-                    vectorEffect="non-scaling-stroke"
-                    className={isTurn ? "cursor-pointer" : undefined}
-                    onMouseEnter={() => isTurn && setHover(i)}
-                    onMouseLeave={() => setHover(null)}
-                  />
-                );
-              })}
+              <path
+                d={path}
+                fill="none"
+                stroke={color}
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
             </svg>
+            {dots.map((d, i) => {
+              const isTurn = inflection.has(i) || i === dots.length - 1 || i === 0;
+              const active = hover === i;
+              const filled = active || i === dots.length - 1;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  tabIndex={isTurn ? 0 : -1}
+                  aria-label={isTurn ? `${format(points[i].value)}, ${points[i].label}` : undefined}
+                  className={`absolute z-[1] box-border h-[10px] w-[10px] rounded-full border-2 p-0 ${
+                    isTurn ? "cursor-pointer" : "pointer-events-none"
+                  }`}
+                  style={{
+                    left: `${(d.x / W) * 100}%`,
+                    top: `${(d.y / H) * 100}%`,
+                    borderColor: color,
+                    background: filled ? color : "var(--surface)",
+                    transform: `translate(-50%, -50%)${active ? " scale(1.15)" : ""}`,
+                  }}
+                  onMouseEnter={() => isTurn && setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                  onFocus={() => isTurn && setHover(i)}
+                  onBlur={() => setHover(null)}
+                />
+              );
+            })}
             {hoverPoint && hoverDot && (
               <div
                 className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 shadow-[var(--shadow-card)]"
                 style={{
                   left: `${(hoverDot.x / W) * 100}%`,
                   top: `${(hoverDot.y / H) * 100}%`,
-                  marginTop: -8,
+                  marginTop: -10,
                 }}
               >
                 <p className="whitespace-nowrap font-mono-num text-[13px] font-bold" style={{ color }}>
