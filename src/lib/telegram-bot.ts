@@ -2,7 +2,9 @@ import { prisma } from "@/lib/db";
 import { isAdminTelegramId } from "@/lib/session";
 import {
   answerCallbackQuery,
+  editTelegramMessage,
   sendTelegramMessage,
+  type InlineKeyboard,
   type ReplyKeyboard,
 } from "@/lib/telegram";
 import { TELEGRAM_NOT_LINKED, upsertTelegramUser } from "@/lib/telegram-auth";
@@ -319,11 +321,45 @@ async function linkByToken(token: string, from: TelegramUserMsg, chatId: string)
   return user.id;
 }
 
-async function completeWebLogin(token: string, from: TelegramUserMsg, chatId: string) {
+/** Тикет входа ещё можно подтвердить: ждёт подтверждения и не истёк */
+async function pendingTicket(token: string) {
   const ticket = await prisma.loginTicket.findUnique({ where: { token } });
-  if (!ticket || ticket.status !== "PENDING" || ticket.expiresAt < new Date()) {
-    return false;
-  }
+  if (!ticket || ticket.status !== "PENDING" || ticket.expiresAt < new Date()) return null;
+  return ticket;
+}
+
+/**
+ * Шаг 1 входа через бота: человек открыл ссылку t.me/бот?start=login_…
+ * Сразу НЕ впускаем. Ссылку мог прислать злоумышленник («нажми, получишь очки»):
+ * тогда войдёт он, а не владелец Telegram. Поэтому спрашиваем подтверждение кнопкой.
+ */
+async function askLoginConfirm(token: string, from: TelegramUserMsg, chatId: string) {
+  if (!(await pendingTicket(token))) return false;
+  // Аккаунта с этим Telegram нет (и это не тренер) — подтверждать нечего
+  const known = await findUserByTelegram(from);
+  if (!known && !isAdminTelegramId(String(from.id))) return "not_linked" as const;
+
+  const keyboard: InlineKeyboard = {
+    inline_keyboard: [[
+      { text: "✅ Да, это я", callback_data: `login:ok:${token}` },
+      { text: "❌ Нет, не я", callback_data: `login:no:${token}` },
+    ]],
+  };
+  await sendTelegramMessage(
+    chatId,
+    "🔐 <b>Вход на сайт СТАРТ+</b>\n\n" +
+      "Кто-то хочет войти на startdota.ru под вашим аккаунтом.\n\n" +
+      "Нажмите «Да, это я», только если вы <b>сами только что</b> нажали «Войти через Telegram» на сайте.\n" +
+      "Если ссылку вам прислали — нажмите «Нет»: так чужой человек может попасть в ваш аккаунт.",
+    keyboard
+  );
+  return true;
+}
+
+/** Шаг 2: человек нажал «Да, это я» — привязываем тикет к его аккаунту, сайт впустит его */
+async function completeWebLogin(token: string, from: TelegramUserMsg, chatId: string) {
+  const ticket = await pendingTicket(token);
+  if (!ticket) return false;
 
   const user = await upsertTelegramUser({
     id: from.id,
@@ -410,6 +446,37 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   const cq = update.callback_query;
   if (cq?.data && cq.from) {
     const chatId = String(cq.message?.chat.id ?? cq.from.id);
+
+    // Кнопки «Да, это я» / «Нет, не я» под запросом входа на сайт
+    if (cq.data.startsWith("login:")) {
+      const [, answer, token] = cq.data.split(":");
+      const messageId = cq.message?.message_id;
+      if (answer === "ok") {
+        const ok = await completeWebLogin(token, cq.from, chatId);
+        if (ok === true) {
+          await answerCallbackQuery(cq.id, "Вход подтверждён");
+          await editTelegramMessage(chatId, messageId,
+            "✅ Вход подтверждён! Вернитесь на сайт — страница обновится сама.", null);
+        } else if (ok === "not_linked") {
+          await answerCallbackQuery(cq.id, "Telegram не привязан", true);
+          await editTelegramMessage(chatId, messageId, `❌ ${TELEGRAM_NOT_LINKED}`, null);
+        } else {
+          await answerCallbackQuery(cq.id, "Ссылка устарела", true);
+          await editTelegramMessage(chatId, messageId,
+            "❌ Ссылка для входа устарела. Нажмите «Войти через Telegram» на сайте ещё раз.", null);
+        }
+      } else {
+        // «Нет, не я» — сразу гасим тикет: сайт покажет, что ссылка истекла
+        await prisma.loginTicket.updateMany({
+          where: { token, status: "PENDING" },
+          data: { status: "EXPIRED", expiresAt: new Date() },
+        });
+        await answerCallbackQuery(cq.id, "Вход отменён");
+        await editTelegramMessage(chatId, messageId,
+          "🛑 Вход отменён. Если ссылку вам кто-то прислал — не нажимайте такие ссылки и расскажите тренеру.", null);
+      }
+      return;
+    }
 
     if (cq.data.startsWith("mvp:")) {
       const parts = cq.data.split(":");
@@ -506,16 +573,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
 
   if (param?.startsWith("login_")) {
     const token = param.slice(6);
-    const ok = await completeWebLogin(token, message.from, chatId);
+    const ok = await askLoginConfirm(token, message.from, chatId);
     if (ok === "not_linked") {
       await sendTelegramMessage(chatId, `❌ ${TELEGRAM_NOT_LINKED}`);
-    } else if (ok) {
-      await sendTelegramMessage(
-        chatId,
-        "✅ Вход подтверждён! Вернитесь на сайт — страница обновится сама.",
-        MAIN_KEYBOARD
-      );
-    } else {
+    } else if (!ok) {
       await sendTelegramMessage(
         chatId,
         "❌ Ссылка для входа устарела. Нажмите «Войти через Telegram» на сайте ещё раз."

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-Точечное обновление сайта для «Своей игры» — без полной перевыкладки.
+Точечное обновление сайта — без полной перевыкладки.
 
 Полный vps_deploy.py пересоздаёт .env на сервере и требует VPS_PG_PASSWORD.
-Здесь этого не нужно: заливаем только 3 изменённых файла сайта, пересобираем
-и перезапускаем. .env, база и загрузки на сервере не трогаются.
+Здесь этого не нужно: заливаем только изменённые файлы (список FILES),
+удаляем ненужные (список REMOVED), пересобираем и перезапускаем.
+.env, база и загрузки на сервере не трогаются.
 
-  src/app/api/igra/me/route.ts      — кто открыл игру
-  src/app/api/igra/award/route.ts   — очки школы за места
-  src/components/Navbar.tsx         — вкладка «Своя игра» в меню
+Сейчас (исправления безопасности):
+  src/app/api/telegram/webhook/route.ts  — вебхук бота только с секретом Telegram
+  src/lib/telegram-bot.ts                — вход через бота только после кнопки «Да, это я»
+  удаляется src/app/api/auth/bootstrap/route.ts — «чёрный ход» с логином 1 / паролем 1
 
 Если сборка не удалась — возвращаем прежние файлы и прежнюю сборку (.next).
 """
@@ -28,9 +30,12 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = "/var/www/startplus/app"
 UPLOADS = "/var/www/startplus/uploads"
 FILES = [
-    "src/app/api/igra/me/route.ts",
-    "src/app/api/igra/award/route.ts",
-    "src/components/Navbar.tsx",
+    "src/app/api/telegram/webhook/route.ts",
+    "src/lib/telegram-bot.ts",
+]
+# Файлы, которые нужно удалить с сервера
+REMOVED = [
+    "src/app/api/auth/bootstrap/route.ts",
 ]
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -72,7 +77,7 @@ def main() -> None:
 
     # 1. Резервная копия: старые версии файлов и текущая сборка
     run(client, f"rm -rf /tmp/igra_site_bak && mkdir -p /tmp/igra_site_bak && "
-                f"cd {APP} && tar -czf /tmp/igra_site_bak/files.tgz --ignore-failed-read {' '.join(FILES)} 2>/dev/null; "
+                f"cd {APP} && tar -czf /tmp/igra_site_bak/files.tgz --ignore-failed-read {' '.join(FILES + REMOVED)} 2>/dev/null; "
                 f"rm -rf {APP}/.next.bak && cp -a {APP}/.next {APP}/.next.bak")
 
     # 2. Заливаем новые файлы
@@ -81,6 +86,11 @@ def main() -> None:
         run(client, f"mkdir -p {os.path.dirname(remote)}")
         sftp.put(str(ROOT / rel), remote)
         print(f"uploaded {rel}", flush=True)
+
+    # 2б. Удаляем ненужные файлы (и папку, если она опустела)
+    for rel in REMOVED:
+        run(client, f"rm -f {APP}/{rel}; rmdir {os.path.dirname(f'{APP}/{rel}')} 2>/dev/null; true")
+        print(f"removed {rel}", flush=True)
 
     # 3. Сборка (как в vps_deploy.py: на время сборки uploads — пустая папка, не ссылка)
     run(client, f"rm -rf {APP}/public/uploads && mkdir -p {APP}/public/uploads")
@@ -96,7 +106,7 @@ def main() -> None:
     # 4. Перезапуск сайта и проверка
     run(client, f"pm2 restart startplus && rm -rf {APP}/.next.bak")
     run(client, "sleep 6; curl -s -o /dev/null -w 'site %{http_code}\\n' -m 20 http://127.0.0.1:3000/login; "
-                "curl -s -m 20 http://127.0.0.1:3000/api/igra/me; echo")
+                "curl -s -o /dev/null -w 'bootstrap %{http_code}\\n' -m 20 -X POST http://127.0.0.1:3000/api/auth/bootstrap")
     print("\nСайт обновлён.", flush=True)
     client.close()
 

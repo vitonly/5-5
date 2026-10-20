@@ -146,6 +146,8 @@ def main():
                     or k == "ADMIN_VK_IDS"
                     or k
                     in (
+                        "JWT_SECRET",
+                        "CRON_SECRET",
                         "TELEGRAM_API_BASE",
                         "TELEGRAM_PROXY_SECRET",
                         "TELEGRAM_WEBHOOK_SECRET",
@@ -170,19 +172,29 @@ def main():
         f"mkdir -p {REMOTE_APP}/public/uploads",
     )
 
+    def secret(key: str) -> str:
+        """
+        Секрет для .env сервера. Сначала — тот, что уже стоит на сервере:
+        иначе выкладка вернула бы старый (например, утёкший и уже заменённый) секрет
+        из локального .env. Никаких «значений по умолчанию» — без секрета не выкладываем.
+        """
+        value = prev_env.get(key) or env.get(key, "")
+        if len(value) < 16:
+            raise SystemExit(f"{key} не задан или короче 16 символов — выкладка остановлена")
+        return value
+
     remote_env = {
         "DATABASE_URL": PG_URL,
-        "JWT_SECRET": env.get("JWT_SECRET", "change-me"),
+        "JWT_SECRET": secret("JWT_SECRET"),
         "TELEGRAM_BOT_TOKEN": env.get("TELEGRAM_BOT_TOKEN", ""),
         "NEXT_PUBLIC_BOT_USERNAME": env.get("NEXT_PUBLIC_BOT_USERNAME", ""),
         "ADMIN_TELEGRAM_IDS": env.get("ADMIN_TELEGRAM_IDS", ""),
-        "TELEGRAM_WEBHOOK_SECRET": env.get("TELEGRAM_WEBHOOK_SECRET")
-        or prev_env.get("TELEGRAM_WEBHOOK_SECRET", ""),
+        "TELEGRAM_WEBHOOK_SECRET": secret("TELEGRAM_WEBHOOK_SECRET"),
         "TELEGRAM_API_BASE": env.get("TELEGRAM_API_BASE") or prev_env.get("TELEGRAM_API_BASE", ""),
         "TELEGRAM_PROXY_SECRET": env.get("TELEGRAM_PROXY_SECRET")
         or prev_env.get("TELEGRAM_PROXY_SECRET", ""),
         "NEXT_PUBLIC_APP_URL": "https://www.startdota.ru",
-        "CRON_SECRET": env.get("CRON_SECRET", "cron-secret-change-me-16chars"),
+        "CRON_SECRET": secret("CRON_SECRET"),
         "TWITCH_CLIENT_ID": env.get("TWITCH_CLIENT_ID", ""),
         "TWITCH_CLIENT_SECRET": env.get("TWITCH_CLIENT_SECRET", ""),
         "UPLOADS_DIR": "/var/www/startplus/uploads",
