@@ -575,6 +575,17 @@ async def http_client(app):
     await http_session.close()
 
 
+async def no_stale_scripts(request, response):
+    """
+    Скрипты и стили игры браузер должен каждый раз сверять с сервером.
+    Иначе после обновления игры браузер мог взять старый host.js из кэша —
+    и новые кнопки на пульте просто не работали. Сверка дешёвая: если файл
+    не менялся, сервер отвечает «304 — не изменился» без пересылки файла.
+    """
+    if request.path.startswith("/static/") and request.path.endswith((".js", ".css", ".html")):
+        response.headers["Cache-Control"] = "no-cache"
+
+
 def make_app():
     app = web.Application(client_max_size=4 * 1024 ** 3)  # паки с видео бывают большими
     app.router.add_get("/", page("player.html"))
@@ -588,6 +599,7 @@ def make_app():
     app.router.add_static("/static", STATIC)
     # API редактора паков (черновики лежат в папке drafts рядом с packs)
     Editor(DATA, PACKS, host_ok, notify).routes(app)
+    app.on_response_prepare.append(no_stale_scripts)
     app.cleanup_ctx.append(pinger)
     app.cleanup_ctx.append(http_client)
     if not SITE_MODE:

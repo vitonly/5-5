@@ -316,35 +316,77 @@ function renderPlayerList(s) {
   }));
 }
 
-// Список паков обновляем, только если он изменился (иначе сбросится выбор в списке)
+/* ---------- Выбор пака ----------
+   Свой выпадающий список вместо <select>: в обычный <select> нельзя
+   поставить кнопку, а нам нужен крестик «удалить» у каждого пака. */
+let packs = [];          // паки на сервере: [{file, title}]
+let loadedPack = "";     // какой пак сейчас загружен в игру
+let selectedPack = "";   // какой пак выбран в списке (его загрузит кнопка «Загрузить»)
 let lastPacks = "";
+
+function packLabel(p) { return `${p.title} — ${p.file}`; }
+
 function renderPacks(s) {
   $("#lobbyBox").style.display = s.phase === "lobby" ? "" : "none";
+  // Перерисовываем, только если список изменился
   const key = JSON.stringify(s.packs) + s.pack_file;
   if (key === lastPacks) return;
   lastPacks = key;
-  const sel = $("#packSelect");
-  sel.innerHTML = s.packs.length
-    ? s.packs.map(p => `<option value="${esc(p.file)}" ${p.file === s.pack_file ? "selected" : ""}>${esc(p.title)} — ${esc(p.file)}</option>`).join("")
-    : `<option value="">Нет паков — добавьте .siq</option>`;
+  packs = s.packs;
+  // Загрузили другой пак — выбираем его; выбранный удалили — берём загруженный или первый
+  if (s.pack_file && s.pack_file !== loadedPack) selectedPack = s.pack_file;
+  loadedPack = s.pack_file;
+  if (!packs.some(p => p.file === selectedPack)) selectedPack = loadedPack || (packs[0] ? packs[0].file : "");
+  drawPackPicker();
 }
 
-$("#loadPack").addEventListener("click", () => {
-  const f = $("#packSelect").value;
-  if (f) api.send({ type: "select_pack", file: f });
-});
+function drawPackPicker() {
+  const cur = packs.find(p => p.file === selectedPack);
+  $("#packCurrent").textContent = cur ? packLabel(cur) : "Нет паков — добавьте .siq";
+  $("#packCurrent").disabled = !packs.length;
+  $("#loadPack").disabled = !cur;
+  $("#packList").innerHTML = packs.map(p => `
+    <div class="pack-row ${p.file === selectedPack ? "on" : ""}" data-file="${esc(p.file)}" role="option">
+      <span class="pack-name">${esc(packLabel(p))}</span>
+      ${p.file === loadedPack ? '<span class="pack-tag">в игре</span>' : ""}
+      <button type="button" class="pack-del" title="Удалить пак" aria-label="Удалить пак ${esc(p.file)}">✕</button>
+    </div>`).join("");
+}
 
-// Удаление ненужного пака (сервер переносит его в папку packs/.deleted)
-$("#deletePack").addEventListener("click", () => {
-  const sel = $("#packSelect");
-  const f = sel.value;
-  if (!f) return;
-  const title = sel.options[sel.selectedIndex].textContent;
-  if (confirm(`Удалить пак «${title}»?
+function togglePackList(open) {
+  const list = $("#packList");
+  list.hidden = open === undefined ? !list.hidden : !open;
+  $("#packCurrent").classList.toggle("open", !list.hidden);
+}
+
+$("#packCurrent").addEventListener("click", () => togglePackList());
+
+$("#packList").addEventListener("click", e => {
+  const row = e.target.closest(".pack-row");
+  if (!row) return;
+  const file = row.dataset.file;
+  if (e.target.closest(".pack-del")) {
+    // Крестик: удаляем пак (сервер переносит его в папку packs/.deleted)
+    const p = packs.find(x => x.file === file);
+    if (confirm(`Удалить пак «${p ? packLabel(p) : file}»?
 
 Он пропадёт из списка. Если ошиблись — файл можно вернуть из папки packs/.deleted.`)) {
-    api.send({ type: "delete_pack", file: f });
+      api.send({ type: "delete_pack", file });
+    }
+    return;
   }
+  // Щелчок по строке — выбираем пак
+  selectedPack = file;
+  drawPackPicker();
+  togglePackList(false);
+});
+
+// Щелчок мимо списка или Esc — закрываем список
+document.addEventListener("click", e => { if (!e.target.closest("#packPicker")) togglePackList(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") togglePackList(false); });
+
+$("#loadPack").addEventListener("click", () => {
+  if (selectedPack) api.send({ type: "select_pack", file: selectedPack });
 });
 
 // Загрузка .siq через браузер
