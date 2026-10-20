@@ -390,19 +390,45 @@ $("#loadPack").addEventListener("click", () => {
 });
 
 // Загрузка .siq через браузер
+/* Загрузка .siq через браузер.
+   Используем XMLHttpRequest, а не fetch: только он сообщает, сколько уже отправлено, —
+   ведущий видит проценты и не закрывает страницу, пока большой пак не дошёл. */
+function uploadPack(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", BASE + "api/upload" + (pin ? "?pin=" + encodeURIComponent(pin) : ""));
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) setUploadState(`Загружаю ${file.name}: ${Math.floor(e.loaded / e.total * 100)}%`);
+    };
+    xhr.onload = () => {
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch (err) { reject(new Error(xhr.status === 403 ? "Нет прав ведущего" : `Сервер ответил ошибкой ${xhr.status}`)); }
+    };
+    xhr.onerror = () => reject(new Error("Связь оборвалась во время загрузки. Попробуйте ещё раз и не закрывайте страницу, пока не дойдёт до 100%"));
+    const fd = new FormData();
+    fd.append("file", file);
+    xhr.send(fd);
+  });
+}
+
+// Строка состояния загрузки под кнопками (пустая строка — спрятать)
+function setUploadState(text) {
+  const el = $("#uploadState");
+  el.textContent = text;
+  el.style.display = text ? "" : "none";
+}
+
 $("#upload").addEventListener("change", async e => {
   const file = e.target.files[0];
+  e.target.value = "";
   if (!file) return;
-  toast("Загружаю " + file.name + "…");
-  const fd = new FormData();
-  fd.append("file", file);
+  setUploadState(`Загружаю ${file.name}: 0%`);
   try {
-    const r = await fetch(BASE + "api/upload" + (pin ? "?pin=" + encodeURIComponent(pin) : ""), { method: "POST", body: fd });
-    const j = await r.json();
+    const j = await uploadPack(file);
     if (j.ok) { toast("Пак добавлен"); api.send({ type: "select_pack", file: j.file }); }
     else toast(j.msg, true);
-  } catch (err) { toast("Не удалось загрузить файл", true); }
-  e.target.value = "";
+  } catch (err) { toast(err.message, true); }
+  setUploadState("");
 });
 
 /* ---------- Настройки ---------- */

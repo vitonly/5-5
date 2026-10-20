@@ -25,6 +25,7 @@ import secrets
 import socket
 import sys
 import time
+import zipfile
 
 import aiohttp
 from aiohttp import web, WSMsgType
@@ -525,8 +526,22 @@ async def host_ok(request):
     return is_local(request) or request.query.get("pin") == HOST_PIN
 
 
+def is_valid_siq(path):
+    """Целый ли это пак: открывается как zip и внутри есть content.xml."""
+    try:
+        with zipfile.ZipFile(path) as zf:
+            return any(n.lower() == "content.xml" for n in zf.namelist()) and zf.testzip() is None
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 async def upload(request):
-    """Ведущий загружает .siq через браузер."""
+    """
+    Ведущий загружает .siq через браузер.
+    Пишем сначала во временный файл и только целый пак кладём в список под настоящим именем.
+    Раньше обрыв связи посреди загрузки оставлял обрывок файла вместо пака —
+    и он ещё затирал прежнюю рабочую копию с тем же именем.
+    """
     if not await host_ok(request):
         raise web.HTTPForbidden()
     reader = await request.multipart()
@@ -534,9 +549,19 @@ async def upload(request):
     if field is None or not field.filename or not field.filename.lower().endswith(".siq"):
         return web.json_response({"ok": False, "msg": "Нужен файл .siq"})
     name = os.path.basename(field.filename)
-    with open(os.path.join(PACKS, name), "wb") as f:
-        while chunk := await field.read_chunk(1 << 20):
-            f.write(chunk)
+    tmp = os.path.join(PACKS, f".uploading-{secrets.token_hex(4)}.part")   # не .siq — в списке паков не виден
+    try:
+        with open(tmp, "wb") as f:
+            while chunk := await field.read_chunk(1 << 20):
+                f.write(chunk)
+        # Проверка архива может занять пару секунд — не задерживаем игру
+        ok = await asyncio.get_event_loop().run_in_executor(None, is_valid_siq, tmp)
+        if not ok:
+            return web.json_response({"ok": False, "msg": "Файл пришёл не целиком или это не пак .siq. Попробуйте загрузить ещё раз."})
+        os.replace(tmp, os.path.join(PACKS, name))
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)   # оборвалась связь или файл битый — обрывок не оставляем
     notify()
     return web.json_response({"ok": True, "file": name})
 
