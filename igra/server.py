@@ -271,6 +271,8 @@ async def handle_host(ws, info, msg):
         game.pack, game.pack_file = pack, name
         game.reset()
         await send(ws, {"type": "info", "msg": f"Пак «{pack.name}» загружен"})
+    elif t == "delete_pack":
+        await delete_pack(ws, msg.get("file", ""))
     elif t == "start":
         err = game.start()
         if err:
@@ -469,6 +471,27 @@ async def media(request):
     if not os.path.isfile(path):
         raise web.HTTPNotFound()
     return web.FileResponse(path)
+
+
+async def delete_pack(ws, file):
+    """
+    Ведущий удаляет ненужный пак из списка.
+    Насовсем не стираем: переносим в packs/.deleted — если удалили по ошибке,
+    файл можно вернуть обратно в папку packs.
+    """
+    name = os.path.basename(file)
+    path = os.path.join(PACKS, name)
+    if not name.lower().endswith(".siq") or not os.path.isfile(path):
+        return await send(ws, {"type": "error", "msg": "Пак не найден"})
+    if game.pack_file == name and game.phase != "lobby":
+        return await send(ws, {"type": "error", "msg": "Этот пак сейчас в игре — сначала завершите игру"})
+    trash = os.path.join(PACKS, ".deleted")
+    os.makedirs(trash, exist_ok=True)
+    # К имени добавляем дату и время, чтобы пак с тем же названием не затёр прошлый удалённый
+    os.replace(path, os.path.join(trash, time.strftime("%Y-%m-%d_%H-%M-%S_") + name))
+    if game.pack_file == name:
+        game.pack, game.pack_file = None, ""   # удалили выбранный пак — снимаем выбор
+    await send(ws, {"type": "info", "msg": f"Пак «{name}» удалён"})
 
 
 async def host_ok(request):

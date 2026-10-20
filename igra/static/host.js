@@ -334,6 +334,19 @@ $("#loadPack").addEventListener("click", () => {
   if (f) api.send({ type: "select_pack", file: f });
 });
 
+// Удаление ненужного пака (сервер переносит его в папку packs/.deleted)
+$("#deletePack").addEventListener("click", () => {
+  const sel = $("#packSelect");
+  const f = sel.value;
+  if (!f) return;
+  const title = sel.options[sel.selectedIndex].textContent;
+  if (confirm(`Удалить пак «${title}»?
+
+Он пропадёт из списка. Если ошиблись — файл можно вернуть из папки packs/.deleted.`)) {
+    api.send({ type: "delete_pack", file: f });
+  }
+});
+
 // Загрузка .siq через браузер
 $("#upload").addEventListener("change", async e => {
   const file = e.target.files[0];
