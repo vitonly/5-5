@@ -230,10 +230,17 @@ function renderActions() {
   } else if (kind === "write") {
     // Письменный ответ. Можно исправлять и отправлять заново, пока не вышло время.
     panel.innerHTML = `<span class="lbl">Ваш ответ:</span>
-      <input type="text" class="wide" id="ansInput" maxlength="200" autocomplete="off" placeholder="Напишите ответ и нажмите Enter">
+      <input type="text" class="wide" id="ansInput" maxlength="${ANSWER_MAX}" autocomplete="off" placeholder="Напишите ответ и нажмите Enter">
+      <span class="ans-count" id="ansCount">0/${ANSWER_MAX}</span>
       <button class="btn gold" id="ansBtn">Отправить</button>
       <span class="note" id="ansNote"></span>`;
     const inp = $("#ansInput");
+    // Счётчик символов: сколько ещё можно написать (лимит такой же проверяет сервер)
+    const cnt = $("#ansCount");
+    inp.oninput = () => {
+      cnt.textContent = `${inp.value.length}/${ANSWER_MAX}`;
+      cnt.classList.toggle("near", inp.value.length >= ANSWER_MAX - 20);
+    };
     const sendAns = () => {
       const v = inp.value.trim();
       if (!v) return;

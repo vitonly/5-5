@@ -70,7 +70,7 @@ body::before {
 button { font-family: inherit; }
 
 /* ---------- Каркас страницы ---------- */
-.app { position: relative; height: 100vh; display: flex; flex-direction: column; padding: 14px 18px; gap: 12px; }
+.app { position: relative; height: 100vh; min-width: 0; display: flex; flex-direction: column; padding: 14px 18px; gap: 12px; }
 .topbar { display: flex; align-items: center; gap: 16px; min-height: 44px; }
 .logo {
   font-family: var(--display); font-size: 22px; letter-spacing: .06em;
@@ -88,7 +88,7 @@ button { font-family: inherit; }
 .conn { width: 10px; height: 10px; border-radius: 50%; background: var(--red); box-shadow: 0 0 10px var(--red); }
 .conn.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
 
-.stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.stage { position: relative; flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* ---------- Таймер ---------- */
 .timerbar { height: 8px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; visibility: hidden; }
@@ -167,16 +167,27 @@ button { font-family: inherit; }
   position: relative; flex: 1; min-height: 0; width: 100%;
   border-radius: 18px; border: 1px solid var(--line);
   background: var(--panel); backdrop-filter: blur(4px);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
+  /* safe center: если текст выше окна, он начинается сверху, а не обрезается с обеих сторон
+     (раньше было видно только середину длинного ответа) */
+  justify-content: safe center;
   gap: 2vh; padding: 3vh 4vw; overflow: hidden;
 }
-.q-text { font-weight: 700; font-size: clamp(18px, 3.1vw, 54px); line-height: 1.25; max-width: 1400px; white-space: pre-wrap; }
+/* Текст не влез даже мелким шрифтом — листается (колесом/пальцем) и едет сам, см. AutoScroller */
+.q-card.overflowing {
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent;
+  /* мягкое затухание сверху и снизу, чтобы строки не обрывались ножом на краю */
+  -webkit-mask-image: linear-gradient(transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(transparent, #000 5%, #000 95%, transparent);
+}
+.q-card.overflowing > * { flex-shrink: 0; }
+.q-text { font-weight: 700; font-size: clamp(18px, 3.1vw, 54px); line-height: 1.25; max-width: 1400px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .q-text.long { font-size: clamp(16px, 2.2vw, 38px); }
 .q-media { flex: 1 1 auto; min-height: 0; max-width: 100%; display: flex; justify-content: center; align-items: center; }
 .q-media img, .q-media video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
 .q-media video { background: #000; }
 .answer-label { font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--green); font-size: clamp(12px, 1.4vw, 20px); }
-.answer-text { font-family: var(--display); color: var(--gold); font-size: clamp(26px, 4.6vw, 80px); line-height: 1.1; }
+.answer-text { font-family: var(--display); color: var(--gold); font-size: clamp(26px, 4.6vw, 80px); line-height: 1.1; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
 
 /* Иконка «играет звук» */
 .sound-icon { display: flex; gap: 8px; align-items: flex-end; height: 120px; }
@@ -324,17 +335,19 @@ input:focus, select:focus { border-color: var(--cyan); }
 .auc-row.pass .bid { color: var(--muted); }
 
 /* Кто написал ответ / сделал ставку */
-.written-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.written-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
+/* Много длинных письменных ответов — блок не выше трети экрана, дальше листается */
+.written-row:has(.wans) { max-height: 34vh; overflow-y: auto; scrollbar-width: thin; }
 .wchip { display: flex; gap: 8px; align-items: center; padding: 6px 14px; border-radius: 99px; background: rgba(255,255,255,.07); font-weight: 700; font-size: 14px; }
 .wchip b { color: var(--muted); }
 .wchip.done { background: rgba(54,217,133,.18); }
 .wchip.done b { color: var(--green); }
 /* Письменные ответы после показа правильного */
-.wans { padding: 10px 16px; border-radius: 12px; min-width: 160px; text-align: center; border: 2px solid; }
+.wans { padding: 10px 16px; border-radius: 12px; min-width: 160px; max-width: min(100%, 520px); text-align: center; border: 2px solid; }
 .wans.ok { border-color: var(--green); background: rgba(54,217,133,.12); }
 .wans.bad { border-color: var(--red); background: rgba(255,77,109,.10); }
 .wans .wn { font-weight: 800; font-size: 13px; color: var(--muted); }
-.wans .wt { font-weight: 800; font-size: 18px; }
+.wans .wt { font-weight: 800; font-size: 18px; overflow-wrap: anywhere; }   /* «ааааа…» без пробелов тоже переносится */
 
 /* Текст вопроса, который ещё «не напечатался», занимает место, но не виден */
 .q-text .untyped { color: transparent; }

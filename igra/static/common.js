@@ -23,6 +23,8 @@ function toast(msg, isError = false) {
 }
 
 // Названия типов вопросов для плашек
+// Максимум символов в письменном ответе игрока (сервер обрезает так же — game.py ANSWER_MAX)
+const ANSWER_MAX = 200;
 const QTYPE_LABEL = { secret: "Кот в мешке", stake: "Аукцион", norisk: "Вопрос без риска", forall: "Вопрос для всех", final: "Финал" };
 
 /* ---------- Подключение к серверу ----------
@@ -179,10 +181,94 @@ function renderPause(state) {
      muted()    — выключить звук медиа на этой странице
      onMediaEnded() — всё медиа вопроса доиграло (нужно ведущему)
    ========================================================= */
+/* =========================================================
+   Длинный текст в окне вопроса/ответа
+   1) Сначала уменьшаем шрифт, пока текст не влезет в карточку.
+   2) Если даже на минимальном шрифте не влезает — включаем медленную
+      прокрутку снизу вверх (скорость — «Прокрутка длинного текста» в настройках ведущего).
+      Колесом мыши / пальцем можно листать вручную, автопрокрутка на время замирает.
+   ========================================================= */
+const FIT_MIN_PX = 20;          // мельче этого шрифт не делаем — дальше прокрутка
+const FIT_TEXT_SEL = ".q-text, .answer-text";
+
+function fitTextInBox(box) {
+  const els = [...box.querySelectorAll(FIT_TEXT_SEL)];
+  els.forEach(el => { el.style.fontSize = ""; });          // вернуть размер из CSS
+  box.classList.remove("overflowing");
+  if (!els.length) return false;
+  const fits = () => box.scrollHeight <= box.clientHeight + 1;
+  if (fits()) return false;
+
+  // Базовые размеры из CSS (у разных элементов разные)
+  const base = els.map(el => parseFloat(getComputedStyle(el).fontSize) || 24);
+  const apply = k => els.forEach((el, i) => { el.style.fontSize = Math.max(FIT_MIN_PX, base[i] * k) + "px"; });
+  const kMin = Math.min(1, FIT_MIN_PX / Math.max(...base));
+
+  apply(kMin);
+  if (!fits()) { box.classList.add("overflowing"); return true; }   // не влезает даже мелко
+  // Двоичный поиск самого крупного шрифта, при котором всё влезает
+  let lo = kMin, hi = 1;
+  for (let i = 0; i < 9; i++) {
+    const mid = (lo + hi) / 2;
+    apply(mid);
+    if (fits()) lo = mid; else hi = mid;
+  }
+  apply(lo);
+  return false;
+}
+
+class AutoScroller {
+  // el — карточка с overflow; getSpeed() — пикселей в секунду;
+  // follow() — нижняя граница уже «напечатанного» текста внутри карточки (или null, если печать закончена)
+  constructor(el, getSpeed, follow) {
+    this.el = el; this.getSpeed = getSpeed; this.follow = follow;
+    this.state = "wait";                          // wait → scroll → end → (к началу) → wait …
+    this.until = performance.now() + 2500;        // сначала даём прочитать начало
+    this.last = performance.now();
+    this.pos = 0;
+    this.alive = true;
+    // Ведущий/игрок листает сам — автопрокрутка замирает на 6 секунд и продолжает с этого места
+    const hold = () => { this.state = "wait"; this.until = performance.now() + 6000; this.pos = this.el.scrollTop; };
+    el.addEventListener("wheel", hold, { passive: true });
+    el.addEventListener("pointerdown", hold);
+    el.addEventListener("touchstart", hold, { passive: true });
+    requestAnimationFrame(this.tick);
+  }
+  tick = (now) => {
+    if (!this.alive || !this.el.isConnected) return;
+    const dt = Math.min(0.1, (now - this.last) / 1000);
+    this.last = now;
+    const el = this.el;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+
+    if (this.state === "wait" && now >= this.until) this.state = "scroll";
+    if (this.state === "scroll") {
+      // Пока текст «печатается», не уезжаем ниже напечатанного
+      const typed = this.follow ? this.follow() : null;
+      const cap = typed == null ? max : Math.min(max, Math.max(0, typed - el.clientHeight * 0.75));
+      if (this.pos < cap) {
+        this.pos = Math.min(cap, this.pos + Math.max(5, this.getSpeed()) * dt);
+        el.scrollTop = this.pos;
+      } else if (typed == null && this.pos >= max - 0.5) {
+        this.state = "end"; this.until = now + 4000;     // дочитали — стоим 4 секунды
+      }
+    }
+    if (this.state === "end" && now >= this.until) {
+      el.scrollTo({ top: 0, behavior: "smooth" });       // и плавно к началу, по кругу
+      this.pos = 0; this.state = "wait"; this.until = now + 3000;
+    }
+    requestAnimationFrame(this.tick);
+  };
+  stop() { this.alive = false; }
+}
+
 class GameView {
   constructor(stage, options) {
     this.stage = stage;
     this.o = options;
+    // Окно поменяло размер (проектор, полноэкранный режим) — подгоняем текст заново
+    let rt = null;
+    window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => this.fitCard(), 150); });
     this.key = null;
     this.state = null;
     this.mediaEls = [];
@@ -192,6 +278,8 @@ class GameView {
   update(state) {
     const prev = this.state;
     this.state = state;
+    // Скорость автопрокрутки длинного текста, пикселей в секунду (настройка ведущего)
+    this.scrollSpeed = (state.settings && state.settings.scroll_speed) || 30;
     const key = this.viewKey(state);
     if (key !== this.key) {
       this.stopMedia();
@@ -430,6 +518,7 @@ class GameView {
     // Вопрос рисуем сразу, но скрыто — медиа успевают подгрузиться за время заставки
     this.mediaEls = this.renderItems($("#qContent", this.stage), q.content);
     this.textEls = [...this.stage.querySelectorAll("#qContent .q-text")];
+    this.stage.querySelectorAll("#qContent img").forEach(img => img.addEventListener("load", () => this.fitCard(), { once: true }));
   }
 
   // Рисует список элементов (текст/картинка/звук/видео). Возвращает медиа-элементы.
@@ -525,6 +614,32 @@ class GameView {
     }
     this.mediaEls = []; this.answerMedia = [];
     this.typer = null;
+    if (this.scroller) { this.scroller.stop(); this.scroller = null; }
+  }
+
+  /* Подогнать текст под карточку вопроса; если не влезает — автопрокрутка */
+  fitCard() {
+    const card = $("#qCard", this.stage);
+    if (!card || card.offsetParent === null) return;      // карточка ещё скрыта
+    const overflow = fitTextInBox(card);
+    if (overflow) {
+      if (!this.scroller || this.scroller.el !== card) {
+        if (this.scroller) this.scroller.stop();
+        card.scrollTop = 0;
+        this.scroller = new AutoScroller(card, () => this.scrollSpeed, () => this.typedBottom(card));
+      }
+    } else if (this.scroller) {
+      this.scroller.stop(); this.scroller = null; card.scrollTop = 0;
+    }
+  }
+
+  // Нижняя граница уже напечатанного текста (в координатах прокрутки карточки); null — печать закончена
+  typedBottom(card) {
+    if (!this.typer) return null;
+    const spans = [...card.querySelectorAll(".q-text .typed")].filter(sp => sp.textContent.length);
+    if (!spans.length) return 0;
+    const r = spans[spans.length - 1].getBoundingClientRect();
+    return r.bottom - card.getBoundingClientRect().top + card.scrollTop;
   }
 
   // Пауза: останавливаем звук/видео, после паузы продолжаем
@@ -560,6 +675,7 @@ class GameView {
       view.classList.add("fade-in");
       this.startMedia(this.mediaEls, true);
       if (s.phase === "reading") this.startTyping(q);
+      this.fitCard();
     }
     if (s.phase !== "reading" && this.typer) this.finishTyping();
 
@@ -599,6 +715,10 @@ class GameView {
                      <div class="answer-text zoom-in">${esc(q.answer || "—")}</div>`;
       this.answerMedia = this.renderItems(a, q.answer_content || []);
       this.startMedia(this.answerMedia, false);
+      // Ответ мог оказаться длинным — подгоняем шрифт заново (и ещё раз, когда догрузятся картинки)
+      if (this.scroller) { this.scroller.stop(); this.scroller = null; }
+      requestAnimationFrame(() => this.fitCard());   // после того, как ниже нарисуются письменные ответы
+      a.querySelectorAll("img").forEach(img => img.addEventListener("load", () => this.fitCard(), { once: true }));
       if (s.written) {
         const bets = (s.bets && s.bets.all) || {};
         row.innerHTML = s.written.eligible.map((pid, i) => {

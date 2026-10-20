@@ -285,6 +285,8 @@ function renderAnswer(s) {
   if (q) {
     box.style.display = "";
     $("#answerText").textContent = q.answer || "—";
+    // Длинный ответ — компактнее и с прокруткой (класс long в host.html)
+    $("#answerText").classList.toggle("long", (q.answer || "").length > 60);
     $("#answerWrong").textContent = q.wrong && q.wrong.length ? "Не засчитывать: " + q.wrong.join(", ") : "";
     $("#answerComment").textContent = q.comment || "";
   } else {

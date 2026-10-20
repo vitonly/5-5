@@ -7,17 +7,21 @@
 <link rel="stylesheet" href="static/style.css">
 <style>
   /* Слева — то же, что видят игроки; справа — пульт ведущего */
-  .host-layout { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
+  /* minmax(0, 1fr): левая часть не может растянуться от длинного текста и вытолкнуть пульт за экран
+     (раньше длинный ответ игрока уводил кнопки вправо) */
+  .host-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100vh; }
   .host-layout .app { height: 100vh; }
   .panel {
-    height: 100vh; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    min-width: 0; height: 100vh; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;
     background: rgba(4,9,37,.75); border-left: 1px solid var(--line);
   }
   .box { background: rgba(18,32,122,.45); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .box h3 { margin: 0; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
   .phase-name { font-family: var(--display); font-size: 22px; color: var(--cyan); }
   .answer-box { border: 2px solid var(--green); background: rgba(54,217,133,.1); }
-  .answer-box .a { font-family: var(--display); font-size: 24px; color: var(--gold); word-break: break-word; }
+  .answer-box .a { font-family: var(--display); font-size: 24px; color: var(--gold); overflow-wrap: anywhere; }
+  /* Длинный правильный ответ на пульте — мельче и в рамке с прокруткой, чтобы кнопки ниже не уезжали */
+  .answer-box .a.long { font-size: 16px; font-family: inherit; font-weight: 800; max-height: 28vh; overflow-y: auto; }
   .answer-box .c { color: var(--muted); font-size: 13px; white-space: pre-wrap; }
   .answer-box .w { color: #ffb3c0; font-size: 13px; font-weight: 700; }
   .appeal-box { border: 2px solid var(--red); background: rgba(255,77,109,.1); animation: fadeIn .3s ease; }
@@ -27,7 +31,7 @@
   .award-row input { padding: 8px; font-size: 16px; border-radius: 8px; width: 100%; min-width: 0; }
   .judge-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
   .judge-row .jr-top { display: flex; justify-content: space-between; gap: 8px; }
-  .judge-row .jr-ans { font-weight: 800; font-size: 17px; color: var(--gold); word-break: break-word; }
+  .judge-row .jr-ans { font-weight: 800; font-size: 17px; color: var(--gold); overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
   .judge-row .jr-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .actions .wide { grid-column: 1 / -1; }
@@ -124,6 +128,7 @@
         <label class="set">Показ ответа, сек <input type="number" min="2" max="60" data-set="reveal_time"></label>
         <label class="set">Блок за фальстарт, сек <input type="number" min="0" max="5" step="0.5" data-set="falstart_block"></label>
         <label class="set">Скорость текста, букв/сек (0 — сразу) <input type="number" min="0" max="100" data-set="read_speed"></label>
+        <label class="set">Прокрутка длинного текста, пикс/сек <input type="number" min="5" max="200" data-set="scroll_speed"></label>
         <label class="set">Письменный ответ, сек <input type="number" min="10" max="180" data-set="write_time"></label>
         <label class="set">Ответ в финале, сек <input type="number" min="10" max="300" data-set="final_write_time"></label>
         <label class="set">Ставка в финале, сек <input type="number" min="10" max="120" data-set="final_bet_time"></label>

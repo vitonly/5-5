@@ -48,6 +48,7 @@ DEFAULT_SETTINGS = {
     "falstart_block": 1.0,    # на сколько секунд блокируем кнопку за фальстарт
     "reveal_time": 6,         # сколько секунд показываем ответ перед возвратом на табло
     "read_speed": 18,         # скорость появления текста вопроса, символов в секунду (0 — сразу весь)
+    "scroll_speed": 30,       # скорость автопрокрутки текста, который не влез в окно даже мелким шрифтом (пикс/сек)
     "write_time": 30,         # сколько секунд на письменный ответ в «вопросе для всех»
     "final_write_time": 45,   # сколько секунд на письменный ответ в финале
     "final_bet_time": 30,     # сколько секунд на ставку в финале
@@ -57,6 +58,7 @@ DEFAULT_SETTINGS = {
     "play_all_final": False,  # играть все финальные вопросы вместо вычёркивания тем
 }
 
+ANSWER_MAX = 200           # максимум символов в письменном ответе (то же число — в static/common.js)
 PRESS_WINDOW = 0.04        # окно (сек), в которое собираем почти одновременные нажатия
 QUESTION_INTRO_TIME = 1.5
 SECRET_INTRO_TIME = 2.5    # заставка «Кот в мешке» / «Аукцион» перед действиями
@@ -672,7 +674,7 @@ class Game:
     def submit_answer(self, pid, text):
         if self.phase != "writing" or self.paused or pid not in self.q.eligible:
             return
-        self.q.answers[pid] = (text or "").strip()[:200]
+        self.q.answers[pid] = (text or "").strip()[:ANSWER_MAX]
         # Все ответили — сразу к проверке
         online_elig = [x for x in self.q.eligible if self.players.get(x) and self.players[x].online]
         if all(x in self.q.answers for x in online_elig):
@@ -892,7 +894,9 @@ class Game:
             "answerer": self.answerer_id,
             "timer": None,
             "settings": self.settings if host else
-                        {"players_sound": self.settings["players_sound"]},
+                        {"players_sound": self.settings["players_sound"],
+                         # игрокам и табло нужна скорость прокрутки длинного текста
+                         "scroll_speed": self.settings["scroll_speed"]},
         }
         if self.deadline:
             left = self.paused_left if (self.paused and self.paused_left) else max(0.0, self.deadline - now)
