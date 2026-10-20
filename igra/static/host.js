@@ -366,11 +366,11 @@ $("#packList").addEventListener("click", e => {
   if (!row) return;
   const file = row.dataset.file;
   if (e.target.closest(".pack-del")) {
-    // Крестик: удаляем пак (сервер переносит его в папку packs/.deleted)
+    // Крестик: удаляем пак с сервера насовсем
     const p = packs.find(x => x.file === file);
-    if (confirm(`Удалить пак «${p ? packLabel(p) : file}»?
+    if (confirm(`Удалить пак «${p ? packLabel(p) : file}» насовсем?
 
-Он пропадёт из списка. Если ошиблись — файл можно вернуть из папки packs/.deleted.`)) {
+Файл сотрётся с сервера, вернуть его будет нельзя.`)) {
       api.send({ type: "delete_pack", file });
     }
     return;
