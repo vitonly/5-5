@@ -26,6 +26,7 @@ const studentLinks = [
 const adminLinksBase = [
   { href: "/admin", label: "Дашборд" },
   { href: "/admin/students", label: "Ученики" },
+  { href: "/admin/groups", label: "Группы" },
   { href: "/admin/homework", label: "Домашки" },
   { href: "/admin/materials", label: "Материалы" },
   { href: "/admin/lessons", label: "Архив" },

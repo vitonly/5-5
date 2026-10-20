@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { formatDate, displayName } from "@/lib/utils";
 import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
+import { recipientFilter } from "@/lib/recipients";
 
 /** Статусы, где ещё можно сдать / доработать. OVERDUE не напоминаем — сдавать уже нельзя. */
 const REMINDABLE = ["ASSIGNED", "REVISION"] as const;
@@ -54,7 +55,11 @@ export async function POST(request: NextRequest) {
       orderBy: { deadline: "asc" },
     });
     // Просроченные (дедлайн прошёл) не шлём — сдать уже нельзя
-    const assignments = candidates.filter((a) => stillOpen(a, now));
+    // Выбрали группу или отдельных учеников — напоминаем только им
+    const only = recipientFilter(body);
+    const assignments = candidates.filter(
+      (a) => stillOpen(a, now) && (!only || only.has(a.studentId))
+    );
 
     if (assignments.length === 0) {
       return NextResponse.json(

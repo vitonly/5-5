@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "@/components/ui/toast";
+import { RecipientPicker, useRecipients } from "@/components/RecipientPicker";
 import { confirmAction } from "@/components/ui/confirm";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -197,11 +198,13 @@ export function AdminMatchesClient({
     });
   }
 
-  function toggleInvite(id: string) {
-    setInviteIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  }
+  // Группы учеников: запись на 5v5 можно открыть целой группе
+  const { groups } = useRecipients();
+  const pickerStudents = students.map((s) => ({
+    id: s.id,
+    name: displayName(s),
+    hasTelegram: Boolean(s.telegramChatId),
+  }));
 
   async function createSession() {
     const res = await fetch("/api/matches", {
@@ -823,30 +826,15 @@ export function AdminMatchesClient({
             )}
           </div>
           <div>
-            <Label>Кому отправить ({inviteIds.length})</Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {students.map((s) => {
-                const hasTg = Boolean(s.telegramChatId);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    disabled={!hasTg}
-                    onClick={() => hasTg && toggleInvite(s.id)}
-                    title={hasTg ? undefined : "Нет привязанного Telegram"}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      !hasTg
-                        ? "cursor-not-allowed border-[var(--border)] opacity-40"
-                        : inviteIds.includes(s.id)
-                          ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
-                          : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
-                    }`}
-                  >
-                    {displayName(s)}
-                    {!hasTg ? " · нет TG" : ""}
-                  </button>
-                );
-              })}
+            <Label>Кому отправить</Label>
+            <div className="mt-2">
+              <RecipientPicker
+                students={pickerStudents}
+                groups={groups}
+                value={inviteIds}
+                onChange={setInviteIds}
+                requireTelegram
+              />
             </div>
           </div>
           {openError && <p className="text-sm text-[var(--danger)]">{openError}</p>}

@@ -14,6 +14,7 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { RankMedalPicker } from "@/components/RankMedalPicker";
 import { DOTA_ROLE_LABELS } from "@/lib/labels";
 import { PlayerLink } from "@/components/PlayerLink";
+import { SendToDialog } from "@/components/RecipientPicker";
 import { PlayerRolesDisplay } from "@/components/PlayerRolesDisplay";
 import {
   hasIncompleteRoles,
@@ -47,6 +48,9 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   const [reminding, setReminding] = useState(false);
   const [query, setQuery] = useState("");
   const [notifyingCreds, setNotifyingCreds] = useState(false);
+  // Окна «Кому отправить»: логины и пароли / напоминание про роли
+  const [credsDialog, setCredsDialog] = useState(false);
+  const [rolesDialog, setRolesDialog] = useState(false);
 
   const missingRoles = useMemo(
     () => students.filter((s) => hasIncompleteRoles(s.profile)),
@@ -158,6 +162,8 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
   async function notifyCredentials(opts?: {
     userId?: string;
     testToAdmin?: boolean;
+    /** Только выбранным ученикам (группа или отдельные); нет — всем */
+    userIds?: string[];
   }) {
     setNotifyingCreds(true);
     try {
@@ -201,6 +207,8 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
     userId?: string;
     allIncomplete?: boolean;
     testToAdmin?: boolean;
+    /** Только выбранным ученикам (группа или отдельные); нет — всем */
+    userIds?: string[];
   }) {
     setReminding(true);
     try {
@@ -252,19 +260,22 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
               <Button
                 size="sm"
                 disabled={notifyingCreds || pendingCredentials.length === 0}
-                onClick={async () => {
-                  if (
-                    !(await confirmAction(
-                      `Отправить каждому свой логин и пароль в Telegram?\nГотово: ${pendingCredentials.length}`
-                    ))
-                  ) {
-                    return;
-                  }
-                  void notifyCredentials();
-                }}
+                onClick={() => setCredsDialog(true)}
               >
-                {notifyingCreds ? "Отправка…" : "Разослать всем в TG"}
+                {notifyingCreds ? "Отправка…" : "Разослать в TG…"}
               </Button>
+              <SendToDialog
+                open={credsDialog}
+                title="Разослать логины и пароли"
+                hint={`Каждый выбранный ученик получит свой логин и пароль в Telegram. Готово к отправке: ${pendingCredentials.length}.`}
+                sendLabel="Разослать"
+                busy={notifyingCreds}
+                onClose={() => setCredsDialog(false)}
+                onSend={async (ids) => {
+                  await notifyCredentials(ids ? { userIds: ids } : undefined);
+                  setCredsDialog(false);
+                }}
+              />
               <Button
               title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
                 type="button"
@@ -348,10 +359,22 @@ export function AdminStudentsClient({ students }: { students: Student[] }) {
                 size="sm"
                 variant="secondary"
                 disabled={reminding}
-                onClick={() => remindRoles({ allIncomplete: true })}
+                onClick={() => setRolesDialog(true)}
               >
-                {reminding ? "Отправка…" : "Напомнить всем"}
+                {reminding ? "Отправка…" : "Напомнить…"}
               </Button>
+              <SendToDialog
+                open={rolesDialog}
+                title="Напомнить заполнить роли"
+                hint="Напоминание получат только выбранные ученики, у которых не заполнены роли."
+                sendLabel="Напомнить"
+                busy={reminding}
+                onClose={() => setRolesDialog(false)}
+                onSend={async (ids) => {
+                  await remindRoles({ allIncomplete: true, ...(ids ? { userIds: ids } : {}) });
+                  setRolesDialog(false);
+                }}
+              />
               <Button
               title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
                 type="button"

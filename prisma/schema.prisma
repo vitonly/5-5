@@ -122,6 +122,8 @@ model User {
   sentMessages        Message[]          @relation("MessageSender")
   receivedMessages    Message[]          @relation("MessageRecipient")
   loginTickets        LoginTicket[]
+  /** Группы, в которых состоит ученик (их создаёт тренер на странице «Группы») */
+  studentGroups       StudentGroup[]     @relation("StudentGroupMembers")
   materialViews       MaterialView[]
   lessonAttendances   LessonAttendance[]
   progressLogs        ProgressLog[]
@@ -537,6 +539,14 @@ model MatchReplay {
   createdAt    DateTime     @default(now())
 
   @@unique([sessionId, gameNumber])
+}
+
+/** Группа учеников (например «Вторник 18:00»). Ученик может быть в нескольких группах. */
+model StudentGroup {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  members   User[]   @relation("StudentGroupMembers")
 }
 
 /** Служебные флаги приложения (например, запуск ачивок v2) */

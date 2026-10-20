@@ -5,6 +5,7 @@ import { hasIncompleteRoles } from "@/lib/secondary-roles";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
+import { recipientFilter } from "@/lib/recipients";
 
 const REMIND_TEXT = `⚠️ <b>Заполните роли в профиле</b>
 
@@ -38,8 +39,10 @@ export async function POST(request: NextRequest) {
     include: { profile: true },
   });
 
+  // Выбрали группу или отдельных учеников — напоминаем только им
+  const only = recipientFilter(body);
   const targets = allIncomplete
-    ? students.filter((s) => hasIncompleteRoles(s.profile))
+    ? students.filter((s) => hasIncompleteRoles(s.profile) && (!only || only.has(s.id)))
     : students.filter((s) => s.id === userId && hasIncompleteRoles(s.profile));
 
   if (!targets.length) {

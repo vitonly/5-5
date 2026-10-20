@@ -15,6 +15,7 @@ import { SEASON_LABELS, VIBE_LABELS } from "@/lib/labels";
 import { displayName, formatDate, toAppDateTimeLocal } from "@/lib/utils";
 import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
+import { SendToDialog } from "@/components/RecipientPicker";
 import type {
   RatingSeason,
   User,
@@ -70,6 +71,8 @@ export function AdminSeasonsClient({
   const [expanded, setExpanded] = useState<Record<string, string | null>>({});
   const [detailTab, setDetailTab] = useState<Record<string, DetailTab>>({});
   const [reminding, setReminding] = useState(false);
+  // Для какого сезона открыто окно «Кому напомнить о голосовании» (null — закрыто)
+  const [remindSeasonId, setRemindSeasonId] = useState<string | null>(null);
 
   async function handleCreateSeason() {
     await fetch("/api/ratings", {
@@ -192,6 +195,8 @@ export function AdminSeasonsClient({
     voterId?: string;
     allIncomplete?: boolean;
     testToAdmin?: boolean;
+    /** Только выбранным ученикам (группа или отдельные); нет — всем */
+    userIds?: string[];
   }) {
     setReminding(true);
     try {
@@ -333,12 +338,22 @@ export function AdminSeasonsClient({
                     size="sm"
                     variant="secondary"
                     disabled={reminding}
-                    onClick={() =>
-                      remindVote({ seasonId: season.id, allIncomplete: true })
-                    }
+                    onClick={() => setRemindSeasonId(season.id)}
                   >
-                    {reminding ? "Отправка…" : `Напомнить всем недоголосовавшим (${incomplete.length})`}
+                    {reminding ? "Отправка…" : `Напомнить недоголосовавшим (${incomplete.length})…`}
                   </Button>
+                  <SendToDialog
+                    open={remindSeasonId === season.id}
+                    title="Напомнить о голосовании"
+                    hint="Напоминание получат только выбранные ученики, которые ещё не всех оценили."
+                    sendLabel="Напомнить"
+                    busy={reminding}
+                    onClose={() => setRemindSeasonId(null)}
+                    onSend={async (ids) => {
+                      await remindVote({ seasonId: season.id, allIncomplete: true, ...(ids ? { userIds: ids } : {}) });
+                      setRemindSeasonId(null);
+                    }}
+                  />
                   <Button
                     size="sm"
                     variant="ghost"

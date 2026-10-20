@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HomeworkMaterials } from "@/components/HomeworkMaterials";
+import { RecipientPicker, SendToDialog, useRecipients } from "@/components/RecipientPicker";
 import { HOMEWORK_STATUS_LABELS, MATERIAL_TYPE_LABELS } from "@/lib/labels";
 import { displayName, formatDate, materialDisplayTitle, parseJsonArray } from "@/lib/utils";
 import type {
@@ -194,9 +195,14 @@ export function AdminHomeworkClient({
   const [expandedHomeworkIds, setExpandedHomeworkIds] = useState<Record<string, boolean>>({});
   const [remindingAll, setRemindingAll] = useState(false);
 
-  const allStudentIds = students.map((s) => s.id);
-  const allSelected =
-    students.length > 0 && allStudentIds.every((id) => selectedStudents.includes(id));
+  // Группы учеников и окно «Кому напомнить»
+  const { groups } = useRecipients();
+  const [remindDialog, setRemindDialog] = useState(false);
+  const pickerStudents = students.map((s) => ({
+    id: s.id,
+    name: displayName(s),
+    hasTelegram: Boolean(s.telegramChatId || s.telegramId),
+  }));
 
   const pendingReview = initial.flatMap((hw) =>
     hw.assignments
@@ -305,13 +311,14 @@ export function AdminHomeworkClient({
     else toast.error("Не удалось отправить: у ученика нет привязанного Telegram или он не запускал бота.");
   }
 
-  async function remindAll(testToAdmin = false) {
+  // userIds: null — всем, иначе только выбранным ученикам (группа или отдельные)
+  async function remindAll(testToAdmin = false, userIds: string[] | null = null) {
     setRemindingAll(true);
     try {
       const res = await fetch("/api/homework/remind", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allIncomplete: true, testToAdmin }),
+        body: JSON.stringify({ allIncomplete: true, testToAdmin, ...(userIds ? { userIds } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -342,16 +349,6 @@ export function AdminHomeworkClient({
     } finally {
       setRemindingAll(false);
     }
-  }
-
-  function toggleStudent(id: string) {
-    setSelectedStudents((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    );
-  }
-
-  function toggleAllStudents() {
-    setSelectedStudents(allSelected ? [] : allStudentIds);
   }
 
   function toggleMaterial(id: string) {
@@ -420,10 +417,22 @@ export function AdminHomeworkClient({
             size="sm"
             variant="secondary"
             disabled={remindingAll || remindableCount === 0}
-            onClick={() => remindAll()}
+            onClick={() => setRemindDialog(true)}
           >
-            {remindingAll ? "Отправка…" : `Напомнить всем${remindableCount ? ` (${remindableCount})` : ""}`}
+            {remindingAll ? "Отправка…" : `Напомнить${remindableCount ? ` (${remindableCount})` : ""}…`}
           </Button>
+          <SendToDialog
+            open={remindDialog}
+            title="Напомнить о домашке"
+            hint="Напоминание получат только выбранные ученики, у которых есть несданные домашки."
+            sendLabel="Напомнить"
+            busy={remindingAll}
+            onClose={() => setRemindDialog(false)}
+            onSend={async (ids) => {
+              await remindAll(false, ids);
+              setRemindDialog(false);
+            }}
+          />
           <Button
               title="Отправить это сообщение только себе в Telegram — проверить, как выглядит"
             type="button"
@@ -494,32 +503,13 @@ export function AdminHomeworkClient({
             </CollapsibleCard>
             <div>
               <Label>Ученики</Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={toggleAllStudents}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                    allSelected
-                      ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
-                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
-                  }`}
-                >
-                  Все
-                </button>
-                {students.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleStudent(s.id)}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      selectedStudents.includes(s.id)
-                        ? "border-[var(--admin-border)] bg-[var(--admin-bg)] text-[var(--admin-ink)]"
-                        : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
-                    }`}
-                  >
-                    {displayName(s)}
-                  </button>
-                ))}
+              <div className="mt-2">
+                <RecipientPicker
+                  students={pickerStudents}
+                  groups={groups}
+                  value={selectedStudents}
+                  onChange={setSelectedStudents}
+                />
               </div>
             </div>
             <Button

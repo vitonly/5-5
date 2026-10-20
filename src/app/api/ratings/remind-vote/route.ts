@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
+import { recipientFilter } from "@/lib/recipients";
 
 function missingTargets(
   voterId: string,
@@ -60,8 +61,10 @@ export async function POST(request: NextRequest) {
       missingTargets(s.id, studentIds, season.peerRatings, season.vibeVotes).length > 0
   );
 
+  // Выбрали группу или отдельных учеников — напоминаем только им
+  const only = recipientFilter(body);
   const targets = allIncomplete
-    ? incompleteVoters
+    ? incompleteVoters.filter((s) => !only || only.has(s.id))
     : incompleteVoters.filter((s) => s.id === voterId);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";

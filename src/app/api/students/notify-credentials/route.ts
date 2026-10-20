@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
+import { recipientFilter } from "@/lib/recipients";
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://www.startdota.ru").replace(
   /\/$/,
@@ -56,10 +57,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Выбрали группу или отдельных учеников — отправляем только им
+  const only = recipientFilter(body);
   const students = await prisma.user.findMany({
     where: {
       role: "STUDENT",
-      ...(userId ? { id: userId } : {}),
+      ...(userId ? { id: userId } : only ? { id: { in: [...only] } } : {}),
       login: { not: null },
       loginPasswordTemp: { not: null },
     },
