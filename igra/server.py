@@ -452,10 +452,28 @@ async def discovery(app):
 
 # ---------- HTTP ----------
 
+ASSET_RE = re.compile(r'(static/[\w./-]+\.(?:js|css))"')
+
+
 def page(name):
+    """
+    Отдаём страницу игры. К адресам скриптов и стилей дописываем метку версии
+    (время изменения файла): static/host.js -> static/host.js?v=1729450000.
+    Изменился файл — изменилась метка, и браузер обязан скачать новую версию,
+    а не взять старую из своего кэша (из-за этого после обновлений ломался пульт).
+    """
+    path = os.path.join(STATIC, name)
+
+    def versioned(m):
+        asset = os.path.join(RES, m.group(1))
+        v = int(os.path.getmtime(asset)) if os.path.isfile(asset) else 0
+        return f'{m.group(1)}?v={v}"'
+
     async def h(request):
-        return web.FileResponse(os.path.join(STATIC, name),
-                                headers={"Cache-Control": "no-cache"})
+        with open(path, encoding="utf-8") as f:
+            html = ASSET_RE.sub(versioned, f.read())
+        return web.Response(text=html, content_type="text/html", charset="utf-8",
+                            headers={"Cache-Control": "no-cache"})
     return h
 
 
