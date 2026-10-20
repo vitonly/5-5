@@ -104,8 +104,8 @@ def run(client: paramiko.SSHClient, cmd: str, timeout: int = 600) -> tuple[int, 
 
 
 def make_tarball() -> bytes:
-    """Папка igra/ без паков, кэша и файлов сборки exe."""
-    skip = {"packs", ".cache", "__pycache__", "build", "dist", "venv"}
+    """Папка igra/ без паков, черновиков редактора, кэша и файлов сборки exe."""
+    skip = {"packs", "drafts", ".cache", "__pycache__", "build", "dist", "venv"}
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for path in LOCAL_IGRA.rglob("*"):

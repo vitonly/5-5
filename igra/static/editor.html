@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Своя игра — редактор паков</title>
+<link rel="stylesheet" href="static/style.css">
+<style>
+  /* В редакторе страница прокручивается (в игре — нет) */
+  body { overflow: auto; }
+  textarea {
+    font-family: inherit; font-size: 15px; color: var(--text); width: 100%; resize: vertical;
+    background: rgba(4,9,37,.7); border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; outline: none;
+  }
+  textarea:focus { border-color: var(--cyan); }
+  input[type=text], input[type=number] { padding: 8px 10px; font-size: 15px; border-radius: 10px; min-width: 0; }
+  select { padding: 8px 10px; font-size: 15px; border-radius: 10px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .grow { flex: 1; min-width: 0; }
+  .icon { background: rgba(255,255,255,.08); border: 0; color: var(--text); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 15px; flex: none; }
+  .icon:hover { background: rgba(255,255,255,.18); }
+  .icon.del:hover { background: var(--red); }
+  .icon:disabled { opacity: .3; cursor: default; background: rgba(255,255,255,.08); }
+
+  /* ---------- Шапка ---------- */
+  .ed-top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 18px; background: rgba(4,9,37,.92); border-bottom: 1px solid var(--line); backdrop-filter: blur(6px); }
+  .ed-top h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 20px; }
+  .save-state { font-size: 13px; color: var(--muted); min-width: 110px; }
+  .save-state.err { color: var(--red); font-weight: 700; }
+
+  /* ---------- Главный экран: список паков ---------- */
+  .home { max-width: 860px; margin: 24px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+  .card { background: rgba(18,32,122,.45); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { margin: 0; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .draft { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.05); }
+  .draft .nm { font-weight: 800; }
+
+  /* ---------- Редактор: слева раунды и темы, справа вопросы ---------- */
+  .ed { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; padding: 16px; align-items: start; }
+  .side { position: sticky; top: 76px; max-height: calc(100vh - 92px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .round { background: rgba(18,32,122,.45); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .round.final { border-color: var(--gold); }
+  .theme-link { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer; background: rgba(255,255,255,.04); font-weight: 700; font-size: 14px; }
+  .theme-link:hover { background: rgba(255,255,255,.1); }
+  .theme-link.on { background: rgba(95,224,255,.18); outline: 2px solid var(--cyan); }
+  .theme-link .cnt { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--gold); }
+
+  .main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .q { background: rgba(18,32,122,.45); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .q .num { font-family: var(--display); color: var(--gold); font-size: 20px; min-width: 28px; }
+  label.f { min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  label.f input, label.f select { width: 100%; }   /* поле занимает всю ширину подписи и не вылезает за край */
+  .secret-box { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; padding: 10px; border-radius: 10px; background: rgba(139,92,246,.15); }
+  .secret-box .check { grid-column: 1 / -1; }
+  details.more summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 700; }
+  details.more[open] { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Зона вопроса: сюда вставляются картинки по Ctrl+V */
+  .zone { border: 2px dashed var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; outline: none; transition: border-color .15s, background .15s; }
+  .zone.active { border-color: var(--cyan); background: rgba(95,224,255,.06); }
+  .zone.drag { border-color: var(--gold); background: rgba(255,207,64,.1); }
+  .zone-title { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .zone .hint { font-size: 12px; color: var(--muted); }
+  .zone.active .hint b { color: var(--cyan); }
+  .item { display: flex; gap: 8px; align-items: flex-start; }
+  .item .body { flex: 1; min-width: 0; }
+  .item img { max-width: 100%; max-height: 260px; border-radius: 8px; display: block; background: #fff1; }
+  .item video { max-width: 100%; max-height: 260px; border-radius: 8px; display: block; }
+  .item audio { width: 100%; }
+  .item .tools { display: flex; flex-direction: column; gap: 4px; }
+  .uploading { color: var(--cyan); font-size: 13px; font-weight: 700; }
+
+  /* Окно с сообщением (проверка пака) */
+  .modal { cursor: default; }
+  .modal .card { width: min(560px, 92vw); max-height: 80vh; overflow-y: auto; }
+  .modal ul { margin: 0; padding-left: 20px; line-height: 1.6; }
+
+  @media (max-width: 900px) {
+    .ed { grid-template-columns: 1fr; }
+    .side { position: static; max-height: none; }
+    .secret-box { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+  <!-- Вход по PIN (только если редактор открыт с другого компьютера класса) -->
+  <div class="overlay" id="pinBox" style="display:none; cursor:default">
+    <form class="card" id="pinForm" style="width:340px; text-align:center">
+      <h2>Вход ведущего</h2>
+      <div class="muted">PIN написан в окне сервера</div>
+      <input type="password" id="pinInput" inputmode="numeric" maxlength="4" placeholder="PIN" style="text-align:center; font-size:28px">
+      <button class="btn gold">Войти</button>
+    </form>
+  </div>
+
+  <!-- Окно с сообщением -->
+  <div class="overlay modal" id="modal" style="display:none">
+    <div class="card">
+      <h2 id="modalTitle"></h2>
+      <div id="modalBody"></div>
+      <button class="btn" id="modalClose">Понятно</button>
+    </div>
+  </div>
+
+  <header class="ed-top">
+    <div class="logo"><span>С</span><span>И</span></div>
+    <h1>Редактор паков</h1>
+    <div class="grow"></div>
+    <span class="save-state" id="saveState"></span>
+    <span id="editButtons" class="row" style="display:none">
+      <button class="btn small ghost" id="btnCheck">Проверить</button>
+      <button class="btn small ghost" id="btnDownload">Скачать .siq</button>
+      <button class="btn small gold" id="btnPublish">Сохранить в игру</button>
+      <button class="btn small ghost" id="btnHome">Мои паки</button>
+    </span>
+    <a class="btn small ghost" href="host" style="text-decoration:none">К пульту</a>
+  </header>
+
+  <!-- Главный экран: создать или открыть пак -->
+  <section class="home" id="home" style="display:none">
+    <div class="card">
+      <h2>Начать</h2>
+      <div class="row">
+        <button class="btn gold" id="btnNew">Новый пак</button>
+        <label class="btn ghost">Открыть .siq с компьютера<input type="file" id="importFile" accept=".siq" hidden></label>
+      </div>
+      <div class="row">
+        <select id="gamePacks" class="grow"></select>
+        <button class="btn ghost" id="btnEditGamePack">Изменить пак из игры</button>
+      </div>
+      <div class="muted">Пак из игры откроется как копия. «Сохранить в игру» заменит его новой версией.</div>
+    </div>
+    <div class="card">
+      <h2>Мои черновики</h2>
+      <div id="drafts"></div>
+    </div>
+  </section>
+
+  <!-- Редактор -->
+  <section class="ed" id="editor" style="display:none">
+    <aside class="side" id="side"></aside>
+    <main class="main" id="main"></main>
+  </section>
+
+<script src="static/common.js"></script>
+<script src="static/editor.js"></script>
+</body>
+</html>

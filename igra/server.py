@@ -8,6 +8,7 @@
   /         — игрок (ученики открывают у себя в браузере)
   /host     — ведущий (на этом же компьютере открывается без PIN-кода)
   /screen   — табло для проектора (без правильных ответов)
+  /editor   — редактор паков (.siq) для ведущего
 
 Связь с браузерами идёт через WebSocket (/ws): постоянное соединение,
 по которому сервер мгновенно рассылает новое состояние игры,
@@ -30,6 +31,7 @@ from aiohttp import web, WSMsgType
 
 from game import Game
 from siq import load_pack, pack_title
+from editor import Editor
 
 # ---------- Пути ----------
 # Когда программа собрана в .exe (PyInstaller), страницы и шрифты лежат внутри exe
@@ -469,13 +471,22 @@ async def media(request):
     return web.FileResponse(path)
 
 
-async def upload(request):
-    """Ведущий загружает .siq через браузер."""
+async def host_ok(request):
+    """
+    Может ли этот запрос делать то, что разрешено только ведущему.
+    На сайте — только админ сайта (проверку is_local тут делать нельзя:
+    через nginx все запросы приходят с 127.0.0.1). Дома и в классе —
+    с этого же компьютера или с правильным PIN.
+    """
     if SITE_MODE:
         user = await site_user(request)
-        if not user or user.get("role") != "ADMIN":
-            raise web.HTTPForbidden()
-    elif not (is_local(request) or request.query.get("pin") == HOST_PIN):
+        return bool(user and user.get("role") == "ADMIN")
+    return is_local(request) or request.query.get("pin") == HOST_PIN
+
+
+async def upload(request):
+    """Ведущий загружает .siq через браузер."""
+    if not await host_ok(request):
         raise web.HTTPForbidden()
     reader = await request.multipart()
     field = await reader.next()
@@ -546,11 +557,14 @@ def make_app():
     app.router.add_get("/", page("player.html"))
     app.router.add_get("/host", page("host.html"))
     app.router.add_get("/screen", page("screen.html"))
+    app.router.add_get("/editor", page("editor.html"))      # редактор паков
     app.router.add_get("/ws", ws_handler)
     app.router.add_get("/m/{pack}/{name}", media)
     app.router.add_post("/api/upload", upload)
     app.router.add_get("/config.json", config)
     app.router.add_static("/static", STATIC)
+    # API редактора паков (черновики лежат в папке drafts рядом с packs)
+    Editor(DATA, PACKS, host_ok, notify).routes(app)
     app.cleanup_ctx.append(pinger)
     app.cleanup_ctx.append(http_client)
     if not SITE_MODE:

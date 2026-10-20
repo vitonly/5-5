@@ -39,6 +39,7 @@ class Question:
     kind: str                                   # тип вопроса (уже приведённый): simple, secret, stake, norisk, forall
     content: list = field(default_factory=list)  # список Item — что показываем как вопрос
     answer: str = ""                             # правильный ответ текстом
+    right: list = field(default_factory=list)    # все правильные ответы списком (нужно редактору)
     answer_content: list = field(default_factory=list)  # медиа, которые показываем вместе с ответом
     comment: str = ""                            # комментарий автора (видит только ведущий)
     wrong: list = field(default_factory=list)    # неправильные ответы из пака (подсказка ведущему)
@@ -210,6 +211,7 @@ def _parse_question_v5(q, media):
     qq.content, qq.answer_content = content, answer_content
     right = [a.text.strip() for a in q.findall("right/answer") if a.text]
     qq.answer = " / ".join(right)
+    qq.right = right
     qq.wrong = [a.text.strip() for a in q.findall("wrong/answer") if a.text]
     qq.comment = _text(q.find("info/comments"))
     return qq
@@ -246,6 +248,7 @@ def _parse_question_v4(q, media):
     qq.content, qq.answer_content = content, answer_content
     right = [a.text.strip() for a in q.findall("right/answer") if a.text]
     qq.answer = " / ".join(right)
+    qq.right = right
     qq.wrong = [a.text.strip() for a in q.findall("wrong/answer") if a.text]
     qq.comment = _text(q.find("info/comments"))
     return qq
