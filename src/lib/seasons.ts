@@ -64,9 +64,9 @@ export async function refreshPlayerStrength(userId: string, seasonId?: string | 
     sid = season?.id;
   }
 
-  let peerScores: number[] = [];
+  const peerScores: number[] = [];
   let trainerScore: number | null = null;
-  let peerTilts: TiltValue[] = [];
+  const peerTilts: TiltValue[] = [];
   let trainerTilt: TiltValue | null = null;
 
   if (sid) {

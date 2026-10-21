@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { createVoiceToken, isLivekitConfigured } from "@/lib/livekit";
 import { isVoiceRoomId } from "@/lib/voice-rooms";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   let user;
   try {
     user = await requireUser();
@@ -52,3 +53,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Не удалось войти в комнату" }, { status: 500 });
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);

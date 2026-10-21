@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
+import { handleAuth } from "@/lib/api-auth";
 
 /** Отметить материал как просмотренный */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const user = await requireUser();
   const { materialId } = await request.json();
   if (!materialId || typeof materialId !== "string") {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 }
 
 /** Снять отметку «просмотрено» */
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   const user = await requireUser();
   const { materialId } = await request.json();
   if (!materialId || typeof materialId !== "string") {
@@ -38,3 +39,7 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);
+export const DELETE = handleAuth(deleteHandler);

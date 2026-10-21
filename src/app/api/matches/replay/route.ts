@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { syncHallPoints } from "@/lib/hall-of-fame";
 import { normalizeDraft, normalizeKills, normalizeReplayPlayers } from "@/lib/replay";
+import { handleAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -24,7 +25,7 @@ async function guard() {
  * Тело запроса — сам файл (application/octet-stream), ?sessionId=…&gameNumber=…
  * Файл не сохраняем: стримим в парсер и храним только итоговую таблицу.
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await guard();
   if (!admin) return bad("Только для тренера", 403);
 
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
   });
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   const admin = await guard();
   if (!admin) return bad("Только для тренера", 403);
   const sessionId = request.nextUrl.searchParams.get("sessionId") ?? "";
@@ -105,3 +106,7 @@ export async function DELETE(request: NextRequest) {
   await syncHallPoints().catch((e) => console.error("[hall] sync after delete", e));
   return NextResponse.json({ ok: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);
+export const DELETE = handleAuth(deleteHandler);

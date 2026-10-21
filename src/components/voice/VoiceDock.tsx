@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
+// Только типы: сама библиотека LiveKit (~0.5 МБ) загружается в момент входа в комнату,
+// а не на каждой странице сайта у каждого ученика (см. joinRoom)
+import type {
+  LocalAudioTrack,
+  RemoteParticipant,
+  RemoteTrackPublication,
   Room,
-  RoomEvent,
-  Track,
-  type LocalAudioTrack,
-  type RemoteParticipant,
-  type RemoteTrackPublication,
 } from "livekit-client";
 import type { VoiceRoomId } from "@/lib/voice-rooms";
 import { VOICE_ROOMS, isVoiceRoomId, voiceRoomLabel } from "@/lib/voice-rooms";
@@ -38,9 +38,6 @@ const PTT_STORAGE = "startplus_voice_ptt_key";
 const MODE_STORAGE = "startplus_voice_mode";
 const VAD_STORAGE = "startplus_voice_vad";
 
-function displayNameOf(p: { identity: string; name?: string }) {
-  return p.name?.trim() || p.identity.slice(0, 8);
-}
 
 export function VoiceDock({ role, myId }: Props) {
   const isAdmin = role === "ADMIN";
@@ -139,11 +136,17 @@ export function VoiceDock({ role, myId }: Props) {
     }
   }, []);
 
+  // Список комнат нужен, только когда панель голоса открыта.
+  // Раньше каждая вкладка у каждого ученика спрашивала его каждые 4 секунды на всех страницах.
+  // Внутри комнаты список и так обновляется по событиям (кто-то зашёл / вышел).
   useEffect(() => {
+    if (!open) return;
     void refreshRooms();
-    const t = setInterval(() => void refreshRooms(), 4000);
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void refreshRooms();   // скрытую вкладку не опрашиваем
+    }, 4000);
     return () => clearInterval(t);
-  }, [refreshRooms]);
+  }, [open, refreshRooms]);
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -303,7 +306,7 @@ export function VoiceDock({ role, myId }: Props) {
   const attachRemoteAudio = useCallback(
     (participant: RemoteParticipant, publication: RemoteTrackPublication) => {
       const track = publication.track;
-      if (!track || track.kind !== Track.Kind.Audio) return;
+      if (!track || track.kind !== "audio") return;
       const key = `${participant.identity}:${publication.trackSid}`;
       let el = audioEls.current.get(key);
       if (!el) {
@@ -363,6 +366,8 @@ export function VoiceDock({ role, myId }: Props) {
           return;
         }
 
+        // Загружаем LiveKit только сейчас — когда ученик действительно заходит в голос
+        const { Room, RoomEvent, Track } = await import("livekit-client");
         const room = new Room({
           adaptiveStream: true,
           dynacast: true,

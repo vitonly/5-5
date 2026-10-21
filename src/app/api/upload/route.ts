@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { requireUser } from "@/lib/session";
+import { handleAuth } from "@/lib/api-auth";
 
 const MAX_BYTES = 64 * 1024 * 1024;
 
@@ -36,7 +37,7 @@ async function saveToDisk(file: File, safeName: string): Promise<string> {
   return `/uploads/${safeName}`;
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireUser();
   } catch {
@@ -85,3 +86,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);

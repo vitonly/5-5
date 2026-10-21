@@ -1,5 +1,6 @@
 import { achievementsLive, rebuildAchievements, TIER_LABELS, type RebuildRow } from "@/lib/achievements";
 import { requireAdmin } from "@/lib/session";
+import { handleAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -38,7 +39,7 @@ ${status}
 }
 
 /** GET — предпросмотр; ?apply=1&points=0|1 — применить */
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   try {
     await requireAdmin();
   } catch {
@@ -56,3 +57,6 @@ export async function GET(req: Request) {
   const rows = await rebuildAchievements({ apply, awardPoints });
   return new Response(page(rows, apply, awardPoints), { headers: { "content-type": "text/html; charset=utf-8" } });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);

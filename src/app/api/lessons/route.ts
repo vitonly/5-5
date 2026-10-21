@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
+import { handleAuth } from "@/lib/api-auth";
 
 const lessonInclude = {
   files: { orderBy: { createdAt: "asc" as const } },
 };
 
-export async function GET() {
+async function getHandler() {
   let user;
   try {
     user = await requireUser();
@@ -40,7 +41,7 @@ function normalizeFiles(files: FileInput[] | undefined) {
     .filter((f) => f.url);
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin();
   } catch (e) {
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ lesson });
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   try {
     await requireAdmin();
   } catch (e) {
@@ -149,7 +150,7 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ lesson });
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   try {
     await requireAdmin();
   } catch (e) {
@@ -168,3 +169,9 @@ export async function DELETE(request: NextRequest) {
   await prisma.lessonArchive.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PATCH = handleAuth(patchHandler);
+export const DELETE = handleAuth(deleteHandler);

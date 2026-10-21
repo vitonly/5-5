@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { displayName } from "@/lib/utils";
 import { cleanSlots, sortSlots } from "@/lib/schedule";
+import { handleAuth } from "@/lib/api-auth";
 
 /**
  * Группы учеников. Всё — только для тренера.
@@ -44,7 +45,7 @@ function toJson(g: GroupRow) {
   };
 }
 
-export async function GET() {
+async function getHandler() {
   const denied = await admin();
   if (denied) return denied;
 
@@ -70,7 +71,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const denied = await admin();
   if (denied) return denied;
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ group: { id: group.id, name: group.name, memberIds: [], schedule: [] } });
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   const denied = await admin();
   if (denied) return denied;
 
@@ -134,7 +135,7 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ group: toJson(updated) });
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   const denied = await admin();
   if (denied) return denied;
 
@@ -146,3 +147,9 @@ export async function DELETE(request: NextRequest) {
   await prisma.studentGroup.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PATCH = handleAuth(patchHandler);
+export const DELETE = handleAuth(deleteHandler);

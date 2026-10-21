@@ -4,8 +4,9 @@ import { requireUser, requireAdmin } from "@/lib/session";
 import { toJsonArray, formatDate, parseAppDateTime } from "@/lib/utils";
 import { applyHomeworkGradedPoints } from "@/lib/points";
 import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   const user = await requireUser();
 
   if (user.role === "ADMIN") {
@@ -33,7 +34,7 @@ export async function GET() {
   return NextResponse.json({ assignments });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
   const { assignmentId, textAnswer, fileUrls } = body;
@@ -155,7 +156,7 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json({ submission });
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { assignmentId, action } = body;
@@ -250,3 +251,9 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ submission, pointsAwarded: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PUT = handleAuth(putHandler);
+export const PATCH = handleAuth(patchHandler);

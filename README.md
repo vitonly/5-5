@@ -78,6 +78,6 @@ Invoke-RestMethod -Method POST -Uri "https://ВАШ_ДОМЕН/api/telegram/setu
 
 ```bash
 npm run dev        # Разработка
-npm run build      # Сборка (+ prisma generate && db push)
-npm run db:push    # Накатить схему
+npm run build      # Сборка (prisma generate + next build, база не меняется)
+npm run db:push    # Накатить схему (без потери данных; иначе Prisma откажется)
 ```

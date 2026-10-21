@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { extractSteamIdFromInput, fetchOpenDotaSummary } from "@/lib/opendota";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   await requireUser();
   const accountId = request.nextUrl.searchParams.get("accountId");
   if (!accountId) {
@@ -21,3 +22,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(summary);
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);

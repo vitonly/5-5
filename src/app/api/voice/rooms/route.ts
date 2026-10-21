@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { isLivekitConfigured, listVoiceRooms } from "@/lib/livekit";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   try {
     await requireUser();
   } catch {
@@ -24,3 +25,6 @@ export async function GET() {
     });
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);

@@ -14,6 +14,7 @@ import {
 import { parseAppDateTime } from "@/lib/utils";
 import { restoreSeasonPointsToProfiles } from "@/lib/points";
 import type { SeasonName, VibeValue } from "@prisma/client";
+import { handleAuth } from "@/lib/api-auth";
 
 function clampScore100(n: unknown): number | null {
   const v = Number(n);
@@ -25,7 +26,7 @@ function clampScore100(n: unknown): number | null {
 
 const TILT_VALUES = new Set(["STABLE", "UNSURE", "TILT"]);
 
-export async function GET() {
+async function getHandler() {
   const user = await requireUser();
   if (user.role === "ADMIN") {
     await migrateLegacySeasonDeadlines();
@@ -66,7 +67,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { name, year, closesAt, votingClosesAt } = body as {
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ season });
 }
 
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
   const { seasonId, targetId, score, mechanics, macro, vibe, action, closesAt, votingClosesAt } =
@@ -303,3 +304,8 @@ export async function PUT(request: NextRequest) {
   await refreshPlayerStrength(targetId, seasonId);
   return NextResponse.json({ rating });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PUT = handleAuth(putHandler);

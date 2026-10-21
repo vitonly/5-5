@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push --accept-data-loss && next build --webpack",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "db:push": "prisma db push --accept-data-loss",
+    "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "automation": "tsx scripts/run-automation.ts",
     "telegram:poll": "tsx scripts/telegram-poll.ts",

@@ -9,8 +9,9 @@ import {
 } from "@/lib/secondary-roles";
 import type { DotaRole } from "@prisma/client";
 import { hashPassword } from "@/lib/password";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   const user = await requireUser();
   const { passwordHash: _ph, loginPasswordTemp: _pt, ...safe } = user;
   return NextResponse.json({
@@ -18,7 +19,7 @@ export async function GET() {
   });
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
   const profile = user.profile!;
@@ -109,7 +110,7 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ profile: updatedProfile });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const {
@@ -241,3 +242,8 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ profile: updated });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const PATCH = handleAuth(patchHandler);
+export const POST = handleAuth(postHandler);

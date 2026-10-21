@@ -4,8 +4,9 @@ import { requireAdmin } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
 import { recalculateFinalRating } from "@/lib/rating";
 import { generateTelegramLinkToken } from "@/lib/telegram-links";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   await requireAdmin();
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
@@ -15,7 +16,7 @@ export async function GET() {
   return NextResponse.json({ students });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { firstName, lastName, login, password, mmr } = body;
@@ -64,9 +65,14 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ student });
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   await requireAdmin();
   const { studentId } = await request.json();
   await prisma.user.delete({ where: { id: studentId } });
   return NextResponse.json({ success: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const DELETE = handleAuth(deleteHandler);

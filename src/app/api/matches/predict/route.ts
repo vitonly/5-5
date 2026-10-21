@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, requireUser } from "@/lib/session";
 import { castPrediction, openPredictions, type Side } from "@/lib/match-predictions";
+import { handleAuth } from "@/lib/api-auth";
 
 /**
  * POST { sessionId, gameNumber, pick: "RADIANT"|"DIRE" } — прогноз ученика
  * POST { sessionId, action: "open" } — админ открывает прогнозы (+ рассылка в TG)
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     sessionId?: string;
     gameNumber?: number;
@@ -38,3 +39,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Ошибка" }, { status: 400 });
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);

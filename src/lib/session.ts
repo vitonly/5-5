@@ -144,15 +144,28 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
 }
 
+/**
+ * Ошибка «не вошёл» (401) или «нет прав» (403).
+ * Текст сообщения прежний ("UNAUTHORIZED" / "FORBIDDEN") — на него опираются старые проверки.
+ * Маршруты API обёрнуты в handleAuth (lib/api-auth.ts): он превращает эту ошибку в ответ
+ * 401/403 вместо «ошибка сервера 500».
+ */
+export class AuthError extends Error {
+  constructor(public readonly status: 401 | 403) {
+    super(status === 401 ? "UNAUTHORIZED" : "FORBIDDEN");
+    this.name = "AuthError";
+  }
+}
+
 export async function requireUser() {
   const user = await getSessionUser();
-  if (!user) throw new Error("UNAUTHORIZED");
+  if (!user) throw new AuthError(401);
   return user;
 }
 
 export async function requireAdmin() {
   const user = await requireUser();
-  if (user.role !== "ADMIN") throw new Error("FORBIDDEN");
+  if (user.role !== "ADMIN") throw new AuthError(403);
   return user;
 }
 

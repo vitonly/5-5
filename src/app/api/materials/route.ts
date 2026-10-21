@@ -3,8 +3,9 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { toJsonArray } from "@/lib/utils";
 import type { MaterialType, DotaRole, SkillLevel } from "@prisma/client";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   await requireUser();
   const materials = await prisma.learningMaterial.findMany({
     orderBy: { createdAt: "desc" },
@@ -12,7 +13,7 @@ export async function GET() {
   return NextResponse.json({ materials });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   await requireAdmin();
   const { type, title, description, url, positions, skillLevels } = await request.json();
 
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ material });
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   await requireAdmin();
   const { id, type, title, description, url, positions, skillLevels } =
     await request.json();
@@ -79,9 +80,15 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ material });
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   await requireAdmin();
   const { id } = await request.json();
   await prisma.learningMaterial.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PATCH = handleAuth(patchHandler);
+export const DELETE = handleAuth(deleteHandler);

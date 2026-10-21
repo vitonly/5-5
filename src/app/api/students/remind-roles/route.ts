@@ -6,6 +6,7 @@ import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 import { recipientFilter } from "@/lib/recipients";
+import { handleAuth } from "@/lib/api-auth";
 
 const REMIND_TEXT = `⚠️ <b>Заполните роли в профиле</b>
 
@@ -13,7 +14,7 @@ const REMIND_TEXT = `⚠️ <b>Заполните роли в профиле</b>
 
 Откройте сайт → Профиль → выберите роли и сохраните.`;
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json().catch(() => ({}));
   const { userId, allIncomplete, testToAdmin } = body as {
@@ -73,3 +74,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ sent, skipped, failed });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);

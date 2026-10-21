@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { applyHomeworkOverduePenalty } from "@/lib/points";
 import { finalizeSeason, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
 import { formatDate } from "@/lib/utils";
-import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
+import { notifyChatId, sendTelegramMessage, escapeTelegramHtml as escapeHtml } from "@/lib/telegram";
 import { processMvpDeadlines } from "@/lib/match-mvp";
 import { checkAllAchievements } from "@/lib/achievements";
 import { snapshotRatings } from "@/lib/rating-history";
@@ -43,9 +43,6 @@ export async function processOverdueHomework() {
 
 const HOUR = 60 * 60 * 1000;
 
-function escapeHtml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 
 /**
  * Автонапоминания о домашке: за сутки и за 2 часа до срока.

@@ -2,8 +2,9 @@ import { publicUserSelect } from "@/lib/public-user";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   const user = await requireUser();
 
   const logs = await prisma.pointLog.findMany({
@@ -32,3 +33,6 @@ export async function GET() {
     })),
   });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);

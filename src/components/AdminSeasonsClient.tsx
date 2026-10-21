@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SEASON_LABELS, VIBE_LABELS } from "@/lib/labels";
-import { displayName, formatDate, toAppDateTimeLocal } from "@/lib/utils";
+import { formatDate, toAppDateTimeLocal } from "@/lib/utils";
 import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
 import { SendToDialog } from "@/components/RecipientPicker";

@@ -21,8 +21,8 @@ import {
   startMatchSession,
   confirmLineups,
   confirmLineupsGame2,
-  game2LineupComplete,
 } from "@/lib/match-signup";
+import { handleAuth } from "@/lib/api-auth";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -73,7 +73,7 @@ async function getSessionWinStreakBefore(sessionId: string, userId: string): Pro
   return streak;
 }
 
-export async function GET() {
+async function getHandler() {
   const user = await requireUser();
   const sessions = await prisma.matchSession.findMany({
     include: {
@@ -85,7 +85,7 @@ export async function GET() {
   return NextResponse.json({ sessions, userId: user.id });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { date, playerIds } = body;
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ session });
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { sessionId, winnerTeam, gameNumber, completeSession, undoGameId } = body;
@@ -626,7 +626,7 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ game });
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json().catch(() => ({}));
   const sessionId = body.sessionId as string | undefined;
@@ -644,3 +644,9 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PATCH = handleAuth(patchHandler);
+export const DELETE = handleAuth(deleteHandler);

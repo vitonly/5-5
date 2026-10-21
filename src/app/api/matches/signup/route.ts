@@ -11,6 +11,7 @@ import {
 } from "@/lib/match-signup";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 import type { InlineKeyboard } from "@/lib/telegram";
+import { handleAuth } from "@/lib/api-auth";
 
 const TEST_SIGNUP_KEYBOARD: InlineKeyboard = {
   inline_keyboard: [
@@ -21,7 +22,7 @@ const TEST_SIGNUP_KEYBOARD: InlineKeyboard = {
   ],
 };
 
-export async function GET() {
+async function getHandler() {
   await requireAdmin();
   const students = await listStudentsWithTelegram();
   return NextResponse.json({
@@ -35,7 +36,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json();
   const { date, inviteUserIds, inviteAll, testToAdmin } = body;
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { action, sessionId, userId } = body;
@@ -145,3 +146,8 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PATCH = handleAuth(patchHandler);

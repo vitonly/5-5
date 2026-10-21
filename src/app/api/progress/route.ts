@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { APP_TIMEZONE, parseAppDateTime } from "@/lib/utils";
 import { syncProgressFromOpenDota } from "@/lib/progress-opendota";
+import { handleAuth } from "@/lib/api-auth";
 
 export type ProgressRange = "day" | "week" | "month" | "halfyear";
 
@@ -47,7 +48,7 @@ function sumLogs(
   };
 }
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   const me = await requireUser();
   const sp = request.nextUrl.searchParams;
   const userIdParam = sp.get("userId");
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   const me = await requireUser();
   if (me.role !== "STUDENT") {
     return NextResponse.json({ error: "Дневник заполняют ученики" }, { status: 403 });
@@ -171,3 +172,7 @@ export async function PUT(request: NextRequest) {
 
   return NextResponse.json({ log });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const PUT = handleAuth(putHandler);

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
-import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
+import { notifyChatId, sendTelegramMessage, escapeTelegramHtml as escapeHtml } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 import { recipientFilter } from "@/lib/recipients";
+import { handleAuth } from "@/lib/api-auth";
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://www.startdota.ru").replace(
   /\/$/,
@@ -27,14 +28,8 @@ Telegram уже привязан — уведомления продолжат �
 Не пересылайте пароль посторонним.`;
 }
 
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json().catch(() => ({}));
   const { testToAdmin, userId } = body as {
@@ -134,3 +129,6 @@ export async function POST(request: NextRequest) {
     failed,
   });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);

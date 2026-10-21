@@ -7,13 +7,14 @@ import {
   isLivekitConfigured,
 } from "@/lib/livekit";
 import { isVoiceRoomId } from "@/lib/voice-rooms";
+import { handleAuth } from "@/lib/api-auth";
 
 type ActionBody =
   | { action: "mute"; roomId: string; identity: string; muted: boolean }
   | { action: "kick"; roomId: string; identity: string }
   | { action: "move"; fromRoomId: string; toRoomId: string; identity: string };
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin();
   } catch (e) {
@@ -83,3 +84,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: friendly, detail: msg.slice(0, 200) }, { status: 500 });
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);

@@ -7,8 +7,9 @@ import {
   resolveMvpIfReady,
   sendMvpVoteInvites,
 } from "@/lib/match-mvp";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   const user = await requireUser();
   const sessionId = request.nextUrl.searchParams.get("sessionId");
   if (!sessionId) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ status });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
   const { sessionId, nomineeId, action } = body as {
@@ -74,3 +75,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);

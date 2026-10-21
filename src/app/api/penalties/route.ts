@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { applyAdminAdjustment } from "@/lib/points";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function GET() {
+async function getHandler() {
   await requireAdmin();
   const penalties = await prisma.penalty.findMany({
     include: { target: true, admin: true },
@@ -12,7 +13,7 @@ export async function GET() {
   return NextResponse.json({ penalties });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json();
   const { targetId, amount, reason, type } = body;
@@ -40,3 +41,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);

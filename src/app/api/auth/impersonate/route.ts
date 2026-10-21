@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin, startImpersonation, stopImpersonation } from "@/lib/session";
+import { handleAuth } from "@/lib/api-auth";
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const { studentId } = await request.json();
 
@@ -15,8 +16,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
-export async function DELETE() {
+async function deleteHandler() {
   const adminId = await stopImpersonation();
   if (!adminId) return NextResponse.json({ error: "Нет активного входа под учеником" }, { status: 403 });
   return NextResponse.json({ success: true });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);
+export const DELETE = handleAuth(deleteHandler);

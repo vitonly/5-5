@@ -7,6 +7,7 @@ import {
   addPoints,
   removePointsBySource,
 } from "@/lib/points";
+import { handleAuth } from "@/lib/api-auth";
 
 function startOfDayMoscow(d: Date) {
   const iso = d.toISOString().slice(0, 10);
@@ -72,7 +73,7 @@ async function applyAttendanceUpdate(
   return { userId, present: false };
 }
 
-export async function GET() {
+async function getHandler() {
   await requireAdmin();
 
   // One-time cleanup: attendance reasons should be date-only (no "в 12:00")
@@ -119,7 +120,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json();
   const { date } = body as { date?: string };
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ session, existed: false });
 }
 
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
   const { sessionId } = body as { sessionId?: string };
@@ -197,3 +198,8 @@ export async function PUT(request: NextRequest) {
 
   return NextResponse.json({ ok: true, results, session: refreshed });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const GET = handleAuth(getHandler);
+export const POST = handleAuth(postHandler);
+export const PUT = handleAuth(putHandler);

@@ -2,16 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { formatDate, displayName } from "@/lib/utils";
-import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
+import { sendTelegramMessage, notifyChatId, escapeTelegramHtml as escapeHtml } from "@/lib/telegram";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 import { recipientFilter } from "@/lib/recipients";
+import { handleAuth } from "@/lib/api-auth";
 
 /** Статусы, где ещё можно сдать / доработать. OVERDUE не напоминаем — сдавать уже нельзя. */
 const REMINDABLE = ["ASSIGNED", "REVISION"] as const;
 
-function escapeHtml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 
 /** Эффективный дедлайн: для доработки — revisionDeadline, иначе обычный. */
 function effectiveDeadline(a: { deadline: Date; revisionDeadline?: Date | null; status: string }) {
@@ -38,7 +36,7 @@ function remindBundleText(
   return `⏰ <b>Напоминание о домашках!</b>\n\nУ вас незакрытых заданий: <b>${items.length}</b>\n\n${lines.join("\n")}\n\nНе забудьте сдать вовремя, чтобы не получить штраф!`;
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json().catch(() => ({}));
   const { assignmentId, allIncomplete, testToAdmin } = body as {
@@ -170,3 +168,6 @@ export async function POST(request: NextRequest) {
   const sent = await sendTelegramMessage(notifyChatId(assignment.student), text);
   return NextResponse.json({ success: true, delivered: sent });
 }
+
+// Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+export const POST = handleAuth(postHandler);
