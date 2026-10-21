@@ -14,10 +14,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Не сообщать «X-Powered-By: Next.js»
   poweredByHeader: false,
-  experimental: {
-    // Плавные переходы между страницами (React <ViewTransition>)
-    viewTransition: true,
-  },
+  // Плавные переходы между страницами (React <ViewTransition>) с Next.js 16.4 работают без настройки
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
