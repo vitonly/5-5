@@ -58,8 +58,6 @@ function LoginForm() {
       telegram_failed: "Не удалось войти через Telegram.",
       telegram_not_linked:
         "Этот Telegram не привязан к аккаунту. Войдите по логину и паролю от тренера и привяжите Telegram в профиле.",
-      vk_not_configured: "Вход через VK ID пока недоступен.",
-      vk_not_linked: "Этот VK не привязан к аккаунту. Попросите тренера добавить ваш VK или войдите по логину и паролю.",
     };
     setError(map[err] || "Ошибка входа.");
   }, [searchParams]);

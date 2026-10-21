@@ -14,7 +14,7 @@ const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://www.startdota.ru").
 function credentialsMessage(login: string, password: string) {
   return `🔑 <b>Вход на сайт START+</b>
 
-Пока вход через VK не настроен — используйте логин и пароль:
+Для входа на сайт используйте логин и пароль:
 
 Логин: <code>${escapeHtml(login)}</code>
 Пароль: <code>${escapeHtml(password)}</code>

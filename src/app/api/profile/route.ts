@@ -8,7 +8,6 @@ import {
   serializeSecondaryRoles,
 } from "@/lib/secondary-roles";
 import type { DotaRole } from "@prisma/client";
-import { resolveVkInput } from "@/lib/vk-auth";
 import { hashPassword } from "@/lib/password";
 
 export async function GET() {
@@ -123,7 +122,6 @@ export async function POST(request: NextRequest) {
     firstName,
     lastName,
     photoUrl,
-    vkInput,
     login,
     password,
   } = body;
@@ -133,39 +131,6 @@ export async function POST(request: NextRequest) {
 
   const profile = await prisma.playerProfile.findUnique({ where: { userId } });
   if (!profile) return NextResponse.json({ error: "Профиль не найден" }, { status: 404 });
-
-  let nextVkId: string | null | undefined;
-  let nextVkScreenName: string | null | undefined;
-  if (vkInput !== undefined) {
-    const raw = vkInput === null || vkInput === "" ? "" : String(vkInput).trim();
-    if (!raw) {
-      nextVkId = null;
-      nextVkScreenName = null;
-    } else {
-      try {
-        const resolved = await resolveVkInput(raw);
-        const conflict = await prisma.user.findFirst({
-          where: { vkId: resolved.vkId, id: { not: userId } },
-          select: { id: true, firstName: true },
-        });
-        if (conflict) {
-          return NextResponse.json(
-            {
-              error: `Этот VK уже привязан к «${conflict.firstName}»`,
-            },
-            { status: 400 }
-          );
-        }
-        nextVkId = resolved.vkId;
-        nextVkScreenName = resolved.screenName;
-      } catch (e) {
-        return NextResponse.json(
-          { error: e instanceof Error ? e.message : "Некорректный VK профиль" },
-          { status: 400 }
-        );
-      }
-    }
-  }
 
   const nextMmr = mmr !== undefined ? (mmr === null || mmr === "" ? null : Number(mmr)) : profile.mmr;
   const nextRankTier =
@@ -201,8 +166,6 @@ export async function POST(request: NextRequest) {
     firstName?: string;
     lastName?: string | null;
     photoUrl?: string | null;
-    vkId?: string | null;
-    vkScreenName?: string | null;
     login?: string | null;
     passwordHash?: string;
     loginPasswordTemp?: string | null;
@@ -217,10 +180,6 @@ export async function POST(request: NextRequest) {
   }
   if (photoUrl !== undefined) {
     userData.photoUrl = photoUrl || null;
-  }
-  if (nextVkId !== undefined) {
-    userData.vkId = nextVkId;
-    userData.vkScreenName = nextVkScreenName ?? null;
   }
   if (login !== undefined) {
     const loginTrim = login === null || login === "" ? "" : String(login).trim();

@@ -4,7 +4,6 @@ import { requireAdmin } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
 import { recalculateFinalRating } from "@/lib/rating";
 import { generateTelegramLinkToken } from "@/lib/telegram-links";
-import { resolveVkInput } from "@/lib/vk-auth";
 
 export async function GET() {
   await requireAdmin();
@@ -19,7 +18,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   await requireAdmin();
   const body = await request.json();
-  const { firstName, lastName, login, password, mmr, vkInput } = body;
+  const { firstName, lastName, login, password, mmr } = body;
 
   if (!firstName || !String(firstName).trim()) {
     return NextResponse.json({ error: "Имя обязательно" }, { status: 400 });
@@ -38,31 +37,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Такой логин уже занят" }, { status: 400 });
   }
 
-  let vkId: string | null = null;
-  let vkScreenName: string | null = null;
-  if (vkInput !== undefined && vkInput !== null && String(vkInput).trim()) {
-    try {
-      const resolved = await resolveVkInput(String(vkInput));
-      const conflict = await prisma.user.findFirst({
-        where: { vkId: resolved.vkId },
-        select: { id: true, firstName: true },
-      });
-      if (conflict) {
-        return NextResponse.json(
-          { error: `Этот VK уже привязан к «${conflict.firstName}»` },
-          { status: 400 }
-        );
-      }
-      vkId = resolved.vkId;
-      vkScreenName = resolved.screenName;
-    } catch (e) {
-      return NextResponse.json(
-        { error: e instanceof Error ? e.message : "Некорректный VK профиль" },
-        { status: 400 }
-      );
-    }
-  }
-
   const mmrValue = mmr ? Number(mmr) : null;
   const ratings = recalculateFinalRating({ mmr: mmrValue, rankTier: null }, 0, 0);
 
@@ -73,8 +47,6 @@ export async function POST(request: NextRequest) {
       login: loginTrim,
       passwordHash: hashPassword(passwordStr),
       loginPasswordTemp: passwordStr,
-      vkId,
-      vkScreenName,
       telegramLinkToken: generateTelegramLinkToken(),
       role: "STUDENT",
       profile: {
