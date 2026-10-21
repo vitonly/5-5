@@ -2,7 +2,6 @@ import { ViewTransition } from "react";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { Navbar } from "@/components/Navbar";
-import { ChatPanel } from "@/components/ChatPanel";
 import { VoiceDock } from "@/components/voice/VoiceDock";
 
 export default async function AdminLayout({
@@ -22,7 +21,6 @@ export default async function AdminLayout({
         <ViewTransition>{children}</ViewTransition>
       </main>
       <VoiceDock role={user.role} myId={user.id} />
-      <ChatPanel role={user.role} myId={user.id} />
     </div>
   );
 }

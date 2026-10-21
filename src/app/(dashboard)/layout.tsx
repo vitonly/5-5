@@ -4,7 +4,6 @@ import { getImpersonatorId, getSessionUser } from "@/lib/session";
 import { checkAchievementsThrottled, getUnseenAchievements, type UnlockedAchievement } from "@/lib/achievements";
 import { AchievementCelebration } from "@/components/achievements/AchievementCelebration";
 import { Navbar } from "@/components/Navbar";
-import { ChatPanel } from "@/components/ChatPanel";
 import { VoiceDock } from "@/components/voice/VoiceDock";
 
 export default async function DashboardLayout({
@@ -30,7 +29,6 @@ export default async function DashboardLayout({
         <ViewTransition>{children}</ViewTransition>
       </main>
       <VoiceDock role={user.role} myId={user.id} />
-      <ChatPanel role={user.role} myId={user.id} />
       {unseen.length > 0 && <AchievementCelebration items={unseen} />}
     </>
   );
