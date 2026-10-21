@@ -129,6 +129,11 @@ def main():
     client = connect()
     sftp = client.open_sftp()
 
+    # Сервер переведён на релизы (app — ссылка): этот скрипт стёр бы схему релизов и общий .env
+    _, link = run(client, f"test -L {REMOTE_APP} && echo LINK || echo DIR")
+    if "LINK" in link:
+        raise SystemExit("Сайт выкладывается релизами — используйте python scripts/vps_release.py")
+
     # Preserve secrets BEFORE wiping the app dir (tarball never includes .env)
     prev_env: dict[str, str] = {}
     try:
