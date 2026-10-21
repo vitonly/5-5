@@ -185,6 +185,9 @@ export async function PATCH(request: NextRequest) {
         data: {
           status: "REVISION",
           revisionDeadline: parseAppDateTime(revisionDeadline),
+          // У доработки свой срок — автонапоминания о нём придут заново
+          remindedDayAt: null,
+          remindedHourAt: null,
           revisionNote: feedback ? String(feedback).trim() : null,
         },
       }),

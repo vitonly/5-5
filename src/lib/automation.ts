@@ -41,6 +41,64 @@ export async function processOverdueHomework() {
   return count;
 }
 
+const HOUR = 60 * 60 * 1000;
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Автонапоминания о домашке: за сутки и за 2 часа до срока.
+ * Автоматизация запускается раз в час, поэтому «за сутки» придёт за 23–24 часа,
+ * а «за 2 часа» — за 1–2 часа до срока. Что уже отправлено, помним в remindedDayAt / remindedHourAt.
+ * Только что выданную домашку не дёргаем: ученик и так получил «Новая домашка».
+ */
+export async function processHomeworkReminders() {
+  const now = Date.now();
+  const open = await prisma.homeworkAssignment.findMany({
+    where: {
+      status: { in: ["ASSIGNED", "REVISION"] },
+      submission: null,
+      OR: [{ remindedDayAt: null }, { remindedHourAt: null }],
+    },
+    include: { homework: true, student: true },
+  });
+
+  let sent = 0;
+  for (const a of open) {
+    // У доработки свой срок
+    const deadline = a.status === "REVISION" && a.revisionDeadline ? a.revisionDeadline : a.deadline;
+    const left = deadline.getTime() - now;
+    if (left <= 0) continue;                                  // просрочку обработает processOverdueHomework
+    const age = now - a.createdAt.getTime();
+    const title = escapeHtml(a.homework.title);
+    const when = escapeHtml(formatDate(deadline));
+
+    if (left <= 2 * HOUR && !a.remindedHourAt) {
+      // Отмечаем сразу, даже если Telegram не привязан, — чтобы не пытаться каждый час
+      await prisma.homeworkAssignment.update({
+        where: { id: a.id },
+        data: { remindedHourAt: new Date(), remindedDayAt: a.remindedDayAt ?? new Date() },
+      });
+      if (age < HOUR) continue;
+      const ok = await sendTelegramMessage(
+        notifyChatId(a.student),
+        `⏳ <b>Осталось меньше 2 часов!</b>\n\n<b>${title}</b>\nСрок сдачи: ${when}\n\nУспейте сдать, чтобы не получить штраф.`
+      );
+      if (ok) sent++;
+    } else if (left <= 24 * HOUR && left > 2 * HOUR && !a.remindedDayAt) {
+      await prisma.homeworkAssignment.update({ where: { id: a.id }, data: { remindedDayAt: new Date() } });
+      if (age < 3 * HOUR) continue;
+      const ok = await sendTelegramMessage(
+        notifyChatId(a.student),
+        `⏰ <b>До сдачи домашки меньше суток</b>\n\n<b>${title}</b>\nСрок сдачи: ${when}\n\nНе откладывайте — сдайте сегодня.`
+      );
+      if (ok) sent++;
+    }
+  }
+  return sent;
+}
+
 export async function processExpiredVoting() {
   const now = new Date();
   const expired = await prisma.ratingSeason.findMany({
@@ -80,6 +138,10 @@ export async function processExpiredSeasons() {
 export async function runAutomation() {
   await migrateLegacySeasonDeadlines();
   const overdueProcessed = await processOverdueHomework();
+  const homeworkReminders = await processHomeworkReminders().catch((e) => {
+    console.error("[automation] homework reminders", e);
+    return 0;
+  });
   const votingClosed = await processExpiredVoting();
   const seasonsClosed = await processExpiredSeasons();
   const mvpClosed = await processMvpDeadlines();
@@ -105,6 +167,7 @@ export async function runAutomation() {
   return {
     hallChanged: hall.changed,
     overdueProcessed,
+    homeworkReminders,
     votingClosed,
     seasonsClosed,
     mvpClosed,

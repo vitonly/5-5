@@ -335,6 +335,10 @@ model HomeworkAssignment {
   revisionNote     String?
   status           HomeworkStatus @default(ASSIGNED)
   createdAt        DateTime       @default(now())
+  /** Когда ушло автонапоминание «осталось меньше суток» (чтобы не слать дважды) */
+  remindedDayAt    DateTime?
+  /** Когда ушло автонапоминание «осталось 2 часа» */
+  remindedHourAt   DateTime?
   submission       HomeworkSubmission?
 
   @@index([studentId])
