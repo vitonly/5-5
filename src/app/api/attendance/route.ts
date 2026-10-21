@@ -87,8 +87,14 @@ export async function GET() {
     orderBy: { date: "desc" },
     include: {
       attendances: { include: { user: true } },
+      group: { select: { id: true, name: true } },
     },
     take: 40,
+  });
+  // Группы с составом и расписанием: занятие можно открыть для группы
+  const groups = await prisma.studentGroup.findMany({
+    orderBy: { name: "asc" },
+    include: { members: { select: { id: true } }, schedule: true },
   });
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
@@ -101,13 +107,27 @@ export async function GET() {
       photoUrl: true,
     },
   });
-  return NextResponse.json({ sessions, students });
+  return NextResponse.json({
+    sessions,
+    students,
+    groups: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      memberIds: g.members.map((m) => m.id),
+      schedule: g.schedule.map((s) => ({ weekday: s.weekday, time: s.time })),
+    })),
+  });
 }
 
 export async function POST(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json();
   const { date } = body as { date?: string };
+  // Занятие группы (пусто — для всех учеников)
+  const groupId = body.groupId ? String(body.groupId) : null;
+  if (groupId && !(await prisma.studentGroup.findUnique({ where: { id: groupId } }))) {
+    return NextResponse.json({ error: "Группа не найдена" }, { status: 404 });
+  }
   if (!date) {
     return NextResponse.json({ error: "Укажите дату" }, { status: 400 });
   }
@@ -119,6 +139,8 @@ export async function POST(request: NextRequest) {
         gte: new Date(day.getTime() - 12 * 3600 * 1000),
         lt: new Date(day.getTime() + 12 * 3600 * 1000),
       },
+      // В один день у разных групп — разные занятия
+      groupId,
     },
   });
   if (existing) {
@@ -126,7 +148,7 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await prisma.lessonSession.create({
-    data: { date: day, createdById: admin.id },
+    data: { date: day, createdById: admin.id, groupId },
   });
   return NextResponse.json({ session, existed: false });
 }
@@ -170,7 +192,7 @@ export async function PUT(request: NextRequest) {
 
   const refreshed = await prisma.lessonSession.findUnique({
     where: { id: sessionId },
-    include: { attendances: { include: { user: true } } },
+    include: { attendances: { include: { user: true } }, group: { select: { id: true, name: true } } },
   });
 
   return NextResponse.json({ ok: true, results, session: refreshed });

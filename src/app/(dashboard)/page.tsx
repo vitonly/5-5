@@ -14,6 +14,8 @@ import { MotionChip } from "@/components/fx/MotionChip";
 import { extractTwitchLogin } from "@/lib/twitch";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { SEASON_LABELS } from "@/lib/labels";
+import { nextOccurrence, occurrenceLabel, slotsLabel } from "@/lib/schedule";
+import { CalendarDays } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -190,8 +192,39 @@ export default async function HomePage() {
 
   const seasonTitle = activeSeason ? `${SEASON_LABELS[activeSeason.name]} ${activeSeason.year}` : null;
 
+  // Расписание ученика: его группы и ближайшее занятие (у тренера карточки нет)
+  const myGroups =
+    viewer?.role === "STUDENT"
+      ? await prisma.studentGroup.findMany({
+          where: { members: { some: { id: viewer.id } } },
+          include: { schedule: true },
+        })
+      : [];
+  const myLessons = myGroups
+    .map((g) => ({ name: g.name, at: nextOccurrence(g.schedule), slots: slotsLabel(g.schedule) }))
+    .filter((x): x is { name: string; at: Date; slots: string } => x.at !== null)
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+
   return (
     <div className="space-y-10 min-[720px]:space-y-14">
+      {/* Ближайшее занятие ученика по расписанию его групп */}
+      {myLessons.length > 0 && (
+        <section aria-label="Ближайшее занятие" className="surface-card flex items-start gap-3 p-4 min-[720px]:p-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--points-bg)] text-[var(--points)]">
+            <CalendarDays className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="eyebrow">Ближайшее занятие</p>
+            <p className="mt-1 text-[17px] font-semibold text-[var(--text)]">
+              {occurrenceLabel(myLessons[0].at)} · {myLessons[0].name}
+            </p>
+            <p className="mt-1 text-sm text-[var(--text-3)]">
+              {myLessons.map((l) => `${l.name}: ${l.slots}`).join(" · ")}
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Подиум */}
       <section aria-labelledby="top-title">
         <div className="mb-6 text-center min-[720px]:mb-10">

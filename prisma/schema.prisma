@@ -168,10 +168,14 @@ model LessonSession {
   date        DateTime
   createdById String?
   createdBy   User?              @relation("LessonCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  /** Занятие какой группы (пусто — для всех учеников, как было до групп) */
+  groupId     String?
+  group       StudentGroup?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
   createdAt   DateTime           @default(now())
   attendances LessonAttendance[]
 
   @@index([date])
+  @@index([groupId])
 }
 
 model LessonAttendance {
@@ -551,6 +555,22 @@ model StudentGroup {
   name      String   @unique
   createdAt DateTime @default(now())
   members   User[]   @relation("StudentGroupMembers")
+  /** Регулярные занятия группы (например, вт и чт в 18:00) */
+  schedule  GroupScheduleSlot[]
+  lessons   LessonSession[]
+}
+
+/** Одно регулярное занятие группы: день недели и время (по Москве) */
+model GroupScheduleSlot {
+  id      String       @id @default(cuid())
+  groupId String
+  group   StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /** 1 — понедельник … 7 — воскресенье */
+  weekday Int
+  /** Время начала, «18:00» */
+  time    String
+
+  @@index([groupId])
 }
 
 /** Служебные флаги приложения (например, запуск ачивок v2) */

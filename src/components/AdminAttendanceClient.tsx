@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { displayName, formatDateOnly } from "@/lib/utils";
 import { POINT_VALUES, formatPoints } from "@/lib/points";
+import { moscowDateKey, moscowWeekday, sortSlots, slotsLabel } from "@/lib/schedule";
 
 type Student = {
   id: string;
@@ -31,6 +32,15 @@ type Session = {
   id: string;
   date: string;
   attendances: Attendance[];
+  /** Занятие группы; null — для всех учеников */
+  group: { id: string; name: string } | null;
+};
+
+type Group = {
+  id: string;
+  name: string;
+  memberIds: string[];
+  schedule: { weekday: number; time: string }[];
 };
 
 function nextWednesdayLocal(): string {
@@ -49,6 +59,8 @@ export function AdminAttendanceClient() {
   const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [newGroupId, setNewGroupId] = useState("");   // "" — занятие для всех учеников
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState(nextWednesdayLocal());
   const [loading, setLoading] = useState(true);
@@ -71,6 +83,7 @@ export function AdminAttendanceClient() {
       const data = await res.json();
       setSessions(data.sessions || []);
       setStudents(data.students || []);
+      setGroups(data.groups || []);
       setActiveId((prev) => prev ?? data.sessions?.[0]?.id ?? null);
     } finally {
       setLoading(false);
@@ -185,11 +198,12 @@ export function AdminAttendanceClient() {
     scheduleFlush();
   }
 
-  async function createSession() {
+  // date — «2026-10-21», groupId — группа (пусто — все ученики)
+  async function createSession(date = newDate, groupId = newGroupId) {
     const res = await fetch("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: newDate }),
+      body: JSON.stringify({ date, groupId: groupId || null }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -211,6 +225,45 @@ export function AdminAttendanceClient() {
     return <p className="text-sm text-[var(--text-3)]">Загрузка…</p>;
   }
 
+  // Ученики занятия: у занятия группы — её состав, иначе все
+  function rosterOf(s: Session | null): Student[] {
+    if (!s?.group) return students;
+    const ids = new Set(groups.find((g) => g.id === s.group!.id)?.memberIds ?? []);
+    return students.filter((st) => ids.has(st.id));
+  }
+  const roster = rosterOf(active);
+  const rosterIds = new Set(roster.map((st) => st.id));
+  const others = students.filter((st) => !rosterIds.has(st.id));
+
+  // Группы, у которых сегодня занятие по расписанию
+  const today = moscowWeekday();
+  const todayGroups = groups
+    .map((g) => ({ g, slots: sortSlots(g.schedule.filter((x) => x.weekday === today)) }))
+    .filter((x) => x.slots.length > 0);
+
+  const studentRow = (st: Student) => {
+    const on = presentSet.has(st.id);
+    return (
+      <label
+        key={st.id}
+        className="flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
+      >
+        <span className="font-medium text-[var(--text)]">{displayName(st)}</span>
+        <span className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--points)]"
+            checked={on}
+            onChange={(e) => toggle(st.id, e.target.checked)}
+          />
+          <span className={`font-mono-num text-xs ${on ? "text-[var(--success)]" : "text-[var(--text-3)]"}`}>
+            {on ? `+${formatPoints(POINT_VALUES.LESSON_ATTEND)}` : "нет"}
+          </span>
+        </span>
+      </label>
+    );
+  };
+
   const pendingCount = Object.keys(localPresent).length;
 
   return (
@@ -223,12 +276,42 @@ export function AdminAttendanceClient() {
             начислятся пакетом через мгновение. Снятие отметки откатывает очки.
           </p>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div>
-            <Label>Дата</Label>
-            <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+        <CardContent className="space-y-4">
+          {todayGroups.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">Сегодня по расписанию</p>
+              <div className="flex flex-wrap gap-2">
+                {todayGroups.map(({ g, slots }) => (
+                  <Button key={g.id} size="sm" variant="secondary" onClick={() => void createSession(moscowDateKey(), g.id)}>
+                    {g.name} · {slots.map((x) => x.time).join(", ")}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label>Дата</Label>
+              <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>Группа</Label>
+              <select
+                value={newGroupId}
+                onChange={(e) => setNewGroupId(e.target.value)}
+                className="mt-1 block h-[46px] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm min-[720px]:h-11"
+              >
+                <option value="">Все ученики</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                    {g.schedule.length ? ` (${slotsLabel(g.schedule)})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={() => void createSession()}>Создать / открыть</Button>
           </div>
-          <Button onClick={() => void createSession()}>Создать / открыть</Button>
         </CardContent>
       </Card>
 
@@ -247,11 +330,12 @@ export function AdminAttendanceClient() {
                 : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--control)]"
             )}
           >
-            {formatDateOnly(s.date)} ·{" "}
+            {formatDateOnly(s.date)}
+            {s.group ? ` · ${s.group.name}` : ""} ·{" "}
             {(s.id === activeId
               ? presentSet.size
               : s.attendances.filter((a) => a.present).length)}
-            /{students.length}
+            /{rosterOf(s).length}
           </button>
         ))}
         {syncing && (
@@ -284,9 +368,10 @@ export function AdminAttendanceClient() {
             <div>
               <p className="font-display text-lg font-semibold text-[var(--text)]">
                 Посещаемость · {formatDateOnly(active.date)}
+                {active.group ? ` · ${active.group.name}` : ""}
               </p>
               <p className="mt-0.5 text-sm text-[var(--text-3)]">
-                {presentSet.size}/{students.length} присутствуют
+                {presentSet.size}/{roster.length} присутствуют
                 {!listOpen && " · нажмите, чтобы развернуть"}
               </p>
             </div>
@@ -301,32 +386,15 @@ export function AdminAttendanceClient() {
           </button>
           {listOpen && (
             <CardContent className="space-y-2 border-t border-[var(--border-soft)] pt-4">
-              {students.map((st) => {
-                const on = presentSet.has(st.id);
-                return (
-                  <label
-                    key={st.id}
-                    className="flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
-                  >
-                    <span className="font-medium text-[var(--text)]">{displayName(st)}</span>
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 accent-[var(--points)]"
-                        checked={on}
-                        onChange={(e) => toggle(st.id, e.target.checked)}
-                      />
-                      <span
-                        className={`font-mono-num text-xs ${
-                          on ? "text-[var(--success)]" : "text-[var(--text-3)]"
-                        }`}
-                      >
-                        {on ? `+${formatPoints(POINT_VALUES.LESSON_ATTEND)}` : "нет"}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
+              {roster.map(studentRow)}
+              {active.group && others.length > 0 && (
+                <details className="pt-2">
+                  <summary className="cursor-pointer text-sm text-[var(--text-3)]">
+                    Другие ученики — пришли не со своей группой ({others.length})
+                  </summary>
+                  <div className="mt-2 space-y-2">{others.map(studentRow)}</div>
+                </details>
+              )}
             </CardContent>
           )}
         </Card>

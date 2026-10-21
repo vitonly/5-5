@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pencil, Trash2, Users } from "lucide-react";
+import { CalendarDays, Pencil, Trash2, Users, X } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { confirmAction } from "@/components/ui/confirm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,69 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { RecipientGroup, RecipientStudent } from "@/components/RecipientPicker";
 import { cn } from "@/lib/utils";
+import { WEEKDAYS, WEEKDAYS_SHORT, sortSlots, type ScheduleSlot } from "@/lib/schedule";
+
+/* Расписание группы: занятия по дням недели. Каждое изменение сразу сохраняется. */
+function ScheduleEditor({ slots, onChange }: { slots: ScheduleSlot[]; onChange: (next: ScheduleSlot[]) => void }) {
+  const [weekday, setWeekday] = useState(2);
+  const [time, setTime] = useState("18:00");
+
+  function add() {
+    if (!time || slots.some((s) => s.weekday === weekday && s.time === time)) return;
+    onChange(sortSlots([...slots, { weekday, time }]));
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">
+        <CalendarDays className="h-3.5 w-3.5" aria-hidden /> Расписание
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {slots.length === 0 && <span className="text-sm text-[var(--text-3)]">Пока не задано</span>}
+        {slots.map((s) => (
+          <span
+            key={`${s.weekday}-${s.time}`}
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-bg)] py-1 pl-3 pr-1 text-xs text-[var(--admin-ink)]"
+          >
+            {WEEKDAYS_SHORT[s.weekday]} {s.time}
+            <button
+              type="button"
+              onClick={() => onChange(slots.filter((x) => x !== s))}
+              aria-label={`Убрать занятие ${WEEKDAYS[s.weekday]} ${s.time}`}
+              className="rounded-full p-0.5 hover:bg-[var(--surface)]"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={weekday}
+          onChange={(e) => setWeekday(Number(e.target.value))}
+          aria-label="День недели"
+          className="h-9 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
+        >
+          {WEEKDAYS.slice(1).map((w, i) => (
+            <option key={w} value={i + 1}>
+              {w}
+            </option>
+          ))}
+        </select>
+        <Input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          aria-label="Время начала"
+          className="h-9 w-28"
+        />
+        <Button size="sm" variant="secondary" onClick={add} disabled={!time}>
+          Добавить
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /* Страница «Группы»: тренер создаёт группы и отмечает, какие ученики в них учатся.
    Один ученик может быть сразу в нескольких группах. */
@@ -99,6 +162,15 @@ export function AdminGroupsClient() {
       .catch((e) => toast.error(`Состав группы не сохранился: ${(e as Error).message}. Обновите страницу.`));
   }
 
+  // Новое расписание группы: сразу показываем и ставим сохранение в ту же очередь
+  function setSchedule(groupId: string, schedule: ScheduleSlot[]) {
+    groupsRef.current = groupsRef.current.map((x) => (x.id === groupId ? { ...x, schedule } : x));
+    setGroups(groupsRef.current);
+    saving.current = saving.current
+      .then(() => api("PATCH", { id: groupId, schedule }))
+      .catch((e) => toast.error(`Расписание не сохранилось: ${(e as Error).message}. Обновите страницу.`));
+  }
+
   if (loading) return <p className="text-sm text-[var(--text-3)]">Загрузка…</p>;
 
   return (
@@ -140,7 +212,9 @@ export function AdminGroupsClient() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6">
+          <CardContent className="space-y-5 p-4 sm:p-6">
+            <ScheduleEditor slots={g.schedule ?? []} onChange={(next) => setSchedule(g.id, next)} />
+            <div>
             <p className="mb-3 text-xs text-[var(--text-3)]">Нажмите на ученика, чтобы добавить его в группу или убрать.</p>
             <div className="flex flex-wrap gap-2">
               {students.map((s) => {
@@ -162,6 +236,7 @@ export function AdminGroupsClient() {
                   </button>
                 );
               })}
+            </div>
             </div>
           </CardContent>
         </Card>

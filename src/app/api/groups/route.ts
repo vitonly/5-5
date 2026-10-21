@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { displayName } from "@/lib/utils";
+import { cleanSlots, sortSlots } from "@/lib/schedule";
 
 /**
  * Группы учеников. Всё — только для тренера.
  *   GET                         — группы (с составом) и список учеников
  *   POST   { name }             — создать группу
- *   PATCH  { id, name?, memberIds? } — переименовать / задать состав
+ *   PATCH  { id, name?, memberIds?, schedule? } — переименовать / задать состав / расписание
+ *          schedule: [{ weekday: 1..7, time: "18:00" }] — заменяет всё расписание группы
  *   DELETE { id }               — удалить группу (сами ученики остаются)
  */
 
@@ -26,6 +28,22 @@ function cleanName(raw: unknown): string {
   return String(raw ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_NAME);
 }
 
+type GroupRow = {
+  id: string;
+  name: string;
+  members: { id: string }[];
+  schedule: { weekday: number; time: string }[];
+};
+
+function toJson(g: GroupRow) {
+  return {
+    id: g.id,
+    name: g.name,
+    memberIds: g.members.map((m) => m.id),
+    schedule: sortSlots(g.schedule.map((s) => ({ weekday: s.weekday, time: s.time }))),
+  };
+}
+
 export async function GET() {
   const denied = await admin();
   if (denied) return denied;
@@ -33,7 +51,7 @@ export async function GET() {
   const [groups, students] = await Promise.all([
     prisma.studentGroup.findMany({
       orderBy: { name: "asc" },
-      include: { members: { select: { id: true } } },
+      include: { members: { select: { id: true } }, schedule: true },
     }),
     prisma.user.findMany({
       where: { role: "STUDENT" },
@@ -43,7 +61,7 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    groups: groups.map((g) => ({ id: g.id, name: g.name, memberIds: g.members.map((m) => m.id) })),
+    groups: groups.map(toJson),
     students: students.map((s) => ({
       id: s.id,
       name: displayName(s),
@@ -64,7 +82,7 @@ export async function POST(request: NextRequest) {
   if (exists) return NextResponse.json({ error: "Группа с таким названием уже есть" }, { status: 400 });
 
   const group = await prisma.studentGroup.create({ data: { name } });
-  return NextResponse.json({ group: { id: group.id, name: group.name, memberIds: [] } });
+  return NextResponse.json({ group: { id: group.id, name: group.name, memberIds: [], schedule: [] } });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -98,14 +116,22 @@ export async function PATCH(request: NextRequest) {
     data.members = { set: students.map((s) => ({ id: s.id })) };
   }
 
-  const updated = await prisma.studentGroup.update({
-    where: { id },
-    data,
-    include: { members: { select: { id: true } } },
+  // Расписание: старые слоты удаляем, новые записываем — одной транзакцией
+  const schedule = body.schedule !== undefined ? cleanSlots(body.schedule) : null;
+  const updated = await prisma.$transaction(async (tx) => {
+    if (schedule) {
+      await tx.groupScheduleSlot.deleteMany({ where: { groupId: id } });
+      if (schedule.length) {
+        await tx.groupScheduleSlot.createMany({ data: schedule.map((s) => ({ ...s, groupId: id })) });
+      }
+    }
+    return tx.studentGroup.update({
+      where: { id },
+      data,
+      include: { members: { select: { id: true } }, schedule: true },
+    });
   });
-  return NextResponse.json({
-    group: { id: updated.id, name: updated.name, memberIds: updated.members.map((m) => m.id) },
-  });
+  return NextResponse.json({ group: toJson(updated) });
 }
 
 export async function DELETE(request: NextRequest) {

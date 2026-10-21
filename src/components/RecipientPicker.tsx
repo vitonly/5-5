@@ -10,7 +10,13 @@ import { cn } from "@/lib/utils";
    Один и тот же компонент стоит везде, где тренер что-то отправляет ученикам
    (домашка, запись на 5v5, напоминания). На выходе — просто список id учеников. */
 
-export type RecipientGroup = { id: string; name: string; memberIds: string[] };
+export type RecipientGroup = {
+  id: string;
+  name: string;
+  memberIds: string[];
+  /** Расписание группы: дни недели (1 — пн … 7 — вс) и время */
+  schedule?: { weekday: number; time: string }[];
+};
 export type RecipientStudent = { id: string; name: string; hasTelegram: boolean };
 
 /** Загружает группы и учеников один раз при открытии страницы */
