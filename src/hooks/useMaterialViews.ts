@@ -3,6 +3,19 @@
 import { useCallback, useState } from "react";
 import type { ViewedMap } from "@/lib/materials";
 
+/**
+ * Отметить материал просмотренным в момент открытия (ученик нажал на видео или статью).
+ * keepalive: запрос дойдёт до сервера, даже если вкладка сразу ушла на YouTube.
+ */
+export function markMaterialViewed(materialId: string) {
+  void fetch("/api/materials/view", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ materialId }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 export function useMaterialViews(initial: ViewedMap) {
   const [views, setViews] = useState<ViewedMap>(initial);
 

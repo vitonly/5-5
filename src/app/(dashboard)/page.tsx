@@ -243,7 +243,7 @@ export default async function HomePage() {
               <SectionHeader title="Последние видео" href="/materials" linkLabel="Все материалы" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {latestVideos.map((v) => (
-                  <VideoCard key={v.id} title={v.title} url={v.url} description={v.description} />
+                  <VideoCard key={v.id} title={v.title} url={v.url} description={v.description} materialId={v.id} />
                 ))}
               </div>
             </div>

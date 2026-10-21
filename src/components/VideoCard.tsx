@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Play, RotateCcw } from "lucide-react";
+import { markMaterialViewed } from "@/hooks/useMaterialViews";
 import { cn, videoThumbnail } from "@/lib/utils";
 import { SKILL_LEVEL_LABELS } from "@/lib/labels";
 import type { SkillLevel } from "@prisma/client";
@@ -14,6 +15,7 @@ export function VideoCard({
   viewed = false,
   onMarkViewed,
   onUnmarkViewed,
+  materialId,
 }: {
   title: string;
   url?: string | null;
@@ -23,6 +25,8 @@ export function VideoCard({
   viewed?: boolean;
   onMarkViewed?: () => void;
   onUnmarkViewed?: () => void;
+  /** id материала: открыли видео — сразу засчитываем просмотр (там, где нет кнопок «Просмотрено») */
+  materialId?: string;
 }) {
   const thumb = videoThumbnail(url);
   const hasActions = Boolean(onMarkViewed || onUnmarkViewed);
@@ -40,6 +44,12 @@ export function VideoCard({
         href={url || "#"}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() => {
+          // Ученик открыл видео — считаем его просмотренным, отдельно нажимать «Просмотрено» не нужно
+          if (viewed) return;
+          if (onMarkViewed) onMarkViewed();
+          else if (materialId) markMaterialViewed(materialId);
+        }}
         className="group flex flex-1 items-start gap-3 p-3 sm:block sm:p-0"
       >
         <div

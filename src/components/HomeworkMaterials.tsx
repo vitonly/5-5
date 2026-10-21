@@ -1,3 +1,6 @@
+"use client";
+
+import { markMaterialViewed } from "@/hooks/useMaterialViews";
 import { MATERIAL_TYPE_LABELS } from "@/lib/labels";
 import { materialDisplayTitle, parseJsonArray } from "@/lib/utils";
 import type { LearningMaterial } from "@prisma/client";
@@ -29,6 +32,7 @@ export function HomeworkMaterials({
                 href={m.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => markMaterialViewed(m.id)}   // открыл материал к домашке — засчитываем просмотр
                 className="flex items-start gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm transition-colors hover:border-[var(--points-border)] hover:bg-[var(--points-bg)]"
               >
                 <span className="shrink-0 rounded-[var(--radius-control)] bg-[var(--control)] px-2 py-0.5 text-xs text-[var(--text-3)]">

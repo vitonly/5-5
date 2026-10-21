@@ -373,7 +373,7 @@ function ArticleCard({
       <div className="mt-3 flex items-center gap-2 pl-[52px]">
         {article.url && (
           <Button asChild size="sm" variant={viewed ? "outline" : "default"}>
-            <a href={article.url} target="_blank" rel="noopener noreferrer">
+            <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={() => !viewed && onMark()}>
               Читать
               <ExternalLink aria-hidden />
             </a>
