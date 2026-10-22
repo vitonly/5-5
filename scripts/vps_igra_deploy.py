@@ -5,8 +5,11 @@
 Что делает:
   1. Заливает папку igra/ в /var/www/startplus/igra (паки и кэш на сервере не трогает).
   2. Ставит Python-окружение (venv) и библиотеку aiohttp.
-  3. Берёт JWT_SECRET из .env сайта и пишет его в igra.env (только для чтения root).
+  3. Из JWT_SECRET сайта считает ключ начисления очков (IGRA_AWARD_KEY) и пишет в igra.env
+     только его (файл читает только root). Сам секрет сайта игре не отдаём.
   4. Создаёт/обновляет службу systemd «svoya-igra» на порту 8090 и перезапускает её.
+     Служба работает от отдельного пользователя svoya-igra без прав root и может писать
+     только в папки packs, drafts и .cache.
   5. Если в nginx ещё нет location /igra/ — добавляет и перезагружает nginx.
   6. Проверяет, что https://startdota.ru/igra/config.json отвечает.
 
@@ -15,6 +18,8 @@
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import io
 import os
 import sys
@@ -42,12 +47,26 @@ Description=Svoya Igra (startdota.ru/igra)
 After=network.target
 
 [Service]
+# Не root: даже если через игру взломают службу, до сайта и сервера не доберутся
+User=svoya-igra
+Group=svoya-igra
 WorkingDirectory={REMOTE_IGRA}
 EnvironmentFile={REMOTE_IGRA}/igra.env
 Environment=SVOYA_SITE_URL=http://127.0.0.1:3000
 Environment=SVOYA_PUBLIC_URL=https://startdota.ru/igra/
 Environment=SVOYA_PUBLIC_SITE=/
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Песочница systemd: вся система только для чтения, писать можно лишь в папки игры с данными
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths={REMOTE_IGRA}/packs {REMOTE_IGRA}/drafts {REMOTE_IGRA}/.cache
 ExecStart={REMOTE_IGRA}/venv/bin/python server.py {PORT} --local-only
 Restart=always
 RestartSec=3
@@ -143,7 +162,14 @@ def main() -> None:
     if code != 0:
         raise SystemExit("Не удалось установить aiohttp")
 
-    # 3. Секрет сайта для проверки начисления очков
+    # Пользователь службы и права: код — только чтение, данные (паки, черновики, кэш) — его
+    run(client, "id -u svoya-igra >/dev/null 2>&1 || "
+                "useradd --system --no-create-home --shell /usr/sbin/nologin svoya-igra")
+    run(client, f"mkdir -p {REMOTE_IGRA}/packs {REMOTE_IGRA}/drafts {REMOTE_IGRA}/.cache && "
+                f"chown -R root:root {REMOTE_IGRA} && chmod -R u=rwX,go=rX {REMOTE_IGRA} && "
+                f"chown -R svoya-igra:svoya-igra {REMOTE_IGRA}/packs {REMOTE_IGRA}/drafts {REMOTE_IGRA}/.cache")
+
+    # 3. Ключ начисления очков: считаем из секрета сайта здесь, на сервер кладём только ключ
     secret = ""
     with sftp.file(SITE_ENV, "r") as ef:
         for line in ef.read().decode("utf-8", "replace").splitlines():
@@ -151,9 +177,10 @@ def main() -> None:
                 secret = line.split("=", 1)[1].strip().strip('"').strip("'")
     if not secret:
         raise SystemExit(f"В {SITE_ENV} нет JWT_SECRET")
+    award_key = hmac.new(secret.encode(), b"igra-award", hashlib.sha256).hexdigest()   # то же, что ждёт /api/igra/award
     with sftp.file(f"{REMOTE_IGRA}/igra.env", "w") as f:
-        f.write(f"JWT_SECRET={secret}\n")
-    run(client, f"chmod 600 {REMOTE_IGRA}/igra.env")
+        f.write(f"IGRA_AWARD_KEY={award_key}\n")    # секрет сайта (JWT_SECRET) сюда больше не пишем
+    run(client, f"chown root:root {REMOTE_IGRA}/igra.env && chmod 600 {REMOTE_IGRA}/igra.env")
 
     # 4. Служба systemd
     with sftp.file("/etc/systemd/system/svoya-igra.service", "w") as f:

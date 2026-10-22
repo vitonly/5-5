@@ -58,6 +58,7 @@ DEFAULT_SETTINGS = {
     "play_all_final": False,  # играть все финальные вопросы вместо вычёркивания тем
 }
 
+READ_LOOKAHEAD = 0.5       # на сколько секунд вперёд игрокам отдаём текст вопроса при «печати»
 ANSWER_MAX = 200           # максимум символов в письменном ответе (то же число — в static/common.js)
 PRESS_WINDOW = 0.04        # окно (сек), в которое собираем почти одновременные нажатия
 QUESTION_INTRO_TIME = 1.5
@@ -881,6 +882,33 @@ class Game:
                      "value": i.value if i.type == "text" else media_prefix + i.value}
                     for i in lst]
 
+        def question_items(lst):
+            """
+            Текст вопроса для игроков и табло — только та часть, что уже «напечаталась»
+            (плюс полсекунды вперёд, чтобы печать на экране шла плавно).
+            Раньше весь текст сразу уходил в браузер, и ученик мог прочитать вопрос
+            заранее через инструменты разработчика. Ведущий получает текст целиком.
+            len — полная длина: браузер заранее оставляет под текст место.
+            """
+            out = items(lst)
+            if host or self.phase not in ("intro", "reading"):
+                return out
+            speed = self.settings["read_speed"]
+            if self.phase == "intro":
+                left = 0                                     # заставка: текста ещё не видно
+            elif speed <= 0 or not Q.reading_started:
+                return out                                   # «сразу весь текст»
+            else:
+                left = int((now - Q.reading_started + READ_LOOKAHEAD) * speed)
+            for it in out:
+                if it["type"] != "text":
+                    continue
+                full = it["value"]
+                it["len"] = len(full)
+                it["value"] = full[:max(0, left)]
+                left -= len(full)
+            return out
+
         s = {
             "phase": self.phase,
             "paused": self.paused,
@@ -962,7 +990,7 @@ class Game:
             qs = {"theme": Q.theme or rnd.themes[t].name,
                   "price": Q.value if Q.qtype in ("secret", "stake") else Q.price,
                   "qtype": Q.qtype, "cell": [t, qi],
-                  "content": items(qq.content),
+                  "content": question_items(qq.content),
                   "read_speed": self.settings["read_speed"],
                   "read_elapsed": (now - Q.reading_started) if self.phase == "reading" and Q.reading_started else None}
             if host or reveal:

@@ -188,6 +188,13 @@ function renderPause(state) {
       прокрутку снизу вверх (скорость — «Прокрутка длинного текста» в настройках ведущего).
       Колесом мыши / пальцем можно листать вручную, автопрокрутка на время замирает.
    ========================================================= */
+/* Невидимый заполнитель под ещё не пришедший текст вопроса: держит место,
+   чтобы текст не «прыгал». Похож на обычные слова — переносы почти такие же. */
+function filler(n) {
+  if (n <= 0) return "";
+  return "оооооо ".repeat(Math.ceil(n / 7)).slice(0, n);
+}
+
 const FIT_MIN_PX = 20;          // мельче этого шрифт не делаем — дальше прокрутка
 const FIT_TEXT_SEL = ".q-text, .answer-text";
 
@@ -524,13 +531,15 @@ class GameView {
   // Рисует список элементов (текст/картинка/звук/видео). Возвращает медиа-элементы.
   renderItems(container, items) {
     const media = [];
-    const textLen = items.filter(i => i.type === "text").reduce((n, i) => n + i.value.length, 0);
+    // len — полная длина текста: пока вопрос «печатается», игрокам приходит только начало
+    const textLen = items.filter(i => i.type === "text").reduce((n, i) => n + (i.len ?? i.value.length), 0);
     for (const it of items) {
       if (it.type === "text") {
         const d = document.createElement("div");
         d.className = "q-text" + (textLen > 160 ? " long" : "");
+        d._full = it.value;                       // сколько текста уже знаем
+        d._len = it.len ?? it.value.length;       // сколько будет всего
         d.textContent = it.value;
-        d._full = it.value;
         container.appendChild(d);
       } else if (it.type === "image") {
         const box = document.createElement("div");
@@ -567,15 +576,19 @@ class GameView {
     const speed = q.read_speed;
     const els = this.textEls;
     // Текст делаем невидимым, но место под ним сохраняем — чтобы страница не «прыгала»
-    els.forEach(el => { el.innerHTML = `<span class="typed"></span><span class="untyped">${esc(el._full)}</span>`; });
+    // Сразу кладём весь (пока невидимый) текст: под него должно быть место ещё до первой буквы
+    els.forEach(el => {
+      el.innerHTML = `<span class="typed"></span><span class="untyped">${esc(el._full + filler(el._len - el._full.length))}</span>`;
+    });
     const tick = () => {
       if (this.typer !== tick) return;
       let n = Math.floor((performance.now() - start) / 1000 * speed);
       for (const el of els) {
+        // Печатаем не дальше того, что уже прислал сервер; остаток — невидимый заполнитель того же размера
         const k = Math.max(0, Math.min(el._full.length, n));
         el.firstChild.textContent = el._full.slice(0, k);
-        el.lastChild.textContent = el._full.slice(k);
-        n -= el._full.length;
+        el.lastChild.textContent = el._full.slice(k) + filler(el._len - el._full.length);
+        n -= el._len;
       }
       if (n < 0) requestAnimationFrame(tick); else this.typer = null;
     };
@@ -587,6 +600,19 @@ class GameView {
     if (!this.textEls) return;
     this.typer = null;
     this.textEls.forEach(el => { el.textContent = el._full; });
+    this.fitCard();   // теперь известен весь текст — уточняем размер шрифта
+  }
+
+  // Сервер дослал следующую часть текста вопроса
+  updateKnownText(q) {
+    if (!this.textEls || !q || !q.content) return;
+    const texts = q.content.filter(i => i.type === "text");
+    this.textEls.forEach((el, i) => {
+      const t = texts[i];
+      if (!t || t.value.length <= el._full.length) return;
+      el._full = t.value;
+      if (!this.typer) el.textContent = el._full;   // печать не идёт — показываем сразу
+    });
   }
 
   startMedia(list, notifyEnd) {
@@ -662,6 +688,7 @@ class GameView {
 
   refreshQuestion(s, prev) {
     const q = s.question;
+    this.updateKnownText(q);
     const intro = $("#introCard", this.stage), view = $("#qView", this.stage);
     if (!view) return;
     if (s.phase === "intro") return;   // пока заставка
