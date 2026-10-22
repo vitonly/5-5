@@ -47,6 +47,10 @@ export function VoiceDock({ role, myId }: Props) {
   const [rooms, setRooms] = useState<RoomState[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  // Связь оборвалась, LiveKit пытается переподключиться сам
+  const [reconnecting, setReconnecting] = useState(false);
+  // Качество своей связи: "poor" / "lost" — показываем предупреждение
+  const [quality, setQuality] = useState<string>("unknown");
   const [activeRoomId, setActiveRoomId] = useState<VoiceRoomId | null>(null);
   const [connectedIds, setConnectedIds] = useState<string[]>([]);
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set());
@@ -371,7 +375,7 @@ export function VoiceDock({ role, myId }: Props) {
         }
 
         // Загружаем LiveKit только сейчас — когда ученик действительно заходит в голос
-        const { Room, RoomEvent, Track } = await import("livekit-client");
+        const { Room, RoomEvent, Track, DisconnectReason } = await import("livekit-client");
         const room = new Room({
           adaptiveStream: true,
           dynacast: true,
@@ -410,9 +414,21 @@ export function VoiceDock({ role, myId }: Props) {
         room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
           setSpeakingIds(new Set(speakers.map((s) => s.identity)));
         });
-        room.on(RoomEvent.Disconnected, () => {
+        // Связь пропала — LiveKit сам пробует переподключиться, показываем это ученику
+        room.on(RoomEvent.Reconnecting, () => setReconnecting(true));
+        room.on(RoomEvent.Reconnected, () => setReconnecting(false));
+        room.on(RoomEvent.ConnectionQualityChanged, (q, participant) => {
+          if (participant.identity === room.localParticipant.identity) setQuality(q);
+        });
+        room.on(RoomEvent.Disconnected, (reason) => {
           setActiveRoomId(null);
           setConnectedIds([]);
+          setReconnecting(false);
+          setQuality("unknown");
+          // Вышли не сами (кнопка «Выйти») и не тренер выгнал — значит, связь так и не вернулась
+          if (reason !== DisconnectReason.CLIENT_INITIATED && reason !== DisconnectReason.PARTICIPANT_REMOVED) {
+            setError("Связь с голосовым чатом пропала. Нажмите «Войти», чтобы зайти снова.");
+          }
           void refreshRooms();
         });
         // После admin move LiveKit меняет room.name без полного leave
@@ -613,6 +629,16 @@ export function VoiceDock({ role, myId }: Props) {
           {error && (
             <p className="rounded border border-[var(--danger)]/40 bg-[var(--danger)]/10 p-2 text-sm text-[var(--danger)]">
               {error}
+            </p>
+          )}
+          {activeRoomId && reconnecting && (
+            <p role="status" className="rounded border border-[var(--warning-border)] bg-[var(--warning-bg)] p-2 text-sm text-[var(--warning-ink)]">
+              Переподключаемся… Связь прервалась, пробуем вернуть вас в комнату.
+            </p>
+          )}
+          {activeRoomId && !reconnecting && (quality === "poor" || quality === "lost") && (
+            <p role="status" className="rounded border border-[var(--warning-border)] bg-[var(--warning-bg)] p-2 text-sm text-[var(--warning-ink)]">
+              Слабая связь — вас может быть плохо слышно.
             </p>
           )}
 

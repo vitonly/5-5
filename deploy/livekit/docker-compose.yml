@@ -8,7 +8,8 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no", "--port", "6379", "--bind", "127.0.0.1"]
 
   livekit:
-    image: livekit/livekit-server:latest
+    # Версия закреплена: «latest» мог бы сам обновиться и сломать голос. Обновлять — осознанно.
+    image: livekit/livekit-server:v1.13.9
     restart: unless-stopped
     depends_on:
       - redis
