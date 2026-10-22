@@ -70,7 +70,29 @@ if os.path.isfile(_demo) and not any(f.lower().endswith(".siq") for f in os.list
     import shutil
     shutil.copy(_demo, os.path.join(PACKS, "Демо-пак.siq"))
 
-HOST_PIN = f"{secrets.randbelow(10000):04d}"   # PIN для входа ведущего с другого компьютера
+HOST_PIN = f"{secrets.randbelow(1_000_000):06d}"   # PIN для входа ведущего с другого компьютера (6 цифр)
+
+# Подбор PIN: после 5 неверных попыток с одного адреса — пауза 5 минут.
+# Без этого ученик в сети класса мог перебрать все варианты за пару минут и забрать пульт.
+PIN_MAX_FAILS = 5
+PIN_LOCK_SEC = 300
+_pin_fails = {}   # ip -> (сколько ошибок подряд, до какого времени заблокирован)
+
+
+def pin_ok(request):
+    """Правильный ли PIN в запросе. Неверные попытки считаем по адресу."""
+    ip = request.remote or "?"
+    fails, locked_until = _pin_fails.get(ip, (0, 0.0))
+    if time.monotonic() < locked_until:
+        return False                                      # адрес на паузе — даже верный PIN не принимаем
+    given = request.query.get("pin", "")
+    if given and hmac.compare_digest(given, HOST_PIN):    # сравнение за одинаковое время
+        _pin_fails.pop(ip, None)
+        return True
+    if given:
+        fails += 1
+        _pin_fails[ip] = (0, time.monotonic() + PIN_LOCK_SEC) if fails >= PIN_MAX_FAILS else (fails, 0.0)
+    return False
 
 # ---------- Режим сайта ----------
 # Если задан адрес сайта (SVOYA_SITE_URL), игра работает как вкладка сайта startdota.ru:
@@ -80,9 +102,13 @@ SITE_URL = os.environ.get("SVOYA_SITE_URL", "").rstrip("/")      # наприм�
 SITE_MODE = bool(SITE_URL)
 PUBLIC_URL = os.environ.get("SVOYA_PUBLIC_URL", "")              # например https://startdota.ru/igra/
 PUBLIC_SITE = os.environ.get("SVOYA_PUBLIC_SITE", "/")           # куда ведёт кнопка «На сайт»
-# Ключ для начисления очков: HMAC от JWT_SECRET сайта — отдельный секрет заводить не нужно
-_jwt = os.environ.get("JWT_SECRET", "")
-AWARD_KEY = hmac.new(_jwt.encode(), b"igra-award", hashlib.sha256).hexdigest() if _jwt else ""
+# Ключ для начисления очков. На сервере в igra.env лежит уже готовый IGRA_AWARD_KEY
+# (HMAC от секрета сайта), а сам секрет сайта (JWT_SECRET) игре больше не выдаём:
+# с ним можно подделать вход на сайт. JWT_SECRET — только запасной вариант для старых установок.
+AWARD_KEY = os.environ.get("IGRA_AWARD_KEY", "").strip()
+if not AWARD_KEY:
+    _jwt = os.environ.get("JWT_SECRET", "")
+    AWARD_KEY = hmac.new(_jwt.encode(), b"igra-award", hashlib.sha256).hexdigest() if _jwt else ""
 http_session = None   # клиент для запросов к сайту (создаётся при старте)
 _user_cache = {}      # cookie -> (время, пользователь): не дёргаем сайт на каждое переподключение
 
@@ -95,6 +121,13 @@ async def site_user(request):
     hit = _user_cache.get(cookie)
     if hit and time.monotonic() - hit[0] < 30:
         return hit[1]
+    # Кэш не растёт бесконечно: иначе запросы с выдуманными cookie забили бы память службы
+    if len(_user_cache) > 500:
+        now = time.monotonic()
+        for k in [k for k, v in _user_cache.items() if now - v[0] >= 30]:
+            del _user_cache[k]
+        if len(_user_cache) > 500:
+            _user_cache.clear()
     try:
         async with http_session.get(SITE_URL + "/api/igra/me", headers={"Cookie": cookie},
                                     timeout=aiohttp.ClientTimeout(total=5)) as r:
@@ -346,7 +379,23 @@ async def handle_host(ws, info, msg):
     notify()
 
 
+def same_origin(request):
+    """
+    WebSocket открыт со страницы самой игры, а не с чужого сайта.
+    Браузер всегда присылает Origin; чужой сайт мог бы попытаться подключиться
+    к игре от имени вошедшего ученика или админа (с его cookie).
+    Приложение SvoyaIgra.exe и браузер на том же адресе проходят проверку.
+    """
+    origin = request.headers.get("Origin")
+    if not origin:
+        return True          # не браузер (или очень старый) — cookie сайта у него всё равно нет
+    host = request.host          # nginx передаёт настоящий Host сайта (proxy_set_header Host $host)
+    return origin.split("://", 1)[-1].rstrip("/").lower() == host.lower()
+
+
 async def ws_handler(request):
+    if not same_origin(request):
+        raise web.HTTPForbidden(text="Чужой сайт не может подключаться к игре")
     ws = web.WebSocketResponse(heartbeat=10)
     await ws.prepare(request)
     role = request.query.get("role", "player")
@@ -369,7 +418,7 @@ async def ws_handler(request):
         info["site_user"] = user
     elif role == "host":
         # Ведущий: с этого же компьютера — без PIN, с другого — по PIN
-        if not (is_local(request) or request.query.get("pin") == HOST_PIN):
+        if not (is_local(request) or pin_ok(request)):
             await send(ws, {"type": "auth_failed"})
             await ws.close()
             return ws
@@ -400,6 +449,23 @@ async def ws_handler(request):
             game.players[pid].online = False
             notify()
     return ws
+
+
+async def typing_feed(app):
+    """
+    Пока вопрос «печатается», игроки и табло получают текст по кусочкам (3 раза в секунду),
+    а не весь сразу — см. Game.snapshot, question_items. Ведущему не шлём: у него текст целиком.
+    """
+    async def loop():
+        while True:
+            await asyncio.sleep(0.3)
+            if game.phase != "reading" or game.paused or game.settings["read_speed"] <= 0:
+                continue
+            viewers = [(ws, info) for ws, info in list(clients.items()) if info["role"] != "host"]
+            await asyncio.gather(*(send(ws, {"type": "state", "state": state_for(info)}) for ws, info in viewers))
+    task = asyncio.get_event_loop().create_task(loop())
+    yield
+    task.cancel()
 
 
 async def pinger(app):
@@ -452,6 +518,11 @@ async def discovery(app):
 
 
 # ---------- HTTP ----------
+
+# Политика безопасности страниц игры: всё своё; картинки игроков — ещё и с https (аватарки из Telegram)
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self'; "
+       "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 
 ASSET_RE = re.compile(r'(static/[\w./-]+\.(?:js|css))"')
 
@@ -518,7 +589,7 @@ async def host_ok(request):
     if SITE_MODE:
         user = await site_user(request)
         return bool(user and user.get("role") == "ADMIN")
-    return is_local(request) or request.query.get("pin") == HOST_PIN
+    return is_local(request) or pin_ok(request)
 
 
 def is_valid_siq(path):
@@ -622,6 +693,13 @@ async def no_stale_scripts(request, response):
     """
     if request.path.startswith("/static/") and request.path.endswith((".js", ".css", ".html")):
         response.headers["Cache-Control"] = "no-cache"
+    # Защитные заголовки (у сайта они есть в next.config.ts, а игру отдаёт эта служба):
+    # нельзя встроить игру в чужую страницу, браузер не «угадывает» тип файла,
+    # скрипты — только свои файлы (никаких вставленных чужих скриптов).
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault("Content-Security-Policy", CSP)
 
 
 def make_app():
@@ -639,6 +717,7 @@ def make_app():
     Editor(DATA, PACKS, host_ok, notify).routes(app)
     app.on_response_prepare.append(no_stale_scripts)
     app.cleanup_ctx.append(pinger)
+    app.cleanup_ctx.append(typing_feed)
     app.cleanup_ctx.append(http_client)
     if not SITE_MODE:
         app.cleanup_ctx.append(discovery)   # поиск игры в локальной сети нужен только в классе
