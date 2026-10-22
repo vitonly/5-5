@@ -32,7 +32,6 @@ import { MATCH_STATUS_LABELS, SEASON_LABELS } from "@/lib/labels";
 import { hasIncompleteRoles } from "@/lib/secondary-roles";
 import { formatShortDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { findStudentsAtRisk } from "@/lib/risk-data";
 
 export const metadata = { title: "Админка" };
 
@@ -61,9 +60,6 @@ export default async function AdminDashboardPage() {
       seasonId ? prisma.ratingSeason.findUnique({ where: { id: seasonId } }) : null,
       getSeasonLeaderboard(seasonId),
     ]);
-
-  // Ученики в зоне риска: просрочки, не сдают домашки, пропускают занятия (правила — src/lib/risk.ts)
-  const atRisk = await findStudentsAtRisk();
 
   const noTg = students.filter((s) => !s.telegramChatId).length;
   const noRoles = students.filter((s) => hasIncompleteRoles(s.profile)).length;
@@ -173,45 +169,6 @@ export default async function AdminDashboardPage() {
                 ))}
               </ul>
             )}
-          </section>
-
-          {/* Кому стоит написать или поговорить после занятия */}
-          <section>
-            <h2 className="mb-3 text-[17px] min-[720px]:text-[20px]">
-              Ученики в зоне риска{atRisk.length > 0 && <span className="ml-2 text-[var(--text-3)]">{atRisk.length}</span>}
-            </h2>
-            {atRisk.length === 0 ? (
-              <div className="surface-card px-4 py-4 text-sm text-[var(--text-2)]">
-                Все в порядке: нет просрочек подряд, пропусков и «тишины» с домашками.
-              </div>
-            ) : (
-              <ul className="surface-card divide-y divide-[var(--border-soft)] overflow-hidden">
-                {atRisk.map((r) => (
-                  <li key={r.id}>
-                    <Link
-                      href={`/player/${r.id}`}
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-muted)]"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-medium text-[var(--text)]">{r.name}</span>
-                        <span className="mt-1 flex flex-wrap gap-1.5">
-                          {r.reasons.map((reason) => (
-                            <Badge key={reason} variant="warning">
-                              {reason}
-                            </Badge>
-                          ))}
-                        </span>
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--text-3)]" aria-hidden />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-2 text-xs text-[var(--text-3)]">
-              Признаки: 2+ просрочки за месяц · за 2 недели не сдано ни одной домашки · пропущено 2+ занятия за 3 недели
-              (общие и занятия своей группы).
-            </p>
           </section>
 
           {/* Ближайший 5v5 */}
