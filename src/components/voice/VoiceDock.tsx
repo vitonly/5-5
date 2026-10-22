@@ -111,6 +111,7 @@ export function VoiceDock({ role, myId }: Props) {
   useEffect(() => {
     try {
       const mode = localStorage.getItem(MODE_STORAGE) as SpeakMode | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- настройки голоса из localStorage: хранилище есть только в браузере, не при отрисовке на сервере
       if (mode === "open" || mode === "ptt" || mode === "vad") setSpeakMode(mode);
       const key = localStorage.getItem(PTT_STORAGE);
       if (key) setPttKey(key);
@@ -141,6 +142,7 @@ export function VoiceDock({ role, myId }: Props) {
   // Внутри комнаты список и так обновляется по событиям (кто-то зашёл / вышел).
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- загрузка списка комнат при открытии панели
     void refreshRooms();
     const t = setInterval(() => {
       if (document.visibilityState === "visible") void refreshRooms();   // скрытую вкладку не опрашиваем
@@ -159,6 +161,7 @@ export function VoiceDock({ role, myId }: Props) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- список микрофонов и колонок берём у браузера при открытии
     void refreshDevices();
     navigator.mediaDevices?.addEventListener?.("devicechange", refreshDevices);
     return () => {
@@ -251,6 +254,7 @@ export function VoiceDock({ role, myId }: Props) {
   // Автотест уровня, пока открыты настройки (и не сидим в комнате — там свой loop)
   useEffect(() => {
     if (settingsOpen && !activeRoomId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- проверка микрофона, пока открыты настройки
       void startMicTest();
     } else if (!settingsOpen) {
       stopMicTest();
@@ -494,11 +498,11 @@ export function VoiceDock({ role, myId }: Props) {
 
   // Apply volume changes
   useEffect(() => {
-    for (const [key, el] of audioEls.current) {
+    audioEls.current.forEach((el, key) => {
       const identity = key.split(":")[0];
       const vol = volumes[identity] ?? 100;
       el.volume = Math.min(1, Math.max(0, vol / 100));
-    }
+    });
   }, [volumes]);
 
   // Switch mic device while connected

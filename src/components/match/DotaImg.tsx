@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 /** Картинка героя/предмета со Steam CDN; если не загрузилась — серая плашка с подписью */
@@ -8,10 +8,14 @@ export function DotaImg({ src, alt, className }: { src: string | null; alt: stri
   const [current, setCurrent] = useState(src);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  // Пришла другая картинка — начинаем заново (так React советует вместо useEffect:
+  // состояние поправляется сразу при отрисовке, без лишнего второго прохода)
+  const [shownFor, setShownFor] = useState(src);
+  if (src !== shownFor) {
+    setShownFor(src);
     setCurrent(src);
     setFailed(false);
-  }, [src]);
+  }
 
   if (!current || failed) {
     return (

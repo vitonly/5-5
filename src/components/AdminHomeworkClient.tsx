@@ -371,7 +371,7 @@ export function AdminHomeworkClient({
     });
   }
 
-  const now = Date.now();
+  const [now] = useState(() => Date.now());   // время открытия страницы
   const remindableStudentIds = new Set<string>();
   for (const hw of initial) {
     for (const a of hw.assignments) {

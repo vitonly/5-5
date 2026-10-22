@@ -47,26 +47,32 @@ function LoginForm() {
   const [botToken, setBotToken] = useState<string | null>(null);
   const [botUrl, setBotUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    const err = searchParams.get("error");
-    if (!err) return;
-    const map: Record<string, string> = {
-      pd_required: "Отметьте согласие на обработку персональных данных.",
-      bot_not_configured: "Telegram-бот не настроен на сервере.",
-      telegram_cancelled: "Вход через Telegram отменён.",
-      telegram_invalid: "Неверная подпись Telegram. Проверьте токен бота.",
-      telegram_failed: "Не удалось войти через Telegram.",
-      telegram_not_linked:
-        "Этот Telegram не привязан к аккаунту. Войдите по логину и паролю от тренера и привяжите Telegram в профиле.",
-    };
-    setError(map[err] || "Ошибка входа.");
-  }, [searchParams]);
+  // Ошибка входа пришла в адресе (?error=…) — показываем её. Делаем при отрисовке, когда адрес
+  // поменялся (так React советует вместо useEffect), дальше ошибку меняет уже сама форма
+  const errorParam = searchParams.get("error");
+  const [shownErrorParam, setShownErrorParam] = useState<string | null>(null);
+  if (errorParam !== shownErrorParam) {
+    setShownErrorParam(errorParam);
+    if (errorParam) {
+      const map: Record<string, string> = {
+        pd_required: "Отметьте согласие на обработку персональных данных.",
+        bot_not_configured: "Telegram-бот не настроен на сервере.",
+        telegram_cancelled: "Вход через Telegram отменён.",
+        telegram_invalid: "Неверная подпись Telegram. Проверьте токен бота.",
+        telegram_failed: "Не удалось войти через Telegram.",
+        telegram_not_linked:
+          "Этот Telegram не привязан к аккаунту. Войдите по логину и паролю от тренера и привяжите Telegram в профиле.",
+      };
+      setError(map[errorParam] || "Ошибка входа.");
+    }
+  }
 
   useEffect(() => {
     try {
       // Адрес бота не берём из хранилища — собираем из токена (см. telegram-login-url.ts)
       const savedToken = sessionStorage.getItem(TG_LOGIN_TOKEN_KEY);
       if (isLoginTicketToken(savedToken)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- вход через бота, начатый до перезагрузки: читаем sessionStorage (есть только в браузере)
         setBotToken(savedToken);
         setBotUrl(telegramLoginUrl(savedToken));
         setBotWaiting(true);

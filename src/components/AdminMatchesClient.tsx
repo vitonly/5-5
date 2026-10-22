@@ -174,11 +174,14 @@ export function AdminMatchesClient({
     );
   }
 
-  useEffect(() => {
+  // Сервер прислал новые данные (router.refresh) — подхватываем их сразу при отрисовке
+  const [syncedInitial, setSyncedInitial] = useState(initial);
+  if (initial !== syncedInitial) {
+    setSyncedInitial(initial);
     setSessions(initial);
     setEditingId(null);
     setEditError("");
-  }, [initial]);
+  }
 
   const studentMap = useMemo(
     () => Object.fromEntries(students.map((s) => [s.id, s])),

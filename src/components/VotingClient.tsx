@@ -48,7 +48,9 @@ export function VotingClient({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "err">("idle");
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const draftsRef = useRef(drafts);
-  draftsRef.current = drafts;
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
   const [savedScore, setSavedScore] = useState<Record<string, number>>({});
   const [savedVibe, setSavedVibe] = useState<Record<string, VibeValue>>({});
   const [activeIndex, setActiveIndex] = useState(0);

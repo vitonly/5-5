@@ -73,11 +73,13 @@ export function AdminAttendanceClient() {
   const pendingRef = useRef<Map<string, boolean>>(new Map());
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushChainRef = useRef<Promise<void>>(Promise.resolve());
+  // Номер открытого занятия для отложенного сохранения (ref меняем в эффекте, не при отрисовке)
   const activeIdRef = useRef<string | null>(null);
-  activeIdRef.current = activeId;
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await fetch("/api/attendance");
       const data = await res.json();
@@ -111,11 +113,17 @@ export function AdminAttendanceClient() {
     return set;
   }, [active, localPresent]);
 
-  useEffect(() => {
-    // Clear local overrides when switching session
+  // Открыли другое занятие — сбрасываем несохранённые отметки и разворачиваем список
+  // (состояние — сразу при отрисовке, а очередь и таймер — в эффекте ниже)
+  const [shownSessionId, setShownSessionId] = useState(activeId);
+  if (activeId !== shownSessionId) {
+    setShownSessionId(activeId);
     setLocalPresent({});
-    pendingRef.current.clear();
     setListOpen(true);
+  }
+
+  useEffect(() => {
+    pendingRef.current.clear();
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;

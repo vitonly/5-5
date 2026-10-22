@@ -153,6 +153,7 @@ export function ProgressClient({
   }, [range, dayKey, userId, readOnly]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- загрузка дневника при открытии и смене периода — законное место для эффекта
     void load();
   }, [load]);
 
