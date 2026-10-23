@@ -3,6 +3,8 @@
 import { cn } from "@/lib/utils";
 
 import { toast } from "@/components/ui/toast";
+import { confirmAction } from "@/components/ui/confirm";
+import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -207,6 +209,32 @@ export function AdminAttendanceClient() {
   }
 
   // date — «2026-10-21», groupId — группа (пусто — все ученики)
+  // Удалить занятие (лишний день): очки за посещение у отмеченных откатываются на сервере
+  async function deleteSession(s: Session) {
+    const present = s.attendances.filter((a) => a.present).length;
+    const title = `${formatDateOnly(s.date)}${s.group ? ` · ${s.group.name}` : ""}`;
+    const note = present
+      ? `\nОтмечено учеников: ${present} — у них снимется +${formatPoints(POINT_VALUES.LESSON_ATTEND)} за это занятие.`
+      : "\nОтметок в нём нет.";
+    if (!(await confirmAction(`Удалить занятие «${title}»?${note}`))) return;
+    const res = await fetch("/api/attendance", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: s.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data.error || "Не удалось удалить занятие");
+      return;
+    }
+    // Убираем из списка и открываем соседнее занятие
+    const rest = sessions.filter((x) => x.id !== s.id);
+    setSessions(rest);
+    setActiveId(rest[0]?.id ?? null);
+    toast.success(`Занятие «${title}» удалено`);
+    router.refresh();
+  }
+
   async function createSession(date = newDate, groupId = newGroupId) {
     const res = await fetch("/api/attendance", {
       method: "POST",
@@ -403,6 +431,12 @@ export function AdminAttendanceClient() {
                   <div className="mt-2 space-y-2">{others.map(studentRow)}</div>
                 </details>
               )}
+              <div className="flex justify-end pt-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => void deleteSession(active)}>
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                  Удалить это занятие
+                </Button>
+              </div>
             </CardContent>
           )}
         </Card>

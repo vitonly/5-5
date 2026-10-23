@@ -200,6 +200,33 @@ async function putHandler(request: NextRequest) {
 }
 
 // Нет входа / нет прав — ответ 401 / 403, а не «ошибка сервера»
+/**
+ * Удалить занятие (например, создали лишний день по ошибке).
+ * Очки «+0.5 за посещение», начисленные за это занятие, откатываются у каждого отмеченного.
+ */
+async function deleteHandler(request: NextRequest) {
+  await requireAdmin();
+  const body = await request.json().catch(() => ({}));
+  const sessionId = String((body as { sessionId?: unknown }).sessionId ?? "");
+  const session = await prisma.lessonSession.findUnique({
+    where: { id: sessionId },
+    include: { attendances: { select: { id: true, userId: true } } },
+  });
+  if (!session) {
+    return NextResponse.json({ error: "Занятие не найдено" }, { status: 404 });
+  }
+
+  // Сначала снимаем очки за посещение, потом удаляем само занятие (отметки удалятся вместе с ним)
+  let removedPoints = 0;
+  for (const a of session.attendances) {
+    removedPoints += await removePointsBySource(a.userId, "LESSON_ATTEND", a.id);
+  }
+  await prisma.lessonSession.delete({ where: { id: session.id } });
+
+  return NextResponse.json({ ok: true, students: session.attendances.length, removedPoints });
+}
+
 export const GET = handleAuth(getHandler);
 export const POST = handleAuth(postHandler);
 export const PUT = handleAuth(putHandler);
+export const DELETE = handleAuth(deleteHandler);
