@@ -38,7 +38,10 @@ export function validateTelegramAuth(
   const secretKey = crypto.createHash("sha256").update(botToken).digest();
   const hmac = crypto.createHmac("sha256", secretKey).update(checkString).digest("hex");
 
-  return hmac === hash;
+  // Сравниваем за постоянное время: по скорости ответа подпись не подобрать
+  const a = Buffer.from(hmac);
+  const b = Buffer.from(hash);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 /**

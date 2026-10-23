@@ -33,6 +33,8 @@ import { ProgressBarsChart } from "@/components/ProgressBarsChart";
 import { HeroStatsEmpty, HeroStatsTab } from "@/components/profile/HeroStatsTab";
 import { getReplayStats } from "@/lib/replay-stats";
 import type { User, PlayerProfile } from "@prisma/client";
+import { withoutSecrets } from "@/lib/public-user";
+
 
 type Viewer = (User & { profile: PlayerProfile | null }) | null;
 
@@ -68,6 +70,8 @@ export async function PlayerProfileView({
   const seasonId = await getActiveSeasonId();
   const ratingSeason = await getVotingSeason();
   const isOwn = viewer?.id === user.id;
+  // В клиентские компоненты — только копия без пароля и токенов
+  const clientViewer = viewer ? withoutSecrets(viewer) : null;
 
   const [logs, homeworkDone, leaderboard, matchParts, studentsCount, achievements, placeHistory, weeklyProgress, replayStats] = await Promise.all([
     prisma.pointLog.findMany({
@@ -175,7 +179,7 @@ export async function PlayerProfileView({
     settings = (
       <>
         <TelegramConnect linked={isTelegramLinked(viewer)} botUsername={botUsername} linkToken={linkToken} />
-        <ProfileForm user={viewer} />
+        <ProfileForm user={withoutSecrets(viewer)} />
       </>
     );
   }
@@ -248,7 +252,7 @@ export async function PlayerProfileView({
               profile={profile}
               received={received}
               vibes={vibes.map((v) => ({ voter: v.voter, value: v.value as VibeValue }))}
-              viewer={viewer}
+              viewer={clientViewer}
               seasonLabel={seasonLabel}
               givenSkill={givenSkill}
               givenVibe={givenVibe}

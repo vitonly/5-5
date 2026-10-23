@@ -13,7 +13,8 @@ import { handleAuth } from "@/lib/api-auth";
 
 async function getHandler() {
   const user = await requireUser();
-  const { passwordHash: _ph, loginPasswordTemp: _pt, ...safe } = user;
+  // Секреты наружу не отдаём: пароль (хеш и временный) и токен привязки Telegram
+  const { passwordHash: _ph, loginPasswordTemp: _pt, telegramLinkToken: _lt, ...safe } = user;
   return NextResponse.json({
     user: { ...safe, hasPassword: Boolean(_ph) },
   });

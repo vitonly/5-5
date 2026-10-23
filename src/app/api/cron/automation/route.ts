@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runAutomation } from "@/lib/automation";
 
@@ -8,13 +9,14 @@ function isAuthorized(request: NextRequest) {
     return process.env.NODE_ENV !== "production";
   }
 
-  const auth = request.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-
-  // Ручной вызов / локальный скрипт
-  const header = request.headers.get("x-cron-secret");
-  const query = request.nextUrl.searchParams.get("secret");
-  return header === secret || query === secret;
+  // Секрет — только в заголовке. В адресе (?secret=…) больше не принимаем:
+  // адреса попадают в логи nginx и историю браузера
+  const auth = request.headers.get("authorization") || "";
+  const header = request.headers.get("x-cron-secret") || "";
+  const given = auth.startsWith("Bearer ") ? auth.slice(7) : header;
+  const a = Buffer.from(given);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function POST(request: NextRequest) {

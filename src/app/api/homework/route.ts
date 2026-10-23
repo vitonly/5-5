@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser, requireAdmin } from "@/lib/session";
-import { toJsonArray, formatDate, parseAppDateTime } from "@/lib/utils";
+import { toJsonArray, formatDate, parseAppDateTime, parseJsonArray } from "@/lib/utils";
 import { applyHomeworkGradedPoints } from "@/lib/points";
 import { sendTelegramMessage, notifyChatId } from "@/lib/telegram";
 import { handleAuth } from "@/lib/api-auth";
@@ -90,7 +90,9 @@ async function postHandler(request: NextRequest) {
 async function putHandler(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
-  const { assignmentId, textAnswer, fileUrls } = body;
+  const { assignmentId } = body;
+  const textAnswer = String(body.textAnswer ?? "").slice(0, 10_000);   // не длиннее 10 000 символов
+  const rawFiles: unknown[] = Array.isArray(body.fileUrls) ? body.fileUrls : [];
 
   const assignment = await prisma.homeworkAssignment.findUnique({
     where: { id: assignmentId },
@@ -105,13 +107,24 @@ async function putHandler(request: NextRequest) {
     return NextResponse.json({ error: "Сдача недоступна" }, { status: 400 });
   }
 
+  // Файлы ответа: только загруженные на наш сайт (/uploads/…) или уже бывшие в этой сдаче
+  // (старые файлы из прежнего хранилища при доработке), и не больше 10.
+  // Раньше сюда можно было прислать любые «ссылки», а тренер видел их как файлы ученика.
+  const previousFiles = new Set(assignment.submission ? parseJsonArray(assignment.submission.fileUrls) : []);
+  const fileOk = (u: unknown) =>
+    typeof u === "string" && (/^\/uploads\/[A-Za-z0-9._-]+$/.test(u) || previousFiles.has(u));
+  if (rawFiles.length > 10 || !rawFiles.every(fileOk)) {
+    return NextResponse.json({ error: "Прикрепить можно до 10 файлов, загруженных на сайт" }, { status: 400 });
+  }
+  const fileUrls = rawFiles as string[];
+
   // REVISION: обновляем существующий ответ или создаём новый (если предыдущий удалили)
   if (assignment.status === "REVISION" && assignment.submission) {
     const submission = await prisma.homeworkSubmission.update({
       where: { id: assignment.submission.id },
       data: {
-        textAnswer: textAnswer || "",
-        fileUrls: toJsonArray(fileUrls || []),
+        textAnswer,
+        fileUrls: toJsonArray(fileUrls),
         submittedAt: new Date(),
         excellent: false,
         feedback: null,
@@ -139,8 +152,8 @@ async function putHandler(request: NextRequest) {
     data: {
       assignmentId,
       studentId: user.id,
-      textAnswer: textAnswer || "",
-      fileUrls: toJsonArray(fileUrls || []),
+      textAnswer,
+      fileUrls: toJsonArray(fileUrls),
     },
   });
 
