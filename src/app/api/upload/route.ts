@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { randomBytes } from "crypto";
 import { requireUser } from "@/lib/session";
 import { handleAuth } from "@/lib/api-auth";
+import { hit, retryAfterSec } from "@/lib/rate-limit";
 
 const MAX_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Лимит для учеников: не больше 30 файлов в час.
+ * Без него можно загружать файлы по 64 МБ без остановки и забить весь диск сервера.
+ * У тренера лимита нет.
+ */
+const STUDENT_FILES_PER_HOUR = 30;
+const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * Разрешённые расширения. Файлы из /uploads nginx отдаёт напрямую с домена сайта,
@@ -38,10 +48,22 @@ async function saveToDisk(file: File, safeName: string): Promise<string> {
 }
 
 async function postHandler(request: NextRequest) {
+  let user;
   try {
-    await requireUser();
+    user = await requireUser();
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limitKey = `upload:${user.id}`;
+  if (user.role !== "ADMIN") {
+    const wait = retryAfterSec(limitKey, STUDENT_FILES_PER_HOUR);
+    if (wait > 0) {
+      return NextResponse.json(
+        { error: `Слишком много файлов за час. Попробуйте через ${Math.ceil(wait / 60)} мин.` },
+        { status: 429, headers: { "Retry-After": String(wait) } }
+      );
+    }
   }
 
   const contentType = request.headers.get("content-type") || "";
@@ -75,8 +97,10 @@ async function postHandler(request: NextRequest) {
       );
     }
     const base = cleaned.slice(0, -(ext.length + 1)).replace(/\./g, "_").slice(0, 80) || "file";
-    const safeName = `${Date.now()}-${base}.${ext}`;
+    // Случайная часть в имени — чтобы адрес чужого файла нельзя было угадать перебором
+    const safeName = `${Date.now()}-${randomBytes(6).toString("hex")}-${base}.${ext}`;
     const url = await saveToDisk(file, safeName);
+    if (user.role !== "ADMIN") hit(limitKey, HOUR_MS);
     return NextResponse.json({ url });
   } catch (e) {
     console.error("[upload]", e);

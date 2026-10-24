@@ -22,7 +22,8 @@ export function validateTelegramAuth(
   const authDate = Number(data.auth_date);
   if (!authDate) return false;
   const now = Math.floor(Date.now() / 1000);
-  if (now - authDate > 86400) return false;
+  // Подпись Telegram действует 1 час: старую перехваченную ссылку входа уже не используют
+  if (now - authDate > 3600) return false;
 
   const rest: Record<string, string> = {};
   for (const [key, value] of Object.entries(data)) {

@@ -95,6 +95,8 @@ model User {
   passwordHash   String?
   /** Временный plaintext пароля для разовой рассылки в TG; очищается после отправки */
   loginPasswordTemp String?
+  /** Версия входа: +1 при смене пароля или выходе — все старые входы (cookie) перестают действовать */
+  sessionVersion Int      @default(0)
   username       String?
   firstName      String
   lastName       String?

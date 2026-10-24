@@ -14,8 +14,14 @@ function getSecret() {
 
 export type SessionUser = User & { profile: PlayerProfile | null };
 
+/**
+ * В токен входа кладём «версию входа» пользователя (sv).
+ * Смена пароля или выход увеличивают версию в базе — и все выданные раньше токены
+ * перестают подходить (см. getSessionUser), даже если cookie кто-то скопировал.
+ */
 export async function createSessionToken(userId: string) {
-  return new SignJWT({ userId })
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
+  return new SignJWT({ userId, sv: user?.sessionVersion ?? 0 })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("30d")
     .sign(getSecret());
@@ -42,6 +48,11 @@ export async function setSessionCookieOnResponse(
 ) {
   const token = await createSessionToken(userId);
   response.cookies.set(COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+}
+
+/** Сделать недействительными все входы пользователя на всех устройствах */
+export async function revokeAllSessions(userId: string) {
+  await prisma.user.update({ where: { id: userId }, data: { sessionVersion: { increment: 1 } } });
 }
 
 export async function destroySession() {
@@ -138,6 +149,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       where: { id: userId },
       include: { profile: true },
     });
+    // Токены, выданные до появления версии, считаются версией 0
+    const sv = typeof payload.sv === "number" ? payload.sv : 0;
+    if (!user || user.sessionVersion !== sv) return null;
     return user;
   } catch {
     return null;

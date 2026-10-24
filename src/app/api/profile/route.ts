@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser, requireAdmin } from "@/lib/session";
+import { requireUser, requireAdmin, createSession } from "@/lib/session";
 import { recalculateFinalRating } from "@/lib/rating";
 import { extractSteamIdFromInput } from "@/lib/opendota";
 import {
@@ -113,7 +113,7 @@ async function patchHandler(request: NextRequest) {
 }
 
 async function postHandler(request: NextRequest) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const body = await request.json();
   const {
     userId,
@@ -172,6 +172,7 @@ async function postHandler(request: NextRequest) {
     login?: string | null;
     passwordHash?: string;
     loginPasswordTemp?: string | null;
+    sessionVersion?: { increment: number };
   } = {};
   if (firstName !== undefined) {
     const trimmed = String(firstName).trim();
@@ -206,6 +207,7 @@ async function postHandler(request: NextRequest) {
     }
     userData.passwordHash = hashPassword(pwd);
     userData.loginPasswordTemp = sealTempPassword(pwd);   // до рассылки в TG — только зашифрованным
+    userData.sessionVersion = { increment: 1 };          // новый пароль — старые входы ученика больше не действуют
   }
 
   const finalLogin =
@@ -241,6 +243,9 @@ async function postHandler(request: NextRequest) {
 
     return updatedProfile;
   });
+
+  // Тренер сменил пароль сам себе — выдаём ему новый вход, чтобы не выкинуло с сайта
+  if (userData.sessionVersion && userId === admin.id) await createSession(admin.id);
 
   return NextResponse.json({ profile: updated });
 }
