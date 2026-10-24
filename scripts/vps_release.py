@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -192,12 +193,13 @@ def deploy(c: paramiko.SSHClient, since_arg: str | None, dry: bool) -> None:
     # 2. Изменённые файлы
     sftp = c.open_sftp()
     for p in upload:
-        run(c, f"mkdir -p {os.path.dirname(f'{rel}/{p}')}", quiet=True)
+        # Кавычки обязательны: в Next.js бывают папки со скобками, например (dashboard)
+        run(c, f"mkdir -p {shlex.quote(os.path.dirname(f'{rel}/{p}'))}", quiet=True)
         sftp.put(str(ROOT / p), f"{rel}/{p}")
         print(f"uploaded {p}", flush=True)
     sftp.close()
     if remove:
-        run(c, f"cd {rel} && rm -f " + " ".join(f"'{p}'" for p in remove))
+        run(c, f"cd {rel} && rm -f " + " ".join(shlex.quote(p) for p in remove))
 
     # 3. Зависимости и схема базы
     if any(p in ("package.json", "package-lock.json") for p in upload):
