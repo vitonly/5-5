@@ -8,6 +8,7 @@ import { checkAllAchievements } from "@/lib/achievements";
 import { snapshotRatings } from "@/lib/rating-history";
 import { syncHallPoints } from "@/lib/hall-of-fame";
 import { syncAllStudentsProgressFromOpenDota } from "@/lib/progress-opendota";
+import { sealPlainTempPasswords } from "@/lib/temp-password";
 
 export async function processOverdueHomework() {
   const now = new Date();
@@ -134,6 +135,11 @@ export async function processExpiredSeasons() {
 
 export async function runAutomation() {
   await migrateLegacySeasonDeadlines();
+  // Временные пароли, записанные открытым текстом до шифрования, — шифруем
+  const tempPasswordsSealed = await sealPlainTempPasswords().catch((e) => {
+    console.error("[automation] temp passwords", e);
+    return 0;
+  });
   const overdueProcessed = await processOverdueHomework();
   const homeworkReminders = await processHomeworkReminders().catch((e) => {
     console.error("[automation] homework reminders", e);
@@ -164,6 +170,7 @@ export async function runAutomation() {
   return {
     hallChanged: hall.changed,
     overdueProcessed,
+    tempPasswordsSealed,
     homeworkReminders,
     votingClosed,
     seasonsClosed,

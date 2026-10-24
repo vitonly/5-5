@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/password";
 import { recalculateFinalRating } from "@/lib/rating";
 import { generateTelegramLinkToken } from "@/lib/telegram-links";
 import { handleAuth } from "@/lib/api-auth";
+import { sealTempPassword } from "@/lib/temp-password";
 
 async function getHandler() {
   await requireAdmin();
@@ -47,7 +48,7 @@ async function postHandler(request: NextRequest) {
       lastName: lastName ? String(lastName).trim() : null,
       login: loginTrim,
       passwordHash: hashPassword(passwordStr),
-      loginPasswordTemp: passwordStr,
+      loginPasswordTemp: sealTempPassword(passwordStr),   // до рассылки в TG — только зашифрованным
       telegramLinkToken: generateTelegramLinkToken(),
       role: "STUDENT",
       profile: {

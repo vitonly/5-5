@@ -9,6 +9,7 @@ import {
 } from "@/lib/secondary-roles";
 import type { DotaRole } from "@prisma/client";
 import { hashPassword } from "@/lib/password";
+import { sealTempPassword } from "@/lib/temp-password";
 import { handleAuth } from "@/lib/api-auth";
 
 async function getHandler() {
@@ -204,7 +205,7 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: "Пароль слишком короткий (мин. 6)" }, { status: 400 });
     }
     userData.passwordHash = hashPassword(pwd);
-    userData.loginPasswordTemp = pwd;
+    userData.loginPasswordTemp = sealTempPassword(pwd);   // до рассылки в TG — только зашифрованным
   }
 
   const finalLogin =

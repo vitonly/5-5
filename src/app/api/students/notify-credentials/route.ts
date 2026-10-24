@@ -6,6 +6,7 @@ import { displayName } from "@/lib/utils";
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 import { recipientFilter } from "@/lib/recipients";
 import { handleAuth } from "@/lib/api-auth";
+import { openTempPassword } from "@/lib/temp-password";
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://www.startdota.ru").replace(
   /\/$/,
@@ -106,7 +107,12 @@ async function postHandler(request: NextRequest) {
   for (const student of ready) {
     const chatId = notifyChatId(student)!;
     const login = student.login!;
-    const password = student.loginPasswordTemp!;
+    const password = openTempPassword(student.loginPasswordTemp!);
+    if (!password) {
+      // Не расшифровался (сменился секрет сайта) — тренеру нужно задать пароль заново
+      failed.push(`${displayName(student)} (задайте пароль заново)`);
+      continue;
+    }
     const ok = await sendTelegramMessage(
       chatId,
       credentialsMessage(login, password)
