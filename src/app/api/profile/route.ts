@@ -12,6 +12,40 @@ import { hashPassword } from "@/lib/password";
 import { sealTempPassword } from "@/lib/temp-password";
 import { handleAuth } from "@/lib/api-auth";
 
+const ROLES = new Set<string>(["CARRY", "MID", "OFFLANE", "SUPPORT", "HARD_SUPPORT"]);
+const MAX_NAME = 50;
+
+/** Настоящий ранг Dota: медаль 1–7 и звёзды 1–5 (11…75) или Титан (80) */
+function isValidRankTier(v: number) {
+  if (v === 80) return true;
+  const medal = Math.floor(v / 10);
+  const stars = v % 10;
+  return Number.isInteger(v) && medal >= 1 && medal <= 7 && stars >= 1 && stars <= 5;
+}
+
+/**
+ * Проверка полей профиля. Без неё можно было вписать себе ранг 9999, MMR «abc»
+ * или имя длиной в мегабайт — и сломать карточку, баланс команд или страницу.
+ * Пустое значение ("" или null) означает «очистить поле» — это можно.
+ */
+function profileFieldsError(b: Record<string, unknown>): string | null {
+  const filled = (v: unknown) => v !== undefined && v !== null && v !== "";
+  if (filled(b.mmr)) {
+    const mmr = Number(b.mmr);
+    if (!Number.isInteger(mmr) || mmr < 0 || mmr > 15000) return "MMR — целое число от 0 до 15 000";
+  }
+  if (filled(b.rankTier) && !isValidRankTier(Number(b.rankTier))) return "Некорректный ранг";
+  for (const key of ["firstName", "lastName"]) {
+    if (b[key] !== undefined && b[key] !== null && String(b[key]).trim().length > MAX_NAME) {
+      return `Имя и фамилия — не длиннее ${MAX_NAME} символов`;
+    }
+  }
+  for (const key of ["primaryRole", "secondaryRole"]) {
+    if (filled(b[key]) && !ROLES.has(String(b[key]))) return "Некорректная роль";
+  }
+  return null;
+}
+
 async function getHandler() {
   const user = await requireUser();
   // Секреты наружу не отдаём: пароль (хеш и временный) и токен привязки Telegram
@@ -24,6 +58,8 @@ async function getHandler() {
 async function patchHandler(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
+  const fieldsError = profileFieldsError(body);
+  if (fieldsError) return NextResponse.json({ error: fieldsError }, { status: 400 });
   const profile = user.profile!;
 
   let firstName = user.firstName;
@@ -115,6 +151,8 @@ async function patchHandler(request: NextRequest) {
 async function postHandler(request: NextRequest) {
   const admin = await requireAdmin();
   const body = await request.json();
+  const fieldsError = profileFieldsError(body);
+  if (fieldsError) return NextResponse.json({ error: fieldsError }, { status: 400 });
   const {
     userId,
     mmr,

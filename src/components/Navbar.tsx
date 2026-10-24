@@ -171,7 +171,7 @@ export async function Navbar() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/start-plus.png?v=3"
+              src="/brand/start-plus.png?v=4"
               alt=""
               className="h-9 w-9 shrink-0 object-contain min-[720px]:h-10 min-[720px]:w-10"
             />

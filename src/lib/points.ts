@@ -223,11 +223,17 @@ export async function applyHomeworkGradedPoints(
   );
 }
 
-export async function applyHomeworkOverduePenalty(userId: string, homeworkTitle: string) {
+export async function applyHomeworkOverduePenalty(
+  userId: string,
+  homeworkTitle: string,
+  assignmentId?: string
+) {
   await addPoints(
     userId,
     POINT_VALUES.HOMEWORK_OVERDUE,
-    `Домашка «${homeworkTitle}» — не сдана к дедлайну`
+    `Домашка «${homeworkTitle}» — не сдана к дедлайну`,
+    // Привязка к заданию: штраф видно у конкретной домашки и его можно отменить (removePointsBySource)
+    assignmentId ? { type: "HOMEWORK_OVERDUE", id: assignmentId } : undefined
   );
 }
 

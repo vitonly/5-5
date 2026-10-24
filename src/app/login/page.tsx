@@ -264,7 +264,7 @@ function LoginForm() {
     <Card className="rise-in w-full max-w-[420px] shadow-[var(--shadow-raised)]">
       <CardHeader className="items-center pb-5 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/start-plus.png?v=2" alt="" className="mb-3 h-[72px] w-[72px] object-contain" />
+        <img src="/brand/start-plus.png?v=4" alt="" className="mb-3 h-[72px] w-[72px] object-contain" />
         <CardTitle className="text-[28px] font-bold leading-tight tracking-[-0.015em]">
           СТАРТ<span className="text-[var(--points)]">+</span>
         </CardTitle>

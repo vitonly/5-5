@@ -249,6 +249,13 @@ async function putHandler(request: NextRequest) {
   if (user.id === targetId) {
     return NextResponse.json({ error: "Нельзя оценивать себя" }, { status: 400 });
   }
+  // Оценивать можно только учеников (не тренера и не выдуманный id)
+  const target = typeof targetId === "string"
+    ? await prisma.user.findUnique({ where: { id: targetId }, select: { role: true } })
+    : null;
+  if (target?.role !== "STUDENT") {
+    return NextResponse.json({ error: "Такого ученика нет" }, { status: 400 });
+  }
 
   // Тильт-голос
   if (vibe !== undefined) {

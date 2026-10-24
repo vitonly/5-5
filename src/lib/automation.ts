@@ -31,7 +31,7 @@ export async function processOverdueHomework() {
       where: { id: assignment.id },
       data: { status: "OVERDUE" },
     });
-    await applyHomeworkOverduePenalty(assignment.studentId, assignment.homework.title);
+    await applyHomeworkOverduePenalty(assignment.studentId, assignment.homework.title, assignment.id);
     await sendTelegramMessage(
       notifyChatId(assignment.student),
       `⚠️ <b>Просрочена домашка</b>\n\n<b>${assignment.homework.title}</b>\nСрок был: ${formatDate(assignment.deadline)}\n\nШтраф начислен.`
@@ -133,11 +133,23 @@ export async function processExpiredSeasons() {
   return closed.length;
 }
 
+/** Удалить тикеты входа через бота, просроченные больше суток назад: они уже никому не нужны */
+export async function cleanupLoginTickets() {
+  const { count } = await prisma.loginTicket.deleteMany({
+    where: { expiresAt: { lt: new Date(Date.now() - 24 * HOUR) } },
+  });
+  return count;
+}
+
 export async function runAutomation() {
   await migrateLegacySeasonDeadlines();
   // Временные пароли, записанные открытым текстом до шифрования, — шифруем
   const tempPasswordsSealed = await sealPlainTempPasswords().catch((e) => {
     console.error("[automation] temp passwords", e);
+    return 0;
+  });
+  const loginTicketsDeleted = await cleanupLoginTickets().catch((e) => {
+    console.error("[automation] login tickets", e);
     return 0;
   });
   const overdueProcessed = await processOverdueHomework();
@@ -171,6 +183,7 @@ export async function runAutomation() {
     hallChanged: hall.changed,
     overdueProcessed,
     tempPasswordsSealed,
+    loginTicketsDeleted,
     homeworkReminders,
     votingClosed,
     seasonsClosed,

@@ -95,10 +95,13 @@ function earnedPoints(a: AssignmentWithRelations) {
 export function StudentHomeworkList({
   assignments,
   materials,
+  homeworkPoints,
   now,
 }: {
   assignments: AssignmentWithRelations[];
   materials: LearningMaterial[];
+  /** Очки за домашки в текущем сезоне: начислено и снято штрафами (из журнала очков) */
+  homeworkPoints: { earned: number; penalty: number };
   /** время рендера на сервере — чтобы «осталось N дн» совпадало при гидрации */
   now: number;
 }) {
@@ -120,7 +123,6 @@ export function StudentHomeworkList({
       todo: todo.length,
       review: visible.filter((a) => a.status === "SUBMITTED").length,
       next: upcoming ? deadlineInfo(upcoming, now) : null,
-      earned: visible.reduce((s, a) => s + earnedPoints(a), 0),
       active: visible.filter((a) => ACTIVE_STATUSES.has(a.status)).length,
       reviewed: visible.filter((a) => REVIEWED_STATUSES.has(a.status)).length,
       total: visible.length,
@@ -159,6 +161,9 @@ export function StudentHomeworkList({
     );
   }
 
+  // Итог за сезон: начисленное минус штрафы за просрочку — столько домашки дали в очки ученика
+  const net = homeworkPoints.earned + homeworkPoints.penalty;
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-2.5 min-[720px]:grid-cols-4 min-[720px]:gap-3">
@@ -170,10 +175,14 @@ export function StudentHomeworkList({
           tone={summary.next?.tone === "danger" ? "danger" : summary.next?.tone === "warning" ? "warning" : "default"}
         />
         <StatTile
-          label="Заработано"
-          value={`+${formatPoints(summary.earned)}`}
-          hint="очков за домашки"
-          tone="success"
+          label="Очки за домашки"
+          value={`${net >= 0 ? "+" : "−"}${formatPoints(Math.abs(net))}`}
+          hint={
+            homeworkPoints.penalty < 0
+              ? `+${formatPoints(homeworkPoints.earned)}, штрафы −${formatPoints(-homeworkPoints.penalty)}`
+              : "за этот сезон"
+          }
+          tone={net >= 0 ? "success" : "danger"}
         />
       </div>
 

@@ -4,6 +4,11 @@ import { prisma } from "@/lib/db";
 import { setSessionCookieOnResponse } from "@/lib/session";
 import { normalizeBotUsername } from "@/lib/telegram-auth";
 import { recordPdConsent } from "@/lib/pd-consent";
+import { clientIp, hit, retryAfterSec } from "@/lib/rate-limit";
+
+/** Не больше 20 новых тикетов входа с одного адреса за 10 минут — иначе базу можно засыпать мусором */
+const TICKETS_PER_IP = 20;
+const TICKET_WINDOW_MS = 10 * 60 * 1000;
 
 /** Создать тикет входа через бота / завершить вход */
 export async function POST(request: NextRequest) {
@@ -26,6 +31,16 @@ export async function POST(request: NextRequest) {
   if (!bot) {
     return NextResponse.json({ error: "Бот не настроен (NEXT_PUBLIC_BOT_USERNAME)" }, { status: 500 });
   }
+
+  const ipKey = `ticket:${clientIp(request.headers)}`;
+  const wait = retryAfterSec(ipKey, TICKETS_PER_IP);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: `Слишком много попыток входа. Попробуйте через ${Math.ceil(wait / 60)} мин.` },
+      { status: 429, headers: { "Retry-After": String(wait) } }
+    );
+  }
+  hit(ipKey, TICKET_WINDOW_MS);
 
   const token = randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);

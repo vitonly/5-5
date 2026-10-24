@@ -9,6 +9,11 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Браузерные «разрешения»: микрофон нужен голосовому чату, остальное сайту не нужно — запрещаем
+  {
+    key: "Permissions-Policy",
+    value: "microphone=(self), camera=(), geolocation=(), payment=(), usb=(), display-capture=()",
+  },
 ];
 
 const nextConfig: NextConfig = {
