@@ -2,7 +2,8 @@ import { prisma } from "@/lib/db";
 import { lineupsForGame } from "@/lib/match-score";
 import { teamDisplayName } from "@/lib/team-names";
 import { parsePowerSnapshot } from "@/lib/match-power";
-import { editTelegramMessage, notifyChatId, sendTelegramMessage, type InlineKeyboard } from "@/lib/telegram";
+import { editTelegramMessage, escapeTelegramHtml, notifyChatId, sendTelegramMessage, type InlineKeyboard } from "@/lib/telegram";
+import { POSITION_LABELS } from "@/lib/labels";
 import { displayName } from "@/lib/utils";
 
 /*
@@ -44,8 +45,8 @@ export function canOpenPredictions(s: SessionLike) {
   return s.status === "LINEUPS_CONFIRMED" && !s.predictionsOpen && (!hasGame2Lineup(s) || s.lineupsGame2Confirmed);
 }
 
-/** Названия команд игры N (Team <лучший игрок>) */
-export async function teamNamesForGame(s: SessionLike, gameNumber: number) {
+/** Команды игры N: названия (Team <лучший игрок>) и текст составов по позициям для Telegram */
+async function gameTeams(s: SessionLike, gameNumber: number) {
   const L = lineupsForGame(s, gameNumber);
   const users = await prisma.user.findMany({
     where: { id: { in: [...L.radiantIds, ...L.direIds] } },
@@ -59,10 +60,30 @@ export async function teamNamesForGame(s: SessionLike, gameNumber: number) {
       // «Team <сильнейший>» — по силе, замороженной при сборке составов
       return { id, firstName: u?.firstName, lastName: u?.lastName, username: u?.username, finalRating: frozen[id] ?? u?.profile?.finalRating ?? 0 };
     });
-  return {
+  const names = {
     RADIANT: teamDisplayName(named(L.radiantIds), "Team A"),
     DIRE: teamDisplayName(named(L.direIds), "Team B"),
   } as Record<Side, string>;
+
+  // Состав команды: «1 · Carry — Имя» по порядку позиций
+  const lines = (slots: { userId: string; position: number }[]) =>
+    slots
+      .map((slot) => {
+        const u = byId.get(slot.userId);
+        const who = escapeTelegramHtml(u ? displayName(u) : "Игрок");
+        return `${POSITION_LABELS[slot.position] ?? slot.position} — ${who}`;
+      })
+      .join("\n");
+  const lineupText =
+    `<b>${escapeTelegramHtml(names.RADIANT)}</b>\n${lines(L.radiant)}\n\n` +
+    `<b>${escapeTelegramHtml(names.DIRE)}</b>\n${lines(L.dire)}`;
+
+  return { names, lineupText };
+}
+
+/** Названия команд игры N (Team <лучший игрок>) */
+export async function teamNamesForGame(s: SessionLike, gameNumber: number) {
+  return (await gameTeams(s, gameNumber)).names;
 }
 
 /** Сохранить прогноз (сайт и Telegram) */
@@ -95,10 +116,10 @@ function promptKeyboard(sessionId: string, gameNumber: number, names: Record<Sid
 }
 
 async function sendPrompt(chatId: string, s: SessionLike, gameNumber: number) {
-  const names = await teamNamesForGame(s, gameNumber);
+  const { names, lineupText } = await gameTeams(s, gameNumber);
   await sendTelegramMessage(
     chatId,
-    `🔮 <b>Прогноз · Победитель игры №${gameNumber}</b>\nКто победит? Голосование до старта матча.`,
+    `🔮 <b>Прогноз · Победитель игры №${gameNumber}</b>\nКто победит? Голосование до старта матча.\n\n${lineupText}`,
     promptKeyboard(s.id, gameNumber, names)
   );
 }
@@ -144,12 +165,12 @@ export async function handlePredictionCallback(opts: {
   await castPrediction({ sessionId, userId: opts.userId, gameNumber, pick });
 
   const session = (await prisma.matchSession.findUnique({ where: { id: sessionId } }))!;
-  const names = await teamNamesForGame(session, gameNumber);
-  // Оставляем кнопки — можно передумать до старта; отмечаем выбор галочкой
+  const { names, lineupText } = await gameTeams(session, gameNumber);
+  // Оставляем кнопки — можно передумать до старта; отмечаем выбор галочкой. Составы остаются в сообщении
   await editTelegramMessage(
     opts.chatId,
     opts.messageId,
-    `🔮 <b>Прогноз · Победитель игры №${gameNumber}</b>\nТвой выбор: <b>${names[pick]}</b>. Можно передумать до старта матча.`,
+    `🔮 <b>Прогноз · Победитель игры №${gameNumber}</b>\nТвой выбор: <b>${escapeTelegramHtml(names[pick])}</b>. Можно передумать до старта матча.\n\n${lineupText}`,
     {
       inline_keyboard: [
         [
