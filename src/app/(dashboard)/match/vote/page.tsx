@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import { VotingClient } from "@/components/VotingClient";
 import { MatchNav } from "@/components/MatchNav";
 import { PageHeader } from "@/components/ui/page-header";
@@ -27,8 +28,9 @@ export default async function VotePage() {
         })
       : null;
 
+  // Оценивают учеников и тренера — он тоже играет 5на5
   const students = await prisma.user.findMany({
-    where: { role: "STUDENT" },
+    where: { role: { in: PLAYER_ROLES } },
     select: publicUserSelect,
     orderBy: { firstName: "asc" },
   });

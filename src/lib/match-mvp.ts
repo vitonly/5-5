@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getCoachIds } from "@/lib/coach";
 import { POINT_VALUES, addPoints } from "@/lib/points";
 import { displayName, parseJsonArray, APP_TIMEZONE, formatDate } from "@/lib/utils";
 import { parseTeamAssignments } from "@/lib/match-lineup";
@@ -107,6 +108,9 @@ export async function castMvpVote(opts: {
   }
   if (!players.includes(opts.nomineeId)) {
     throw new Error("Номинант должен быть из состава дня");
+  }
+  if ((await getCoachIds()).has(opts.nomineeId)) {
+    throw new Error("Тренер не участвует в выборе MVP — выберите ученика");
   }
   if (opts.voterId === opts.nomineeId) {
     throw new Error("Нельзя голосовать за себя");
@@ -324,6 +328,7 @@ export async function sendMvpVoteInvites(sessionId: string) {
 
   const players = playerIdsFromSession(session);
   const users = await prisma.user.findMany({ where: { id: { in: players } } });
+  const coachIds = await getCoachIds();   // за тренера MVP не голосуют
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
   const rsvpByUser = Object.fromEntries(
     session.rsvps.map((r) => [r.userId, r.tgChatId] as const)
@@ -348,7 +353,7 @@ export async function sendMvpVoteInvites(sessionId: string) {
       continue;
     }
 
-    const nominees = players.filter((id) => id !== voterId);
+    const nominees = players.filter((id) => id !== voterId && !coachIds.has(id));
     const rows: { text: string; callback_data: string }[][] = [];
     for (let i = 0; i < nominees.length; i += 2) {
       rows.push(
@@ -391,6 +396,7 @@ export async function getMvpStatusForUser(sessionId: string, userId: string) {
   if (!session) return null;
   const players = playerIdsFromSession(session);
   if (!players.includes(userId)) return null;
+  const coachIds = await getCoachIds();
 
   const users = await prisma.user.findMany({
     where: { id: { in: players } },
@@ -439,7 +445,7 @@ export async function getMvpStatusForUser(sessionId: string, userId: string) {
     playersCount: players.length,
     /** Только факт «я уже голосовал», без имени номинанта — анонимность */
     hasVoted: Boolean(myVote),
-    nominees: players.filter((id) => id !== userId),
+    nominees: players.filter((id) => id !== userId && !coachIds.has(id)),
     votedNames: voted,
     pendingNames: pending,
     /** Топ-3 номинантов по числу голосов (без раскрытия избирателей) */

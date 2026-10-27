@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdminSeasonsClient } from "@/components/AdminSeasonsClient";
 import { migrateLegacySeasonDeadlines } from "@/lib/seasons";
@@ -18,7 +19,7 @@ export default async function AdminSeasonsPage() {
       orderBy: [{ year: "desc" }, { name: "desc" }],
     }),
     prisma.user.findMany({
-      where: { role: "STUDENT" },
+      where: { role: { in: PLAYER_ROLES } },   // тренера тоже оценивают
       include: { profile: true },
       orderBy: { firstName: "asc" },
     }),

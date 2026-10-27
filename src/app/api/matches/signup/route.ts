@@ -24,7 +24,7 @@ const TEST_SIGNUP_KEYBOARD: InlineKeyboard = {
 
 async function getHandler() {
   await requireAdmin();
-  const students = await listStudentsWithTelegram();
+  const students = await listStudentsWithTelegram(true);
   return NextResponse.json({
     students: students.map((s) => ({
       id: s.id,

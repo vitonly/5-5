@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
 import type { ReplayData } from "@/lib/replay";
@@ -67,7 +68,7 @@ export default async function AdminMatchesPage() {
       orderBy: { date: "desc" },
     }),
     prisma.user.findMany({
-      where: { role: "STUDENT" },
+      where: { role: { in: PLAYER_ROLES } },   // тренер тоже может играть
       include: { profile: true },
       orderBy: { firstName: "asc" },
     }),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import { requireAdmin } from "@/lib/session";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
@@ -55,7 +56,9 @@ async function postHandler(request: NextRequest) {
     where: { role: "STUDENT" },
     orderBy: { firstName: "asc" },
   });
-  const studentIds = students.map((s) => s.id);
+  // Оценить нужно всех игроков 5на5 — учеников и тренера
+  const players = await prisma.user.findMany({ where: { role: { in: PLAYER_ROLES } }, select: { id: true } });
+  const studentIds = players.map((s) => s.id);
 
   const incompleteVoters = students.filter(
     (s) =>
@@ -77,7 +80,7 @@ async function postHandler(request: NextRequest) {
 
   const sampleText = `📢 <b>Напоминание о голосовании</b>
 
-У вас не оценено одноклассников: <b>${sampleMissing}</b> из ${Math.max(studentIds.length - 1, 0)}.
+У вас не оценено игроков: <b>${sampleMissing}</b> из ${Math.max(studentIds.length - 1, 0)}.
 
 Нужно выставить оценку силы (0–100) и тильт каждому.
 
@@ -126,7 +129,7 @@ async function postHandler(request: NextRequest) {
 
     const text = `📢 <b>Напоминание о голосовании</b>
 
-У вас не оценено одноклассников: <b>${missing.length}</b> из ${studentIds.length - 1}.
+У вас не оценено игроков: <b>${missing.length}</b> из ${studentIds.length - 1}.
 
 Нужно выставить оценку силы (0–100) и тильт каждому.
 

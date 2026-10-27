@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getCoachIds } from "@/lib/coach";
 import { addPoints, getActiveSeasonId, positionForMatchGame } from "@/lib/points";
 import { notifyChatId, sendTelegramMessage, absolutePublicUrl } from "@/lib/telegram";
 import { heroInfo, type ReplayData, type ReplayPlayer } from "@/lib/replay";
@@ -104,12 +105,13 @@ export async function computeHall(opts: { from?: Date | null; to?: Date | null }
   // Хронологически: равенство — за тем, кто первым
   replays.sort((a, b) => +new Date(a.session.date) - +new Date(b.session.date) || a.gameNumber - b.gameNumber);
 
+  const coachIds = await getCoachIds();   // рекорды тренера в зал славы не идут
   const best = new Map<string, HallRecord>();
   for (const r of replays) {
     const data = r.data as ReplayData | null;
     const kills = data?.kills ?? null;
     for (const p of data?.players ?? []) {
-      if (!p.userId) continue;
+      if (!p.userId || coachIds.has(p.userId)) continue;
       const position = positionForMatchGame(r.session, p.userId, r.gameNumber);
       if (!position) continue;
       const role: Role = position <= 3 ? "core" : "support";

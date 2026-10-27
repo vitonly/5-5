@@ -293,6 +293,7 @@ export function VotingClient({
                       )}
                     >
                       {displayName(s)}
+                      {s.role === "ADMIN" && " · тренер"}
                     </span>
                   </button>
                 </li>
@@ -318,9 +319,13 @@ export function VotingClient({
               <h2 className="truncate font-display text-[22px] font-bold leading-tight min-[720px]:text-[26px]">
                 {displayName(active)}
               </h2>
-              <Badge variant={activeDone ? "success" : "warning"} className="mt-1.5">
-                {activeDone ? "Сохранено" : "Нужны обе оценки"}
-              </Badge>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {/* Тренер тоже играет 5на5 — его оценивают так же, как учеников */}
+                {active.role === "ADMIN" && <Badge variant="admin">Тренер</Badge>}
+                <Badge variant={activeDone ? "success" : "warning"}>
+                  {activeDone ? "Сохранено" : "Нужны обе оценки"}
+                </Badge>
+              </div>
             </div>
           </div>
 

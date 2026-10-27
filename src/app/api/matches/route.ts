@@ -1,6 +1,7 @@
 import { publicUserSelect } from "@/lib/public-user";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCoachIds } from "@/lib/coach";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { balanceTeams, rebalanceTeams, reshuffleForSecondGame } from "@/lib/team-balance";
 import { displayName, parseAppDateTime, parseJsonArray, toJsonArray } from "@/lib/utils";
@@ -552,9 +553,12 @@ async function patchHandler(request: NextRequest) {
     include: { participants: true },
   });
 
+  // Тренер играет, но очки не получает: очки — награда для учеников
+  const coachIds = await getCoachIds();
+
   if (isDraw) {
     for (const userId of allIds) {
-      const delta = await applyMatchDrawPoints(userId, game.id);
+      const delta = coachIds.has(userId) ? 0 : await applyMatchDrawPoints(userId, game.id);
       await prisma.matchParticipant.updateMany({
         where: { gameId: game.id, userId },
         data: { pointsAwarded: delta },
@@ -594,19 +598,21 @@ async function patchHandler(request: NextRequest) {
         profile.secondaryRoles,
         profile.secondaryRole
       );
-      const delta = await applyMatchWinPointsForPlayer(
-        userId,
-        dayWinStreak,
-        winnerAvg,
-        loserAvg,
-        game.id,
-        {
-          primaryRole: profile.primaryRole,
-          secondaryRoles,
-          position,
-          offRole: isOffRole(profile.primaryRole, position),
-        }
-      );
+      const delta = coachIds.has(userId)
+        ? 0
+        : await applyMatchWinPointsForPlayer(
+            userId,
+            dayWinStreak,
+            winnerAvg,
+            loserAvg,
+            game.id,
+            {
+              primaryRole: profile.primaryRole,
+              secondaryRoles,
+              position,
+              offRole: isOffRole(profile.primaryRole, position),
+            }
+          );
       await prisma.playerProfile.update({
         where: { userId },
         data: { wins: { increment: 1 }, winStreak: dayWinStreak },

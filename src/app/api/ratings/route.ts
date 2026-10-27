@@ -1,6 +1,7 @@
 import { publicUserSelect } from "@/lib/public-user";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import { requireUser, requireAdmin } from "@/lib/session";
 import {
   finalizeSeason,
@@ -48,8 +49,9 @@ async function getHandler() {
     orderBy: [{ year: "desc" }, { name: "desc" }],
   });
 
+  // Кого оценивают: ученики и тренер (он тоже играет 5на5)
   const students = await prisma.user.findMany({
-    where: { role: "STUDENT" },
+    where: { role: { in: PLAYER_ROLES } },
     select: { ...publicUserSelect, profile: isAdmin ? true : { select: { finalRating: true } } },
     orderBy: { firstName: "asc" },
   });
@@ -249,12 +251,12 @@ async function putHandler(request: NextRequest) {
   if (user.id === targetId) {
     return NextResponse.json({ error: "Нельзя оценивать себя" }, { status: 400 });
   }
-  // Оценивать можно только учеников (не тренера и не выдуманный id)
+  // Оценивать можно только игроков 5на5 — учеников и тренера (не выдуманный id)
   const target = typeof targetId === "string"
     ? await prisma.user.findUnique({ where: { id: targetId }, select: { role: true } })
     : null;
-  if (target?.role !== "STUDENT") {
-    return NextResponse.json({ error: "Такого ученика нет" }, { status: 400 });
+  if (!target || !PLAYER_ROLES.includes(target.role as "STUDENT" | "ADMIN")) {
+    return NextResponse.json({ error: "Такого игрока нет" }, { status: 400 });
   }
 
   // Тильт-голос

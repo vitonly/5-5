@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import { balanceTeams } from "@/lib/team-balance";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { displayName, formatDate, parseJsonArray, toJsonArray } from "@/lib/utils";
@@ -434,7 +435,7 @@ export async function createOpenSignupSession(opts: {
   }
 
   const users = await prisma.user.findMany({
-    where: { id: { in: uniqueIds }, role: "STUDENT" },
+    where: { id: { in: uniqueIds }, role: { in: PLAYER_ROLES } },
   });
   if (!users.length) {
     throw new Error("Нет подходящих учеников");
@@ -484,10 +485,11 @@ export async function createOpenSignupSession(opts: {
   return session;
 }
 
-export async function listStudentsWithTelegram() {
+/** Ученики с Telegram; withCoach — добавить тренера (для ручного выбора, не для «всем») */
+export async function listStudentsWithTelegram(withCoach = false) {
   return prisma.user.findMany({
     where: {
-      role: "STUDENT",
+      role: withCoach ? { in: PLAYER_ROLES } : "STUDENT",
       telegramChatId: { not: null },
     },
     orderBy: { firstName: "asc" },

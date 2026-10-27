@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PLAYER_ROLES } from "@/lib/coach";
 import {
   calculateFinalRating,
   computeStrengthFromVotes,
@@ -124,7 +125,7 @@ export async function refreshPlayerStrength(userId: string, seasonId?: string | 
   });
 }
 
-/** Пересчитать skillMod/vibeMod/finalRating у всех учеников по голосам сезона. */
+/** Пересчитать skillMod/vibeMod/finalRating у всех игроков (ученики и тренер) по голосам сезона. */
 export async function recalculateAllPlayerStrengths(seasonId?: string | null) {
   let sid = seasonId;
   if (!sid) {
@@ -132,7 +133,7 @@ export async function recalculateAllPlayerStrengths(seasonId?: string | null) {
     sid = season?.id;
   }
   const students = await prisma.user.findMany({
-    where: { role: "STUDENT" },
+    where: { role: { in: PLAYER_ROLES } },
     select: { id: true },
   });
   for (const student of students) {
