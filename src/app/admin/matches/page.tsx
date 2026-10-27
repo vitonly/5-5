@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { PLAYER_ROLES } from "@/lib/coach";
+import { requireAdmin } from "@/lib/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
 import type { ReplayData } from "@/lib/replay";
@@ -10,6 +11,7 @@ export const metadata = { title: "Матчи · Админка" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminMatchesPage() {
+  const coach = await requireAdmin();   // кто открыл страницу — для кнопки «Я тоже играю»
   // Идемпотентный пересчёт побед 5v5 (база + бонус роли, состав нужной игры)
   await recalculateAllMatchWinPoints().catch(() => 0);
 
@@ -94,6 +96,7 @@ export default async function AdminMatchesPage() {
           }),
         }))}
         students={students}
+        coachId={coach.id}
       />
     </div>
   );

@@ -4,6 +4,8 @@ import { formatDate, parseAppDateTime } from "@/lib/utils";
 import {
   adminRemoveFromSignup,
   adminReinvitePlayer,
+  coachJoinSignup,
+  coachLeaveSignup,
   confirmLineups,
   createOpenSignupSession,
   listStudentsWithTelegram,
@@ -103,7 +105,7 @@ async function postHandler(request: NextRequest) {
 }
 
 async function patchHandler(request: NextRequest) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const body = await request.json();
   const { action, sessionId, userId } = body;
 
@@ -118,6 +120,18 @@ async function patchHandler(request: NextRequest) {
       }
       const result = await adminRemoveFromSignup(sessionId, String(userId));
       return NextResponse.json({ ok: true, ...result });
+    }
+
+    // Тренер сам записывается / выходит кнопкой на сайте
+    if (action === "coachJoin" || action === "coachLeave") {
+      const result =
+        action === "coachJoin"
+          ? await coachJoinSignup(sessionId, admin.id)
+          : await coachLeaveSignup(sessionId, admin.id);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.alert || "Не получилось" }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true, message: result.toast });
     }
 
     if (action === "reinvite") {

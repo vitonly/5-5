@@ -793,6 +793,36 @@ export async function rsvpDecline(
   return { ok: true, toast: "Отказ принят" };
 }
 
+/**
+ * Тренер сам записывается на открытый 5v5 кнопкой на сайте — без приглашения в Telegram.
+ * Дальше всё как у учеников: свободно место — в состав, нет — в очередь.
+ */
+export async function coachJoinSignup(sessionId: string, coachId: string) {
+  const gate = await assertEditableOpenSession(sessionId);
+  if ("error" in gate && gate.error) {
+    return { ok: false, alert: gate.error };
+  }
+  // Запись «приглашён» для тренера; если раньше отказался или снят — приглашаем заново.
+  // Уже в составе или в очереди — ничего не трогаем, rsvpJoin так и ответит.
+  const rsvp = await prisma.matchRsvp.findUnique({
+    where: { sessionId_userId: { sessionId, userId: coachId } },
+  });
+  if (!rsvp) {
+    await prisma.matchRsvp.create({ data: { sessionId, userId: coachId, status: "INVITED" } });
+  } else if (rsvp.status === "DECLINED" || rsvp.status === "REMOVED") {
+    await prisma.matchRsvp.update({
+      where: { id: rsvp.id },
+      data: { status: "INVITED", respondedAt: null },
+    });
+  }
+  return rsvpJoin(coachId, sessionId);
+}
+
+/** Тренер выходит из открытого 5v5 — место займёт первый из очереди */
+export async function coachLeaveSignup(sessionId: string, coachId: string) {
+  return rsvpDecline(coachId, sessionId);
+}
+
 /** Админ снимает игрока из состава; первый из очереди занимает место. */
 export async function adminRemoveFromSignup(sessionId: string, userId: string) {
   const gate = await assertEditableOpenSession(sessionId);

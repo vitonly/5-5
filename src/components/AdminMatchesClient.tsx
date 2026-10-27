@@ -102,9 +102,12 @@ type DraftTagged = DraftSlot & { team: "RADIANT" | "DIRE" };
 export function AdminMatchesClient({
   sessions: initial,
   students,
+  coachId,
 }: {
   sessions: Session[];
   students: Student[];
+  /** id тренера, который открыл страницу: он тоже может играть 5на5 */
+  coachId: string;
 }) {
   const [createMode, setCreateMode] = useState<"open" | "manual">("open");
   const router = useRouter();
@@ -188,9 +191,18 @@ export function AdminMatchesClient({
     [students]
   );
 
+  // Только ученики: тренер записывает себя кнопкой «Я тоже играю», а не через Telegram
+  const onlyStudents = useMemo(() => students.filter((s) => s.role === "STUDENT"), [students]);
+  // В «Свой состав» тренер первым в списке
+  const manualPlayers = useMemo(
+    () => [...students.filter((s) => s.id === coachId), ...students.filter((s) => s.id !== coachId)],
+    [students, coachId]
+  );
+  const [coachBusy, setCoachBusy] = useState(false);
+
   const withTelegram = useMemo(
-    () => students.filter((s) => Boolean(s.telegramChatId)),
-    [students]
+    () => onlyStudents.filter((s) => Boolean(s.telegramChatId)),
+    [onlyStudents]
   );
 
   function togglePlayer(id: string) {
@@ -203,7 +215,7 @@ export function AdminMatchesClient({
 
   // Группы учеников: запись на 5v5 можно открыть целой группе
   const { groups } = useRecipients();
-  const pickerStudents = students.map((s) => ({
+  const pickerStudents = onlyStudents.map((s) => ({
     id: s.id,
     name: displayName(s),
     hasTelegram: Boolean(s.telegramChatId),
@@ -572,6 +584,24 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
+  /** Тренер записывается в открытый 5v5 или выходит из него */
+  async function coachSignup(sessionId: string, join: boolean) {
+    setCoachBusy(true);
+    const res = await fetch("/api/matches/signup", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: join ? "coachJoin" : "coachLeave", sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setCoachBusy(false);
+    if (!res.ok) {
+      toast.error(typeof data.error === "string" ? data.error : "Не получилось");
+      return;
+    }
+    toast.success(join ? `Вы записаны: ${data.message ?? ""}` : "Вы вышли из игры");
+    router.refresh();
+  }
+
   async function reinvitePlayer(sessionId: string, userId: string, name: string) {
     if (!(await confirmAction(`Отправить ${name} повторный запрос в Telegram?`))) return;
     const res = await fetch("/api/matches/signup", {
@@ -753,7 +783,7 @@ export function AdminMatchesClient({
           <div>
             <Label>Игроки ({selectedPlayers.length}/10)</Label>
             <div className="mt-2 flex flex-wrap gap-2">
-              {students.map((s) => (
+              {manualPlayers.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -764,7 +794,7 @@ export function AdminMatchesClient({
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-2)]"
                   }`}
                 >
-                  {displayName(s)}
+                  {s.id === coachId ? "Я (тренер)" : displayName(s)}
                 </button>
               ))}
             </div>
@@ -778,7 +808,8 @@ export function AdminMatchesClient({
             <div className="space-y-4">
           <p className="text-sm text-[var(--text-3)]">
             Ученикам уйдёт сообщение с кнопками «Я играю» / «Не играю». Первые 10 — в состав,
-            остальные в очередь. С Telegram: {withTelegram.length} из {students.length}.
+            остальные в очередь. С Telegram: {withTelegram.length} из {onlyStudents.length}.
+            Сами вы записываетесь кнопкой «Я тоже играю» в карточке игры.
           </p>
           <div>
             <Label>Дата</Label>
@@ -943,8 +974,9 @@ export function AdminMatchesClient({
             const tb = b.respondedAt ? new Date(b.respondedAt).getTime() : 0;
             return ta - tb;
           });
+        // Отказ тренера не показываем: он записывается своей кнопкой «Я тоже играю»
         const declined = rsvps.filter(
-          (r) => r.status === "DECLINED" || r.status === "REMOVED"
+          (r) => (r.status === "DECLINED" || r.status === "REMOVED") && r.userId !== coachId
         );
         const invited = rsvps.filter((r) => r.status === "INVITED");
         const isOpen = session.mode === "OPEN_SIGNUP";
@@ -1010,10 +1042,22 @@ export function AdminMatchesClient({
 
               {isOpen && beforeStart && (
                 <div className="space-y-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--control)] p-3 text-sm">
-                  <p className="font-medium text-[var(--text)]">
-                    Запись: {joined.length}/10 в составе · очередь {queued.length} · ждут{" "}
-                    {invited.length}
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-[var(--text)]">
+                      Запись: {joined.length}/10 в составе · очередь {queued.length} · ждут{" "}
+                      {invited.length}
+                    </p>
+                    {/* Тренер сам записывается в игру или выходит из неё */}
+                    {joined.some((r) => r.userId === coachId) || queued.some((r) => r.userId === coachId) ? (
+                      <Button size="sm" variant="outline" disabled={coachBusy} onClick={() => coachSignup(session.id, false)}>
+                        Я не играю
+                      </Button>
+                    ) : (
+                      <Button size="sm" disabled={coachBusy} onClick={() => coachSignup(session.id, true)}>
+                        Я тоже играю
+                      </Button>
+                    )}
+                  </div>
                   {joined.length > 0 && (
                     <RsvpList
                       title="В составе"
