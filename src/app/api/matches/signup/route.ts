@@ -143,7 +143,7 @@ async function patchHandler(request: NextRequest) {
     }
 
     if (action === "confirmLineups") {
-      const session = await confirmLineups(sessionId);
+      const session = await confirmLineups(sessionId, { singleGame: body.singleGame === true });
       return NextResponse.json({ session });
     }
 

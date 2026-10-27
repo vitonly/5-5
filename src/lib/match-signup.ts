@@ -180,10 +180,13 @@ async function notifyBothLineupsConfirmed(sessionId: string) {
       })
       .join("\n");
 
-  const body =
-    `⚔️ <b>Составы утверждены</b>\n${formatDate(session.date)}\n\n` +
-    `<b>Игра №1</b>\n<b>${r1Name}</b>\n${lineFor(radiant1, a1)}\n\n<b>${d1Name}</b>\n${lineFor(dire1, a1)}\n\n` +
-    `<b>Игра №2</b>\n<b>${r2Name}</b>\n${lineFor(radiant2, a2)}\n\n<b>${d2Name}</b>\n${lineFor(dire2, a2)}`;
+  // Одна игра за день — в сообщении только состав на игру №1
+  const singleGame = radiant2.length + dire2.length === 0;
+  const game1Block = `<b>Игра №1</b>\n<b>${r1Name}</b>\n${lineFor(radiant1, a1)}\n\n<b>${d1Name}</b>\n${lineFor(dire1, a1)}`;
+  const body = singleGame
+    ? `⚔️ <b>Состав утверждён</b>\n${formatDate(session.date)}\n\n${game1Block}`
+    : `⚔️ <b>Составы утверждены</b>\n${formatDate(session.date)}\n\n${game1Block}\n\n` +
+      `<b>Игра №2</b>\n<b>${r2Name}</b>\n${lineFor(radiant2, a2)}\n\n<b>${d2Name}</b>\n${lineFor(dire2, a2)}`;
 
   for (const userId of allIds) {
     const user = userMap[userId];
@@ -192,7 +195,9 @@ async function notifyBothLineupsConfirmed(sessionId: string) {
     const p1 = a1[userId]?.position ? POSITION_LABELS[a1[userId].position] ?? String(a1[userId].position) : "?";
     const s2 = a2[userId]?.team === "DIRE" ? d2Name : r2Name;
     const p2 = a2[userId]?.position ? POSITION_LABELS[a2[userId].position] ?? String(a2[userId].position) : "?";
-    const text = `${body}\n\nВы · игра 1: <b>${s1}</b>, ${p1}\nВы · игра 2: <b>${s2}</b>, ${p2}`;
+    const text = singleGame
+      ? `${body}\n\nВы: <b>${s1}</b>, ${p1}`
+      : `${body}\n\nВы · игра 1: <b>${s1}</b>, ${p1}\nВы · игра 2: <b>${s2}</b>, ${p2}`;
     const rsvp = rsvpMap[userId];
     const chatId = rsvp?.tgChatId || notifyChatId(user);
     if (rsvp?.tgMessageId && chatId) {
@@ -297,8 +302,12 @@ async function notifyTeamsFormedGame2(sessionId: string) {
   }
 }
 
-/** Утвердить оба состава разом: одно TG всем игрокам, дальше можно стартовать. */
-export async function confirmLineups(sessionId: string) {
+/**
+ * Утвердить оба состава разом: одно TG всем игрокам, дальше можно стартовать.
+ * singleGame — за день будет одна игра: утверждаем только 1-й состав
+ * (2-й, если всё-таки понадобится, можно собрать и утвердить позже отдельно).
+ */
+export async function confirmLineups(sessionId: string, opts: { singleGame?: boolean } = {}) {
   const session = await prisma.matchSession.findUnique({ where: { id: sessionId } });
   if (!session) throw new Error("Сессия не найдена");
   if (session.status === "LINEUPS_CONFIRMED") {
@@ -316,13 +325,17 @@ export async function confirmLineups(sessionId: string) {
   if (radiantIds.length !== 5 || direIds.length !== 5) {
     throw new Error("В каждой команде должно быть 5 игроков");
   }
-  if (!game2LineupComplete(session.teamAssignmentsGame2)) {
-    throw new Error("Сначала соберите состав на 2-ю игру — утверждение только обоих составов сразу");
+  const singleGame = Boolean(opts.singleGame);
+  if (!singleGame && !game2LineupComplete(session.teamAssignmentsGame2)) {
+    throw new Error("Сначала соберите состав на 2-ю игру — или утвердите только 1-й (одна игра)");
   }
 
   const updated = await prisma.matchSession.update({
     where: { id: sessionId },
-    data: { status: "LINEUPS_CONFIRMED", lineupsGame2Confirmed: true },
+    data: singleGame
+      ? // Черновик 2-го состава убираем: игрокам уйдёт только состав на игру №1
+        { status: "LINEUPS_CONFIRMED", lineupsGame2Confirmed: false, teamAssignmentsGame2: "{}" }
+      : { status: "LINEUPS_CONFIRMED", lineupsGame2Confirmed: true },
   });
 
   await notifyBothLineupsConfirmed(sessionId);

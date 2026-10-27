@@ -546,10 +546,13 @@ export function AdminMatchesClient({
     );
   }
 
-  async function confirmLineups(sessionId: string) {
+  /** singleGame — за день одна игра: утверждаем только 1-й состав */
+  async function confirmLineups(sessionId: string, singleGame = false) {
     if (
       !(await confirmAction(
-        "Утвердить оба состава? Игрокам уйдёт одно сообщение в Telegram с составами на игру №1 и №2. После этого можно открыть прогнозы и стартовать сессию."
+        singleGame
+          ? "Утвердить только 1-й состав (одна игра)? Игрокам уйдёт сообщение в Telegram с составом на игру №1. Если позже понадобится вторая игра — её состав можно собрать и утвердить отдельно."
+          : "Утвердить оба состава? Игрокам уйдёт одно сообщение в Telegram с составами на игру №1 и №2. После этого можно открыть прогнозы и стартовать сессию."
       ))
     ) {
       return;
@@ -557,7 +560,7 @@ export function AdminMatchesClient({
     const res = await fetch("/api/matches", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, action: "confirmLineups" }),
+      body: JSON.stringify({ sessionId, action: "confirmLineups", singleGame }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -1172,9 +1175,14 @@ export function AdminMatchesClient({
                 <div className="space-y-2">
                   {!hasGame2 && intensityControl()}
                   <div className="flex flex-wrap items-center gap-2">
-                    {hasGame2 && (
+                    {hasGame2 ? (
                       <Button onClick={() => confirmLineups(session.id)} disabled={saving}>
                         Утвердить составы (игры 1 и 2)
+                      </Button>
+                    ) : (
+                      // Одна игра за день — 2-й состав не нужен
+                      <Button onClick={() => confirmLineups(session.id, true)} disabled={saving}>
+                        Утвердить 1-й состав (одна игра)
                       </Button>
                     )}
                     <Button
@@ -1202,8 +1210,8 @@ export function AdminMatchesClient({
                   </div>
                   {!hasGame2 && (
                     <p className="text-xs text-[var(--text-3)]">
-                      Кнопка «Утвердить составы» появится после сборки состава на 2-ю игру — игрокам
-                      уйдёт одно сообщение с обоими составами.
+                      Одна игра — утвердите 1-й состав. Две игры — сначала соберите состав на 2-ю,
+                      тогда игрокам уйдёт одно сообщение с обоими составами.
                     </p>
                   )}
                 </div>

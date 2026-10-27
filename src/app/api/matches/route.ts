@@ -450,7 +450,7 @@ async function patchHandler(request: NextRequest) {
 
   if (body.action === "confirmLineups") {
     try {
-      const updated = await confirmLineups(sessionId);
+      const updated = await confirmLineups(sessionId, { singleGame: body.singleGame === true });
       return NextResponse.json({ session: updated });
     } catch (e) {
       return NextResponse.json(
