@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { applyHomeworkOverduePenalty } from "@/lib/points";
+import { applyHomeworkOverduePenalty, recalculateAllMatchWinPoints } from "@/lib/points";
 import { finalizeSeason, closeVoting, migrateLegacySeasonDeadlines } from "@/lib/seasons";
 import { formatDate } from "@/lib/utils";
 import { notifyChatId, sendTelegramMessage, escapeTelegramHtml as escapeHtml } from "@/lib/telegram";
@@ -157,6 +157,12 @@ export async function runAutomation() {
     console.error("[automation] homework reminders", e);
     return 0;
   });
+  // Сверка очков за победы 5v5 (бонус роли по итоговому составу игры).
+  // Раньше запускалась при каждом открытии страницы «Субботние 5v5»
+  const matchWinPointsFixed = await recalculateAllMatchWinPoints().catch((e) => {
+    console.error("[automation] match win points", e);
+    return 0;
+  });
   const votingClosed = await processExpiredVoting();
   const seasonsClosed = await processExpiredSeasons();
   const mvpClosed = await processMvpDeadlines();
@@ -185,6 +191,7 @@ export async function runAutomation() {
     tempPasswordsSealed,
     loginTicketsDeleted,
     homeworkReminders,
+    matchWinPointsFixed,
     votingClosed,
     seasonsClosed,
     mvpClosed,

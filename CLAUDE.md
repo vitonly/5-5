@@ -47,6 +47,7 @@ nginx (`/etc/nginx/sites-available/startplus`) + Let's Encrypt.
 | `scripts/vps_backup_setup.py` | Ежедневная копия базы в 04:00 МСК → `/var/backups/startplus/daily-*.dump`, 14 дней | Безопасный |
 | `scripts/vps_pull_backup.py` | Скачать свежую копию базы в «Документы/Бэкапы СТАРТ+» | Безопасный (в копии личные данные — не класть в проект) |
 | `scripts/vps_rotate_secrets.py` | Смена `CRON_SECRET` и `TELEGRAM_WEBHOOK_SECRET` прямо на сервере; `--webhook` — выставить webhook | Меняет `.env` — только с моего «да» |
+| `scripts/vps_node_upgrade.py` | Обновление Node.js 20 → 24 на сервере (без флага — предпросмотр, `--apply` — обновить; при сбое сам возвращает Node 20) | Сайт недоступен несколько секунд — запускать, когда нет занятия |
 | `scripts/vps_cron_mvp.py` | Ежечасная автоматизация (cron → `/usr/local/bin/startplus-automation.sh`) | Безопасный |
 | `scripts/vps_deploy.py` | Старая полная выкладка: **перезаписывает `.env`**, `db push --accept-data-loss`. На сервере с релизами не запускается | **Опасный, устаревший** |
 | прочие `scripts/vps_*.py` | Настройка сервера, парсера, LiveKit, Telegram-прокси, SSL | Перед запуском читать код целиком |

@@ -4,7 +4,6 @@ import { requireAdmin } from "@/lib/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
 import type { ReplayData } from "@/lib/replay";
-import { recalculateAllMatchWinPoints } from "@/lib/points";
 
 export const metadata = { title: "Матчи · Админка" };
 
@@ -12,8 +11,8 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminMatchesPage() {
   const coach = await requireAdmin();   // кто открыл страницу — для кнопки «Я тоже играю»
-  // Идемпотентный пересчёт побед 5v5 (база + бонус роли, состав нужной игры)
-  await recalculateAllMatchWinPoints().catch(() => 0);
+  // Пересчёт очков за все победы раньше шёл тут при каждом открытии страницы
+  // (по запросу к базе на каждую победу) — теперь раз в час в автоматизации (lib/automation.ts)
 
   const [sessions, students] = await Promise.all([
     prisma.matchSession.findMany({
