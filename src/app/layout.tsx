@@ -1,29 +1,35 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans, JetBrains_Mono, Unbounded } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toast";
 import { ConfirmHost } from "@/components/ui/confirm";
 
+// Шрифты лежат в проекте (src/app/fonts), а не скачиваются из Google при сборке:
+// раньше сборка падала, если Google Fonts не отвечал. Подробности — src/app/fonts/README.md
+
 // Заголовки: Unbounded — с кириллицей (Chakra Petch её не поддерживал)
-const unbounded = Unbounded({
+const unbounded = localFont({
+  src: "./fonts/Unbounded.woff2",
   variable: "--font-unbounded",
-  subsets: ["latin", "cyrillic"],
-  weight: ["600", "700"],
+  weight: "600 700",
   display: "swap",
 });
 
-const ibmPlex = IBM_Plex_Sans({
+// Основной текст: IBM Plex Sans (по лицензии изменённый файл называется Start Sans)
+const ibmPlex = localFont({
+  src: "./fonts/StartSans.woff2",
   variable: "--font-ibm-plex",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600"],
+  weight: "400 600",
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+// Цифры и счёт: JetBrains Mono
+const jetbrains = localFont({
+  src: "./fonts/JetBrainsMono.woff2",
   variable: "--font-jetbrains",
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "600", "700"],
+  weight: "500 700",
   display: "swap",
+  adjustFontFallback: false,   // запасной моноширинный шрифт задан в globals.css
 });
 
 export const metadata: Metadata = {
