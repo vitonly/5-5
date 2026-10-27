@@ -8,7 +8,7 @@ Node 24 — действующая версия с долгой поддержк
 Что делает (осторожно, с откатом):
   1. Запоминает текущую версию Node и сохраняет список процессов pm2.
   2. Переключает репозиторий NodeSource с ветки 20.x на 24.x и ставит Node 24.
-  3. Перезапускает pm2 уже на новом Node (pm2 update) — сайт недоступен несколько секунд.
+  3. Перезапускает pm2 уже на новом Node (pm2 kill + pm2 resurrect) — сайт недоступен несколько секунд.
   4. Проверяет, что сайт отвечает. Не отвечает или что-то упало — возвращает Node 20 как было.
 
 Модули сайта, привязанные к системе (sharp, prisma, next-swc и др.), сделаны на N-API —
@@ -53,6 +53,11 @@ def run(c: paramiko.SSHClient, cmd: str, timeout: int = 600) -> tuple[int, str]:
     return code, out
 
 
+# Перезапуск pm2 на установленном сейчас Node: остановить его целиком и поднять сохранённые процессы.
+# (Первая попытка 27.10.2026 делала «pm2 update» — на Node 24 он сразу же останавливал
+#  только что запущенный pm2, и сайт оставался выключен; скрипт тогда сам откатился на Node 20.)
+PM2_RESTART = "pm2 kill; pm2 resurrect && sleep 3 && pm2 save"
+
 # Сайт отвечает? (до 60 секунд ждём, пока pm2 поднимет его)
 HEALTH = ("for i in $(seq 1 30); do s=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:3000/login); "
           "[ \"$s\" = 200 ] && echo OK && exit 0; sleep 2; done; echo FAIL; exit 1")
@@ -79,7 +84,7 @@ def main() -> None:
         print(f"\n!!! {reason} — возвращаю Node 20")
         run(c, f"cp -a {BACKUP} {SOURCES} && apt-get update -qq")
         run(c, f"DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --allow-downgrades nodejs={old_version}")
-        run(c, "pm2 update && pm2 resurrect")
+        run(c, PM2_RESTART)
         code, _ = run(c, HEALTH, timeout=120)
         raise SystemExit("Откат выполнен, сайт отвечает" if code == 0 else "Откат выполнен, но сайт НЕ отвечает — нужна ручная проверка")
 
@@ -93,9 +98,13 @@ def main() -> None:
     _, new_v = run(c, "node -v")
     if not new_v.startswith(f"v{TARGET_MAJOR}."):
         rollback(f"После установки Node {new_v}, а не {TARGET_MAJOR}")
+    # Сайт pm2 запускает через /usr/bin/npm («npm start») — он должен быть на месте
+    code, _ = run(c, "test -x /usr/bin/npm && npm -v")
+    if code != 0:
+        rollback("После установки нет /usr/bin/npm")
 
     # 3. pm2 перезапускается на новом Node и поднимает сохранённые процессы
-    run(c, "pm2 update")
+    run(c, PM2_RESTART)
     code, _ = run(c, HEALTH, timeout=120)
     if code != 0:
         rollback("Сайт не отвечает на новом Node")
