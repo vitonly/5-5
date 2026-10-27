@@ -160,6 +160,8 @@ export function SendToDialog({
   sendLabel = "Отправить",
   requireTelegram = true,
   busy = false,
+  initial = null,
+  allLabel,
   onClose,
   onSend,
 }: {
@@ -169,6 +171,10 @@ export function SendToDialog({
   sendLabel?: string;
   requireTelegram?: boolean;
   busy?: boolean;
+  /** Кто выбран при открытии; null — все */
+  initial?: string[] | null;
+  /** Надпись на кнопке, когда выбраны все (по умолчанию «<sendLabel> всем») */
+  allLabel?: string;
   onClose: () => void;
   onSend: (userIds: string[] | null) => void;
 }) {
@@ -180,6 +186,8 @@ export function SendToDialog({
       sendLabel={sendLabel}
       requireTelegram={requireTelegram}
       busy={busy}
+      initial={initial}
+      allLabel={allLabel ?? `${sendLabel} всем`}
       onClose={onClose}
       onSend={onSend}
     />
@@ -193,6 +201,8 @@ function SendToDialogBody({
   sendLabel,
   requireTelegram,
   busy,
+  initial,
+  allLabel,
   onClose,
   onSend,
 }: {
@@ -201,6 +211,8 @@ function SendToDialogBody({
   sendLabel: string;
   requireTelegram: boolean;
   busy: boolean;
+  initial: string[] | null;
+  allLabel: string;
   onClose: () => void;
   onSend: (userIds: string[] | null) => void;
 }) {
@@ -210,7 +222,7 @@ function SendToDialogBody({
     [students, requireTelegram]
   );
   // null — пока ничего не трогали: значит «все»
-  const [picked, setPicked] = useState<string[] | null>(null);
+  const [picked, setPicked] = useState<string[] | null>(initial);
   const value = picked ?? eligible;
   const everyone = value.length === eligible.length && eligible.every((id) => value.includes(id));
 
@@ -271,7 +283,7 @@ function SendToDialogBody({
             disabled={busy || loading || value.length === 0}
             onClick={() => onSend(everyone ? null : value)}
           >
-            {busy ? "Отправка…" : everyone ? `${sendLabel} всем` : `${sendLabel} (${value.length})`}
+            {busy ? "Отправка…" : everyone ? allLabel : `${sendLabel} (${value.length})`}
           </Button>
         </div>
       </div>

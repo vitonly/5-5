@@ -280,6 +280,8 @@ model RatingSeason {
   closesAt    DateTime?
   /** Дедлайн только голосования → автозакрытие оценок без сброса очков */
   votingClosesAt DateTime?
+  /** Кто из учеников участвует в голосовании (JSON-массив id). Пустой — все ученики. Тренер участвует всегда */
+  participantIds String     @default("[]")
   createdAt   DateTime     @default(now())
   peerRatings PeerRating[]
   vibeVotes   VibeVote[]

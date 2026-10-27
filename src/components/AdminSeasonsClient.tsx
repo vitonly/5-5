@@ -16,6 +16,7 @@ import { formatDate, toAppDateTimeLocal } from "@/lib/utils";
 import { formatPoints } from "@/lib/points";
 import { PlayerLink } from "@/components/PlayerLink";
 import { SendToDialog } from "@/components/RecipientPicker";
+import { parseParticipantIds } from "@/lib/season-participant-ids";
 import type {
   RatingSeason,
   User,
@@ -73,6 +74,38 @@ export function AdminSeasonsClient({
   const [reminding, setReminding] = useState(false);
   // Для какого сезона открыто окно «Кому напомнить о голосовании» (null — закрыто)
   const [remindSeasonId, setRemindSeasonId] = useState<string | null>(null);
+  // Для какого сезона открыто окно «Участники голосования»
+  const [participantsSeasonId, setParticipantsSeasonId] = useState<string | null>(null);
+  const [savingParticipants, setSavingParticipants] = useState(false);
+
+  /** Участники голосования сезона: выбранные ученики (пустой список — все) и тренер */
+  function playersOf(season: Season): Student[] {
+    const only = new Set(parseParticipantIds(season.participantIds));
+    if (!only.size) return students;
+    return students.filter((s) => s.role === "ADMIN" || only.has(s.id));
+  }
+
+  async function saveParticipants(seasonId: string, ids: string[] | null) {
+    setSavingParticipants(true);
+    try {
+      const res = await fetch("/api/ratings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        // null — выбраны все: сохраняем пустой список
+        body: JSON.stringify({ action: "setParticipants", seasonId, participantIds: ids ?? [] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === "string" ? data.error : "Не удалось сохранить");
+        return;
+      }
+      toast.success(ids ? `В голосовании учеников: ${data.participants}` : "В голосовании все ученики");
+      setParticipantsSeasonId(null);
+      router.refresh();
+    } finally {
+      setSavingParticipants(false);
+    }
+  }
 
   async function handleCreateSeason() {
     await fetch("/api/ratings", {
@@ -127,9 +160,12 @@ export function AdminSeasonsClient({
   }
 
   function progress(season: Season) {
-    const expected = students.length * Math.max(students.length - 1, 0);
-    const skillDone = season.peerRatings.length;
-    const vibeDone = season.vibeVotes?.length ?? 0;
+    const players = new Set(playersOf(season).map((p) => p.id));
+    const n = players.size;
+    const expected = n * Math.max(n - 1, 0);
+    // Считаем только голоса между участниками (старые голоса не участников не в счёт)
+    const skillDone = season.peerRatings.filter((r) => players.has(r.raterId) && players.has(r.targetId)).length;
+    const vibeDone = (season.vibeVotes ?? []).filter((v) => players.has(v.voterId) && players.has(v.targetId)).length;
     return { skillDone, vibeDone, expected };
   }
 
@@ -143,7 +179,7 @@ export function AdminSeasonsClient({
 
   function votesFrom(season: Season, voterId: string): VoteRow[] {
     const vibes = season.vibeVotes ?? [];
-    return students
+    return playersOf(season)
       .filter((s) => s.id !== voterId)
       .map((target) => {
         const skill = season.peerRatings.find(
@@ -164,7 +200,7 @@ export function AdminSeasonsClient({
 
   function votesReceived(season: Season, targetId: string): ReceivedRow[] {
     const vibes = season.vibeVotes ?? [];
-    return students
+    return playersOf(season)
       .filter((s) => s.id !== targetId)
       .map((from) => {
         const skill = season.peerRatings.find(
@@ -187,7 +223,7 @@ export function AdminSeasonsClient({
   }
 
   function incompleteVoters(season: Season) {
-    return students.filter((s) => votesFrom(season, s.id).some((v) => !v.complete));
+    return playersOf(season).filter((s) => votesFrom(season, s.id).some((v) => !v.complete));
   }
 
   async function remindVote(opts: {
@@ -278,7 +314,10 @@ export function AdminSeasonsClient({
         const pointsMap = seasonPointsByUser(season);
         const seasonTotal = Object.values(pointsMap).reduce((a, b) => a + b, 0);
         const incomplete = incompleteVoters(season);
-        const expectedPer = Math.max(students.length - 1, 0);
+        const players = playersOf(season);
+        const studentCount = students.filter((s) => s.role === "STUDENT").length;
+        const chosen = parseParticipantIds(season.participantIds);
+        const expectedPer = Math.max(players.length - 1, 0);
         const expandKey = expanded[season.id] ?? null;
 
         return (
@@ -331,6 +370,32 @@ export function AdminSeasonsClient({
               </>
             }
           >
+
+              {/* Кто голосует и кого оценивают: группа, отдельные ученики или все */}
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-[var(--text-2)]">
+                  Участники голосования:{" "}
+                  <span className="font-medium text-[var(--text)]">
+                    {chosen.length ? `${chosen.length} из ${studentCount} учеников` : "все ученики"}
+                  </span>{" "}
+                  + тренер
+                </span>
+                <Button size="sm" variant="outline" onClick={() => setParticipantsSeasonId(season.id)}>
+                  Выбрать участников…
+                </Button>
+                <SendToDialog
+                  open={participantsSeasonId === season.id}
+                  title="Участники голосования"
+                  hint="Ученики оценивают только тех, кто выбран, и голосуют сами только они. Тренер участвует всегда."
+                  sendLabel="Сохранить"
+                  allLabel="Сохранить: все ученики"
+                  requireTelegram={false}
+                  initial={chosen.length ? chosen : null}
+                  busy={savingParticipants}
+                  onClose={() => setParticipantsSeasonId(null)}
+                  onSend={(ids) => saveParticipants(season.id, ids)}
+                />
+              </div>
 
               {season.status === "OPEN" && incomplete.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -424,7 +489,7 @@ export function AdminSeasonsClient({
               </div>
 
               <div className="divide-y divide-[var(--border-soft)] overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)]">
-                {students.map((student) => {
+                {players.map((student) => {
                   const rows = votesFrom(season, student.id);
                   const receivedRows = votesReceived(season, student.id);
                   const done = rows.filter((r) => r.complete).length;

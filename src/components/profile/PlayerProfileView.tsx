@@ -21,6 +21,7 @@ import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { cn, displayName } from "@/lib/utils";
 import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { getVotingSeason } from "@/lib/seasons";
+import { seasonPlayerIds } from "@/lib/season-participants";
 import { ensureTelegramLinkToken, isTelegramLinked } from "@/lib/telegram-links";
 import type { VibeValue } from "@/lib/rating";
 import { getAchievementOverview } from "@/lib/achievements";
@@ -132,7 +133,9 @@ export async function PlayerProfileView({
     ])
   );
   const matchHistory = buildMatchHistoryEntries(user.id, matchParts, historyPlayerMap);
-  const expectedVotes = Math.max(studentsCount - 1, 0);
+  // Сколько оценок нужно поставить: все участники голосования, кроме себя
+  const votingPlayers = ratingSeason ? (await seasonPlayerIds(ratingSeason)).length : studentsCount;
+  const expectedVotes = Math.max(votingPlayers - 1, 0);
 
   const [received, vibes, givenSkill, givenVibe] = ratingSeason
     ? await Promise.all([

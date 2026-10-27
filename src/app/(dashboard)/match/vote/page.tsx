@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { PLAYER_ROLES } from "@/lib/coach";
+import { seasonPlayerIds } from "@/lib/season-participants";
 import { VotingClient } from "@/components/VotingClient";
 import { MatchNav } from "@/components/MatchNav";
 import { PageHeader } from "@/components/ui/page-header";
@@ -28,18 +28,26 @@ export default async function VotePage() {
         })
       : null;
 
-  // Оценивают учеников и тренера — он тоже играет 5на5
+  // Оценивают только участников голосования: выбранных тренером учеников (или всех) и самого тренера
+  const playerIds = openSeason ? await seasonPlayerIds(openSeason) : [];
   const students = await prisma.user.findMany({
-    where: { role: { in: PLAYER_ROLES } },
+    where: { id: { in: playerIds } },
     select: publicUserSelect,
     orderBy: { firstName: "asc" },
   });
+  const notParticipant = Boolean(openSeason) && !playerIds.includes(user.id);
 
   return (
     <div>
       <PageHeader eyebrow="Каждую субботу" title="Субботние 5v5" className="mb-5 min-[720px]:mb-6" />
       <MatchNav />
-      <VotingClient openSeason={openSeason} students={students} currentUserId={user.id} />
+      {notParticipant ? (
+        <div className="surface-card p-5 text-sm text-[var(--text-2)]">
+          В этом голосовании вы не участвуете — тренер выбрал другую группу.
+        </div>
+      ) : (
+        <VotingClient openSeason={openSeason} students={students} currentUserId={user.id} />
+      )}
     </div>
   );
 }

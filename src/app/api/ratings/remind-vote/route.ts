@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { PLAYER_ROLES } from "@/lib/coach";
+import { seasonPlayerIds } from "@/lib/season-participants";
 import { requireAdmin } from "@/lib/session";
 import { notifyChatId, sendTelegramMessage } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
@@ -52,13 +52,13 @@ async function postHandler(request: NextRequest) {
     return NextResponse.json({ error: "Сезон закрыт — голосование не идёт" }, { status: 400 });
   }
 
+  // Участники голосования: выбранные ученики (или все) и тренер
+  const studentIds = await seasonPlayerIds(season);
+  // Напоминаем только ученикам-участникам
   const students = await prisma.user.findMany({
-    where: { role: "STUDENT" },
+    where: { role: "STUDENT", id: { in: studentIds } },
     orderBy: { firstName: "asc" },
   });
-  // Оценить нужно всех игроков 5на5 — учеников и тренера
-  const players = await prisma.user.findMany({ where: { role: { in: PLAYER_ROLES } }, select: { id: true } });
-  const studentIds = players.map((s) => s.id);
 
   const incompleteVoters = students.filter(
     (s) =>

@@ -2,6 +2,7 @@ import { publicUserSelect } from "@/lib/public-user";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { PLAYER_ROLES } from "@/lib/coach";
+import { seasonPlayerIds } from "@/lib/season-participants";
 import { requireUser, requireAdmin } from "@/lib/session";
 import {
   finalizeSeason,
@@ -49,14 +50,17 @@ async function getHandler() {
     orderBy: [{ year: "desc" }, { name: "desc" }],
   });
 
-  // Кого оценивают: ученики и тренер (он тоже играет 5на5)
+  const openSeason = seasons.find((s) => s.status === "OPEN");
+
+  // Кого оценивают: ученики и тренер (он тоже играет 5на5).
+  // Ученику — только участники открытого голосования (тренер мог выбрать группу)
+  const onlyIds = !isAdmin && openSeason ? await seasonPlayerIds(openSeason) : null;
   const students = await prisma.user.findMany({
-    where: { role: { in: PLAYER_ROLES } },
+    where: { role: { in: PLAYER_ROLES }, ...(onlyIds ? { id: { in: onlyIds } } : {}) },
     select: { ...publicUserSelect, profile: isAdmin ? true : { select: { finalRating: true } } },
     orderBy: { firstName: "asc" },
   });
 
-  const openSeason = seasons.find((s) => s.status === "OPEN");
   const activeSeason = seasons.find((s) => s.isActive);
 
   return NextResponse.json({
@@ -229,6 +233,25 @@ async function putHandler(request: NextRequest) {
     return NextResponse.json({ season });
   }
 
+  // Кто участвует в голосовании сезона: id учеников; пустой список — все ученики
+  if (action === "setParticipants") {
+    await requireAdmin();
+    if (!seasonId || !Array.isArray(body.participantIds)) {
+      return NextResponse.json({ error: "Укажите сезон и участников" }, { status: 400 });
+    }
+    const wanted = [...new Set((body.participantIds as unknown[]).map(String))];
+    // Берём только настоящих учеников — выдуманные id отбрасываем
+    const valid = await prisma.user.findMany({
+      where: { id: { in: wanted }, role: "STUDENT" },
+      select: { id: true },
+    });
+    const season = await prisma.ratingSeason.update({
+      where: { id: seasonId },
+      data: { participantIds: JSON.stringify(valid.map((u) => u.id)) },
+    });
+    return NextResponse.json({ season, participants: valid.length });
+  }
+
   if (action === "delete") {
     await requireAdmin();
     if (!seasonId) {
@@ -251,12 +274,13 @@ async function putHandler(request: NextRequest) {
   if (user.id === targetId) {
     return NextResponse.json({ error: "Нельзя оценивать себя" }, { status: 400 });
   }
-  // Оценивать можно только игроков 5на5 — учеников и тренера (не выдуманный id)
-  const target = typeof targetId === "string"
-    ? await prisma.user.findUnique({ where: { id: targetId }, select: { role: true } })
-    : null;
-  if (!target || !PLAYER_ROLES.includes(target.role as "STUDENT" | "ADMIN")) {
-    return NextResponse.json({ error: "Такого игрока нет" }, { status: 400 });
+  // Голосуют и получают оценки только участники этого голосования (ученики из списка и тренер)
+  const players = new Set(await seasonPlayerIds(season));
+  if (!players.has(user.id)) {
+    return NextResponse.json({ error: "Вы не участвуете в этом голосовании" }, { status: 403 });
+  }
+  if (typeof targetId !== "string" || !players.has(targetId)) {
+    return NextResponse.json({ error: "Этого игрока нет в голосовании" }, { status: 400 });
   }
 
   // Тильт-голос
