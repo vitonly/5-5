@@ -71,6 +71,62 @@ describe("balanceTeams — автобаланс 5v5", () => {
   });
 });
 
+/**
+ * Настоящий случай с занятия: 10 игроков, сила и роли как в базе (имена заменены).
+ * Раньше в строгом режиме балансер раздавал роли «жадно» и находил только разницу 41,
+ * хотя честный состав с разницей 1 существует.
+ */
+function realCasePlayers(): BalancePlayer[] {
+  const rows: [number, DotaRole, DotaRole[]][] = [
+    [88, "OFFLANE", ["MID", "CARRY"]],
+    [85, "CARRY", ["OFFLANE", "SUPPORT"]],
+    [77, "CARRY", ["HARD_SUPPORT", "OFFLANE"]],
+    [75, "OFFLANE", ["SUPPORT", "CARRY"]],
+    [72, "CARRY", ["MID", "OFFLANE"]],
+    [68, "OFFLANE", ["SUPPORT", "HARD_SUPPORT"]],
+    [58, "HARD_SUPPORT", ["SUPPORT", "MID"]],
+    [27, "SUPPORT", ["HARD_SUPPORT", "CARRY"]],
+    [27, "CARRY", ["SUPPORT", "HARD_SUPPORT"]],
+    [20, "SUPPORT", ["HARD_SUPPORT", "MID"]],
+  ];
+  return rows.map(([finalRating, primaryRole, secondaryRoles], i) => ({
+    id: `r${i}`,
+    name: `Ученик ${i}`,
+    finalRating,
+    primaryRole,
+    secondaryRoles,
+  }));
+}
+
+/** Каждый стоит на своей основной или дополнительной роли */
+function checkListedRoles(t: BalancedTeams) {
+  for (const p of [...t.radiant, ...t.dire]) {
+    const allowed = [p.primaryRole, ...(p.secondaryRoles ?? [])].map((r) => ROLES.indexOf(r!) + 1);
+    assert.ok(allowed.includes(p.position), `${p.name} поставлен на позицию ${p.position}`);
+  }
+}
+
+describe("строгий режим — настоящий случай с занятия", () => {
+  it("находит честный состав с разницей 1, а не 41", () => {
+    const players = realCasePlayers();
+    const t = balanceTeams(players, true);
+    checkLineup(players, t);
+    checkListedRoles(t);
+    assert.ok(t.difference <= 1, `разница ${t.difference}`);
+  });
+
+  it("пересборка ко 2-й игре тоже соблюдает роли", () => {
+    const players = realCasePlayers();
+    const first = balanceTeams(players, true);
+    const game1: Record<string, { team: "RADIANT" | "DIRE"; position: number }> = {};
+    for (const p of first.radiant) game1[p.id] = { team: "RADIANT", position: p.position };
+    for (const p of first.dire) game1[p.id] = { team: "DIRE", position: p.position };
+    const second = reshuffleForSecondGame(players, game1, null, 3, true);
+    checkLineup(players, second);
+    checkListedRoles(second);
+  });
+});
+
 describe("reshuffleForSecondGame — пересборка ко 2-й игре", () => {
   it("состав остаётся честным: те же 10 игроков, позиции 1–5", () => {
     const players = makePlayers([90, 80, 70, 60, 50, 85, 75, 65, 55, 45]);

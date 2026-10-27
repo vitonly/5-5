@@ -142,61 +142,57 @@ function assignPositions(team: BalancePlayer[]): AssignedPlayer[] {
 }
 
 /**
+ * «Цена» позиции для игрока: 0 — его основная роль, 1 — первая дополнительная, 2 — вторая…
+ * null — этой роли у игрока нет. Игрок без указанных ролей может встать куда угодно (цена 9).
+ */
+function strictPositionCost(player: BalancePlayer, position: number): number | null {
+  const roles = playerRoles(player);
+  if (!roles.length) return 9;
+  const index = roles.findIndex((role) => DOTA_ROLE_POSITION[role] === position);
+  return index >= 0 ? index : null;
+}
+
+/**
  * Назначение позиций только на строго указанные роли.
- * Без фоллбека на чужие слоты: если не удалось — position = 0.
+ * Перебираем все расстановки (для пятёрки их 120) и берём ту, где каждый на своей роли
+ * и как можно больше игроков на основной. Раньше роли раздавались «жадно» по очереди,
+ * и балансер отбрасывал составы, которые на самом деле можно расставить
+ * (например, кому-то нужно было уйти на дополнительную роль, чтобы освободить место другому).
+ * Если расставить нельзя — у всех position = 0 (состав отбрасывается).
  */
 function assignPositionsStrict(team: BalancePlayer[]): AssignedPlayer[] {
-  const taken = new Set<number>();
-  const assigned = new Map<string, number>();
-  const maxDepth = 1 + Math.max(0, ...team.map((p) => p.secondaryRoles?.length ?? 0));
+  const slots = [1, 2, 3, 4, 5].slice(0, team.length);
+  let best: { positions: number[]; cost: number } | null = null;
 
-  for (let depth = 0; depth < maxDepth; depth++) {
-    for (const p of team) {
-      if (assigned.has(p.id)) continue;
-      const roles: DotaRole[] = [];
-      if (depth === 0 && p.primaryRole) roles.push(p.primaryRole);
-      if (depth > 0) {
-        const sec = p.secondaryRoles?.[depth - 1];
-        if (sec) roles.push(sec);
-      }
-      for (const role of roles) {
-        const pos = DOTA_ROLE_POSITION[role];
-        if (pos && !taken.has(pos)) {
-          taken.add(pos);
-          assigned.set(p.id, pos);
-          break;
-        }
-      }
+  // Перебор: игрок i встаёт на одну из ещё свободных позиций
+  function search(i: number, used: Set<number>, positions: number[], cost: number) {
+    if (best && cost >= best.cost) return;   // уже хуже найденного — дальше не смотрим
+    if (i === team.length) {
+      best = { positions: [...positions], cost };
+      return;
+    }
+    for (const pos of slots) {
+      if (used.has(pos)) continue;
+      const c = strictPositionCost(team[i], pos);
+      if (c === null) continue;
+      used.add(pos);
+      positions.push(pos);
+      search(i + 1, used, positions, cost + c);
+      positions.pop();
+      used.delete(pos);
     }
   }
+  search(0, new Set(), [], 0);
 
-  for (const p of team) {
-    if (assigned.has(p.id)) continue;
-    for (const pos of strictListedPositions(p)) {
-      if (!taken.has(pos)) {
-        taken.add(pos);
-        assigned.set(p.id, pos);
-        break;
-      }
-    }
-  }
-
-  // Игроки без указанной роли — на оставшиеся слоты (иначе состав не собрать).
-  // У кого роли есть, но слот занят — остаётся без позиции (кандидат отбрасывается).
-  const freeSlots = [1, 2, 3, 4, 5].filter((s) => !taken.has(s));
-  for (const p of team) {
-    if (assigned.has(p.id)) continue;
-    if (strictListedPositions(p).length > 0) continue;
-    const slot = freeSlots.shift();
-    if (slot) {
-      taken.add(slot);
-      assigned.set(p.id, slot);
-    }
-  }
-
+  const found = best as { positions: number[]; cost: number } | null;
   return team
-    .map((p) => ({ ...p, position: assigned.get(p.id) ?? 0 }))
+    .map((p, i) => ({ ...p, position: found ? found.positions[i] : 0 }))
     .sort((a, b) => a.position - b.position);
+}
+
+/** Сколько игроков команды не на основной роли (для выбора между составами с равной разницей силы) */
+function offPrimaryCount(team: AssignedPlayer[]): number {
+  return team.filter((p) => p.primaryRole && DOTA_ROLE_POSITION[p.primaryRole] !== p.position).length;
 }
 
 function assignmentComplete(assigned: AssignedPlayer[]): boolean {
@@ -306,7 +302,12 @@ function enumerateBalancedLineups(
   }
 
   search(0, [], []);
-  return [...byKey.values()].sort((a, b) => a.difference - b.difference);
+  // Сначала — меньшая разница силы; при равной — где больше игроков на основной роли
+  return [...byKey.values()].sort(
+    (a, b) =>
+      a.difference - b.difference ||
+      offPrimaryCount([...a.radiant, ...a.dire]) - offPrimaryCount([...b.radiant, ...b.dire])
+  );
 }
 
 /**
