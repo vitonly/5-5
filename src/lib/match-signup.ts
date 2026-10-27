@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { lockSessionPower, withSnapshot } from "@/lib/match-power";
 import { PLAYER_ROLES } from "@/lib/coach";
 import { balanceTeams } from "@/lib/team-balance";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
@@ -45,15 +46,17 @@ function buildAssignmentsJson(
   return JSON.stringify(map);
 }
 
-async function loadBalancePlayers(userIds: string[]) {
+/** Игроки для балансера; сила — замороженная для этой сессии (см. lib/match-power.ts) */
+async function loadBalancePlayers(sessionId: string, userIds: string[]) {
   const profiles = await prisma.playerProfile.findMany({
     where: { userId: { in: userIds } },
     include: { user: true },
   });
+  const power = await lockSessionPower(sessionId, userIds);
   return profiles.map((p) => ({
     id: p.userId,
     name: displayName(p.user),
-    finalRating: p.finalRating,
+    finalRating: power[p.userId] ?? p.finalRating,
     primaryRole: p.primaryRole,
     secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
   }));
@@ -82,7 +85,7 @@ export async function rebalanceOpenSession(
     return null;
   }
 
-  const players = await loadBalancePlayers(joined.map((r) => r.userId));
+  const players = await loadBalancePlayers(sessionId, joined.map((r) => r.userId));
   if (players.length !== OPEN_SLOTS) {
     throw new Error("Не у всех игроков есть профиль");
   }
@@ -154,7 +157,10 @@ async function notifyBothLineupsConfirmed(sessionId: string) {
     prisma.matchRsvp.findMany({ where: { sessionId, userId: { in: allIds } } }),
   ]);
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
-  const powerMap = Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating]));
+  const powerMap = withSnapshot(
+    Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating])),
+    session.powerSnapshot
+  );
   const rsvpMap = Object.fromEntries(rsvps.map((r) => [r.userId, r]));
 
   const { teamDisplayName } = await import("@/lib/team-names");
@@ -262,7 +268,10 @@ async function notifyTeamsFormedGame2(sessionId: string) {
   ]);
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
-  const powerMap = Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating]));
+  const powerMap = withSnapshot(
+    Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating])),
+    session.powerSnapshot
+  );
   const rsvpMap = Object.fromEntries(rsvps.map((r) => [r.userId, r]));
 
   const { teamDisplayName } = await import("@/lib/team-names");
@@ -326,6 +335,8 @@ export async function confirmLineups(sessionId: string, opts: { singleGame?: boo
     throw new Error("В каждой команде должно быть 5 игроков");
   }
   const singleGame = Boolean(opts.singleGame);
+  // Составы утверждаются — сила игроков точно должна быть заморожена (для старых сессий — с этого момента)
+  await lockSessionPower(sessionId, [...radiantIds, ...direIds]);
   if (!singleGame && !game2LineupComplete(session.teamAssignmentsGame2)) {
     throw new Error("Сначала соберите состав на 2-ю игру — или утвердите только 1-й (одна игра)");
   }
@@ -948,6 +959,11 @@ export async function startMatchSession(sessionId: string) {
   if (session.status !== "LINEUPS_CONFIRMED") {
     throw new Error("Сначала утвердите составы");
   }
+  // Перед стартом — последняя гарантия, что сила всех игроков заморожена
+  await lockSessionPower(sessionId, [
+    ...parseJsonArray(session.radiantPlayerIds),
+    ...parseJsonArray(session.direPlayerIds),
+  ]);
 
   return prisma.matchSession.update({
     where: { id: sessionId },

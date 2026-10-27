@@ -1,6 +1,7 @@
 import { publicUserSelect } from "@/lib/public-user";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { lockSessionPower, refreshSessionPower } from "@/lib/match-power";
 import { getCoachIds } from "@/lib/coach";
 import { requireUser, requireAdmin } from "@/lib/session";
 import { balanceTeams, rebalanceTeams, reshuffleForSecondGame } from "@/lib/team-balance";
@@ -107,11 +108,13 @@ async function postHandler(request: NextRequest) {
       where: { userId: { in: playerIds } },
       include: { user: true },
     });
+    // Составы собираются — с этого момента сила игроков заморожена до конца игр
+    const power = await lockSessionPower(session.id, playerIds.map(String));
 
     const players = profiles.map((p) => ({
       id: p.userId,
       name: displayName(p.user),
-      finalRating: p.finalRating,
+      finalRating: power[p.userId] ?? p.finalRating,   // замороженная сила дня
       primaryRole: p.primaryRole,
       secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
     }));
@@ -259,6 +262,11 @@ async function patchHandler(request: NextRequest) {
     }
 
     const built = buildAssignmentsFromLineups(normalizedRadiant, normalizedDire);
+    // Новые в составе (если тренер кого-то добавил) — заморозить их силу
+    await lockSessionPower(
+      sessionId,
+      [...normalizedRadiant, ...normalizedDire].map((s: { userId: string }) => s.userId)
+    );
 
     if (game === 2) {
       const updated = await prisma.matchSession.update({
@@ -315,10 +323,11 @@ async function patchHandler(request: NextRequest) {
       where: { userId: { in: fromRsvp } },
       include: { user: true },
     });
+    const power = await lockSessionPower(sessionId, fromRsvp);
     const players = profiles.map((p) => ({
       id: p.userId,
       name: displayName(p.user),
-      finalRating: p.finalRating,
+      finalRating: power[p.userId] ?? p.finalRating,   // замороженная сила дня
       primaryRole: p.primaryRole,
       secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
     }));
@@ -392,10 +401,11 @@ async function patchHandler(request: NextRequest) {
       where: { userId: { in: allIds } },
       include: { user: true },
     });
+    const power = await lockSessionPower(sessionId, allIds);
     const players = profiles.map((p) => ({
       id: p.userId,
       name: displayName(p.user),
-      finalRating: p.finalRating,
+      finalRating: power[p.userId] ?? p.finalRating,   // замороженная сила дня
       primaryRole: p.primaryRole,
       secondaryRoles: parseSecondaryRoles(p.secondaryRoles, p.secondaryRole),
     }));
@@ -443,6 +453,19 @@ async function patchHandler(request: NextRequest) {
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Не удалось утвердить 2-й состав" },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Тренер: взять у игроков текущую силу из профилей (только до старта игр)
+  if (body.action === "refreshPower") {
+    try {
+      const power = await refreshSessionPower(sessionId);
+      return NextResponse.json({ ok: true, players: Object.keys(power).length });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Не удалось обновить силу" },
         { status: 400 }
       );
     }
@@ -575,15 +598,12 @@ async function patchHandler(request: NextRequest) {
   const winnerIds = winnerTeam === "RADIANT" ? radiantIds : direIds;
   const loserIds = winnerTeam === "RADIANT" ? direIds : radiantIds;
 
-  const [winnerProfiles, loserProfiles] = await Promise.all([
-    prisma.playerProfile.findMany({ where: { userId: { in: winnerIds } } }),
-    prisma.playerProfile.findMany({ where: { userId: { in: loserIds } } }),
-  ]);
-
+  // Средняя сила команд — по замороженной силе дня, а не по текущим профилям
+  const power = await lockSessionPower(sessionId, [...winnerIds, ...loserIds]);
   const winnerAvg =
-    winnerProfiles.reduce((sum, p) => sum + p.finalRating, 0) / Math.max(winnerIds.length, 1);
+    winnerIds.reduce((sum, id) => sum + (power[id] ?? 0), 0) / Math.max(winnerIds.length, 1);
   const loserAvg =
-    loserProfiles.reduce((sum, p) => sum + p.finalRating, 0) / Math.max(loserIds.length, 1);
+    loserIds.reduce((sum, id) => sum + (power[id] ?? 0), 0) / Math.max(loserIds.length, 1);
 
   for (const userId of allIds) {
     const won = winnerIds.includes(userId);

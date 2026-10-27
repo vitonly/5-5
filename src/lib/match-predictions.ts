@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { lineupsForGame } from "@/lib/match-score";
 import { teamDisplayName } from "@/lib/team-names";
+import { parsePowerSnapshot } from "@/lib/match-power";
 import { editTelegramMessage, notifyChatId, sendTelegramMessage, type InlineKeyboard } from "@/lib/telegram";
 import { displayName } from "@/lib/utils";
 
@@ -22,6 +23,8 @@ type SessionLike = {
   teamAssignments: string;
   teamAssignmentsGame2: string | null;
   lineupsGame2Confirmed: boolean;
+  /** Замороженная сила игроков (lib/match-power.ts) */
+  powerSnapshot?: string | null;
 };
 
 export function hasGame2Lineup(s: { teamAssignmentsGame2: string | null }) {
@@ -49,10 +52,12 @@ export async function teamNamesForGame(s: SessionLike, gameNumber: number) {
     select: { id: true, firstName: true, lastName: true, username: true, profile: { select: { finalRating: true } } },
   });
   const byId = new Map(users.map((u) => [u.id, u]));
+  const frozen = parsePowerSnapshot(s.powerSnapshot);
   const named = (ids: string[]) =>
     ids.map((id) => {
       const u = byId.get(id);
-      return { id, firstName: u?.firstName, lastName: u?.lastName, username: u?.username, finalRating: u?.profile?.finalRating ?? 0 };
+      // «Team <сильнейший>» — по силе, замороженной при сборке составов
+      return { id, firstName: u?.firstName, lastName: u?.lastName, username: u?.username, finalRating: frozen[id] ?? u?.profile?.finalRating ?? 0 };
     });
   return {
     RADIANT: teamDisplayName(named(L.radiantIds), "Team A"),

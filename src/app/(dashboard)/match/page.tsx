@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { teamDisplayName } from "@/lib/team-names";
 import { parseTeamAssignments } from "@/lib/match-lineup";
 import { lineupsForGame, seriesScoreByGame1Roster } from "@/lib/match-score";
+import { parsePowerSnapshot } from "@/lib/match-power-snapshot";
 
 export const metadata = { title: "Субботние 5v5" };
 
@@ -139,7 +140,24 @@ export default async function MatchPage({
   );
 }
 
-function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, viewer: Viewer) {
+/**
+ * Игроки с силой, замороженной для этой сессии при сборке составов (lib/match-power.ts):
+ * сумма силы, «Team <сильнейший>» и счёт серии не меняются, если кто-то поменял ранг посреди дня
+ */
+function withFrozenPower(userMap: Record<string, UserRow>, snapshotRaw: string | null | undefined) {
+  const frozen = parsePowerSnapshot(snapshotRaw);
+  const ids = Object.keys(frozen);
+  if (!ids.length) return userMap;
+  const out = { ...userMap };
+  for (const id of ids) {
+    const u = out[id];
+    if (u) out[id] = { ...u, profile: { ...(u.profile ?? {}), finalRating: frozen[id] } };
+  }
+  return out;
+}
+
+function matchData(session: SessionWithGames, allUserMap: Record<string, UserRow>, viewer: Viewer) {
+  const userMap = withFrozenPower(allUserMap, session.powerSnapshot);
   const radiant = parseJsonArray(session.radiantPlayerIds);
   const dire = parseJsonArray(session.direPlayerIds);
   const named = (ids: string[]) =>
@@ -215,7 +233,7 @@ function matchData(session: SessionWithGames, userMap: Record<string, UserRow>, 
 async function MatchCard({
   session,
   number,
-  userMap,
+  userMap: allUserMap,
   viewer,
   embedded = false,
   initialGame,
@@ -227,6 +245,8 @@ async function MatchCard({
   embedded?: boolean;
   initialGame?: number;
 }) {
+  // Сила этой сессии — замороженная (см. withFrozenPower)
+  const userMap = withFrozenPower(allUserMap, session.powerSnapshot);
   const d = matchData(session, userMap, viewer);
   const mvp = session.mvpResolved && session.mvpWinnerId ? userMap[session.mvpWinnerId] : null;
   const live = session.status === "IN_PROGRESS";

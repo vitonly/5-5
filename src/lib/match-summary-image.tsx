@@ -1,4 +1,5 @@
 import { readFile } from "fs/promises";
+import { withSnapshot } from "@/lib/match-power-snapshot";
 import path from "path";
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/db";
@@ -125,17 +126,19 @@ export async function buildDaySummaryImage(sessionId: string): Promise<DaySummar
     select: { id: true, firstName: true, lastName: true, username: true, photoUrl: true, profile: { select: { finalRating: true } } },
   });
   const byId = new Map(users.map((u) => [u.id, u]));
+  // Сила — замороженная на день игры (lib/match-power.ts)
+  const power = withSnapshot(
+    Object.fromEntries(users.map((u) => [u.id, u.profile?.finalRating ?? 0])),
+    session.powerSnapshot
+  );
   const named = (list: string[]) =>
     list.map((uid) => {
       const u = byId.get(uid);
-      return { id: uid, firstName: u?.firstName, lastName: u?.lastName, username: u?.username, finalRating: u?.profile?.finalRating ?? 0 };
+      return { id: uid, firstName: u?.firstName, lastName: u?.lastName, username: u?.username, finalRating: power[uid] ?? 0 };
     });
   const leftName = teamDisplayName(named(radiant), "Team A");
   const rightName = teamDisplayName(named(dire), "Team B");
-  const ratingById = Object.fromEntries(
-    users.map((u) => [u.id, u.profile?.finalRating ?? 0])
-  );
-  const { radiantWins, direWins } = seriesScoreByGame1Roster(session, ratingById);
+  const { radiantWins, direWins } = seriesScoreByGame1Roster(session, power);
   const nameOf = (uid: string) => (byId.get(uid) ? displayName(byId.get(uid)!) : "Игрок");
   const mvpUser = summary.mvp ? byId.get(summary.mvp.userId) : undefined;
   const mvpPhoto = await photoSrc(mvpUser?.photoUrl);

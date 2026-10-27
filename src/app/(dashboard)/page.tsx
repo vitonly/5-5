@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { withSnapshot } from "@/lib/match-power-snapshot";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { TopPlayerCard } from "@/components/TopPlayerCard";
@@ -117,11 +118,13 @@ export default async function HomePage() {
       },
     });
     const byId = Object.fromEntries(people.map((p) => [p.id, p]));
-    const named = (ids: string[]) =>
-      ids.map((id) => ({ ...byId[id], id, finalRating: byId[id]?.profile?.finalRating ?? 0 }));
-    const ratingById = Object.fromEntries(
-      people.map((p) => [p.id, p.profile?.finalRating ?? 0])
+    // Сила — замороженная на день игры (lib/match-power.ts)
+    const ratingById = withSnapshot(
+      Object.fromEntries(people.map((p) => [p.id, p.profile?.finalRating ?? 0])),
+      lastSession.powerSnapshot
     );
+    const named = (ids: string[]) =>
+      ids.map((id) => ({ ...byId[id], id, finalRating: ratingById[id] ?? 0 }));
     const { radiantWins, direWins } = seriesScoreByGame1Roster(lastSession, ratingById);
     const mvpId =
       lastSession.mvpResolved && lastSession.mvpWinnerId ? lastSession.mvpWinnerId : null;

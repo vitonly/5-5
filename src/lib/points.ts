@@ -1,5 +1,6 @@
 import type { DotaRole } from "@prisma/client";
 import { prisma } from "./db";
+import { withSnapshot } from "./match-power";
 
 export const POINT_VALUES = {
   HOMEWORK_DONE: 0.5,
@@ -534,7 +535,11 @@ export async function recalculateAllMatchWinPoints() {
       where: { userId: { in: [...winnerIds, ...loserIds] } },
       select: { userId: true, finalRating: true },
     });
-    const rating = Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating]));
+    // Сила — замороженная на день игры (lib/match-power.ts), иначе сверка «уплывёт» за профилями
+    const rating = withSnapshot(
+      Object.fromEntries(profiles.map((p) => [p.userId, p.finalRating])),
+      session.powerSnapshot
+    );
     const avg = (ids: string[]) =>
       ids.length
         ? ids.reduce((s, id) => s + (rating[id] ?? 0), 0) / ids.length

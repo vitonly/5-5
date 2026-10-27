@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { parsePowerSnapshot } from "@/lib/match-power-snapshot";
 import { isAdminTelegramId } from "@/lib/session";
 import {
   answerCallbackQuery,
@@ -124,7 +125,9 @@ async function replySignupStatus(userId: string): Promise<string> {
 async function formatConfirmedLineupBlock(
   title: string,
   userId: string,
-  assignments: ReturnType<typeof parseTeamAssignments>
+  assignments: ReturnType<typeof parseTeamAssignments>,
+  /** Замороженная сила сессии (lib/match-power.ts) */
+  powerSnapshot?: string | null
 ): Promise<string> {
   const radiant = Object.entries(assignments)
     .filter(([, a]) => a.team === "RADIANT")
@@ -137,6 +140,7 @@ async function formatConfirmedLineupBlock(
     include: { profile: { select: { finalRating: true } } },
   });
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+  const frozen = parsePowerSnapshot(powerSnapshot);
   const { teamDisplayName } = await import("@/lib/team-names");
   const radiantName = teamDisplayName(
     radiant.map(([id]) => ({
@@ -144,7 +148,7 @@ async function formatConfirmedLineupBlock(
       firstName: byId[id]?.firstName,
       lastName: byId[id]?.lastName,
       username: byId[id]?.username,
-      finalRating: byId[id]?.profile?.finalRating ?? 0,
+      finalRating: frozen[id] ?? byId[id]?.profile?.finalRating ?? 0,
     })),
     "Team A"
   );
@@ -154,7 +158,7 @@ async function formatConfirmedLineupBlock(
       firstName: byId[id]?.firstName,
       lastName: byId[id]?.lastName,
       username: byId[id]?.username,
-      finalRating: byId[id]?.profile?.finalRating ?? 0,
+      finalRating: frozen[id] ?? byId[id]?.profile?.finalRating ?? 0,
     })),
     "Team B"
   );
@@ -226,7 +230,7 @@ async function replyTeamsStatus(userId: string): Promise<string> {
     return `⚔️ <b>Команды</b> · ${formatDate(session.date)}\nСоставы ещё не собраны.`;
   }
 
-  const game1 = await formatConfirmedLineupBlock("Игра №1", userId, assignments);
+  const game1 = await formatConfirmedLineupBlock("Игра №1", userId, assignments, session.powerSnapshot);
   const parts = [
     `⚔️ <b>Команды</b> · ${formatDate(session.date)}`,
     `Статус: ${session.status}`,
@@ -237,7 +241,7 @@ async function replyTeamsStatus(userId: string): Promise<string> {
   if (session.lineupsGame2Confirmed) {
     const g2 = parseTeamAssignments(session.teamAssignmentsGame2);
     if (Object.keys(g2).length) {
-      parts.push("", "————", "", await formatConfirmedLineupBlock("Игра №2", userId, g2));
+      parts.push("", "————", "", await formatConfirmedLineupBlock("Игра №2", userId, g2, session.powerSnapshot));
     }
   }
 

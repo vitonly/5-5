@@ -420,6 +420,8 @@ model MatchSession {
   replays               MatchReplay[]
   /** Прогнозы открыты админом (закрываются стартом сессии) */
   predictionsOpen       Boolean            @default(false)
+  /** Сила игроков, замороженная при сборке составов (JSON { userId: сила }) — см. lib/match-power.ts */
+  powerSnapshot         String             @default("{}")
   predictions           MatchPrediction[]
 }
 

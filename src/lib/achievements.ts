@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { withSnapshot } from "@/lib/match-power-snapshot";
 import { countCorrectPredictionDays } from "@/lib/match-predictions";
 import { playerG1Side, seriesScoreByGame1Roster } from "@/lib/match-score";
 import { addPoints, positionForMatchGame } from "@/lib/points";
@@ -154,6 +155,8 @@ type SharedData = {
       direPlayerIds: string;
       teamAssignments: string;
       teamAssignmentsGame2: string | null;
+      /** Замороженная сила игроков на день игры */
+      powerSnapshot: string;
       games: { gameNumber: number; winnerTeam: string }[];
     }
   >;
@@ -171,6 +174,7 @@ async function loadShared(): Promise<SharedData> {
         direPlayerIds: true,
         teamAssignments: true,
         teamAssignmentsGame2: true,
+        powerSnapshot: true,
         games: { select: { gameNumber: true, winnerTeam: true }, orderBy: { gameNumber: "asc" } },
       },
     }),
@@ -264,7 +268,8 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
     games.sort((a, b) => a.n - b.n);
     const sess = common.sessionsById.get(sid);
     const side = sess ? playerG1Side(sess, userId) : null;
-    const score = sess ? seriesScoreByGame1Roster(sess, common.ratingById) : null;
+    // Сила — замороженная на день игры (lib/match-power.ts)
+    const score = sess ? seriesScoreByGame1Roster(sess, withSnapshot(common.ratingById, sess.powerSnapshot)) : null;
     const seriesWon =
       score && side
         ? side === "RADIANT"

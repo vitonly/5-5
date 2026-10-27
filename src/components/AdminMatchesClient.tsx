@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "@/components/ui/toast";
+import { parsePowerSnapshot } from "@/lib/match-power-snapshot";
 import { RecipientPicker, useRecipients } from "@/components/RecipientPicker";
 import { confirmAction } from "@/components/ui/confirm";
 import { useMemo, useState, useCallback, useEffect } from "react";
@@ -186,10 +187,12 @@ export function AdminMatchesClient({
     setEditError("");
   }
 
-  const studentMap = useMemo(
+  const allStudentsMap = useMemo(
     () => Object.fromEntries(students.map((s) => [s.id, s])),
     [students]
   );
+  // Вне карточек сессий сила — текущая из профилей
+  const studentMap = allStudentsMap;
 
   // Только ученики: тренер записывает себя кнопкой «Я тоже играю», а не через Telegram
   const onlyStudents = useMemo(() => students.filter((s) => s.role === "STUDENT"), [students]);
@@ -587,6 +590,29 @@ export function AdminMatchesClient({
     router.refresh();
   }
 
+  /** Взять текущую силу игроков из профилей (до старта игр), заново заморозить */
+  async function refreshPower(sessionId: string) {
+    if (
+      !(await confirmAction(
+        "Обновить силу игроков из профилей? Сила снова зафиксируется на текущих значениях. Составы сами не пересоберутся — при желании нажмите «Пересобрать»."
+      ))
+    ) {
+      return;
+    }
+    const res = await fetch("/api/matches", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, action: "refreshPower" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(typeof data.error === "string" ? data.error : "Не удалось обновить силу");
+      return;
+    }
+    toast.success(`Сила обновлена у ${data.players ?? 0} игроков`);
+    router.refresh();
+  }
+
   /** Тренер записывается в открытый 5v5 или выходит из него */
   async function coachSignup(sessionId: string, join: boolean) {
     setCoachBusy(true);
@@ -906,6 +932,10 @@ export function AdminMatchesClient({
 
       {(() => {
         const renderSession = (session: (typeof sessions)[number]) => {
+        // Сила игроков этой сессии — замороженная при сборке составов (lib/match-power.ts):
+        // все суммы, названия команд и цифры ниже берут её, а не текущий профиль
+        const studentMap = withFrozenPower(allStudentsMap, session.powerSnapshot);
+        const powerFrozen = Object.keys(parsePowerSnapshot(session.powerSnapshot)).length > 0;
         const radiantIds = parseJsonArray(session.radiantPlayerIds);
         const direIds = parseJsonArray(session.direPlayerIds);
         const assignments = parseTeamAssignments(session.teamAssignments);
@@ -1167,6 +1197,22 @@ export function AdminMatchesClient({
                         </span>
                       )}
                     </p>
+                    {powerFrozen && session.status !== "COMPLETED" && (
+                      <p className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-3)]">
+                        🔒 Сила зафиксирована при сборке составов — до конца игр она не меняется,
+                        даже если ученик поменяет ранг или получит новые оценки.
+                        {beforeStart && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={saving}
+                            onClick={() => refreshPower(session.id)}
+                          >
+                            Обновить силу из профилей
+                          </Button>
+                        )}
+                      </p>
+                    )}
                   </div>
                 )
               )}
@@ -1760,6 +1806,22 @@ function RsvpList({
       </ul>
     </div>
   );
+}
+
+/** Копия карточек игроков, где сила заменена замороженной для сессии */
+function withFrozenPower(
+  map: Record<string, Student>,
+  snapshotRaw: string | null | undefined
+): Record<string, Student> {
+  const frozen = parsePowerSnapshot(snapshotRaw);
+  const ids = Object.keys(frozen);
+  if (!ids.length) return map;
+  const out = { ...map };
+  for (const id of ids) {
+    const s = out[id];
+    if (s?.profile) out[id] = { ...s, profile: { ...s.profile, finalRating: frozen[id] } };
+  }
+  return out;
 }
 
 function sumPower(lineup: LineupSlot[], map: Record<string, Student>) {
