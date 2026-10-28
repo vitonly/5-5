@@ -30,7 +30,7 @@ import { getWeeklyProgressSeries } from "@/lib/progress-opendota";
 import { AchievementsTab } from "@/components/achievements/AchievementsTab";
 import { AchievementBadge } from "@/components/achievements/AchievementBadge";
 import { HistoryChart } from "@/components/profile/HistoryChart";
-import { ProgressBarsChart } from "@/components/ProgressBarsChart";
+import { WeeklyGamesPanel } from "@/components/profile/WeeklyGamesPanel";
 import { HeroStatsEmpty, HeroStatsTab } from "@/components/profile/HeroStatsTab";
 import { getReplayStats } from "@/lib/replay-stats";
 import type { User, PlayerProfile } from "@prisma/client";
@@ -240,10 +240,8 @@ export async function PlayerProfileView({
             )}
             {user.role === "STUDENT" && (
               <div className="space-y-2">
-                <ProgressBarsChart
-                  points={weeklyProgress}
-                  title="Игры и реплеи по неделям"
-                />
+                {/* Итоги недели крупно + сетка с цифрами по неделям */}
+                <WeeklyGamesPanel points={weeklyProgress} />
                 <p className="px-1 text-[12px] text-[var(--text-3)]">
                   Рейтинг соло/пати из OpenDota · реплеи — из дневника · подпись — понедельник недели
                 </p>
