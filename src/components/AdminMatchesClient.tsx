@@ -58,6 +58,7 @@ import { PowerPill } from "@/components/StatPills";
 import { teamDisplayName } from "@/lib/team-names";
 import { usePasteImage } from "@/lib/use-paste-image";
 import { RESHUFFLE_INTENSITY_LABELS, type ReshuffleIntensity } from "@/lib/team-balance";
+import type { ActiveSeries } from "@/components/match/AdminSeriesCard";
 
 type MvpVoteRow = {
   id: string;
@@ -95,6 +96,8 @@ type Session = MatchSession & {
   rsvps?: RsvpWithUser[];
   mvpVotes?: MvpVoteRow[];
   predictions?: PredictionRow[];
+  /** мини-сезон дня («Игры по сертификатам»), если это его игра */
+  series?: { name: string } | null;
 };
 type Student = User & { profile: PlayerProfile | null };
 type DraftSlot = { userId: string; position: number };
@@ -104,13 +107,20 @@ export function AdminMatchesClient({
   sessions: initial,
   students,
   coachId,
+  activeSeries = null,
 }: {
   sessions: Session[];
   students: Student[];
   /** id тренера, который открыл страницу: он тоже может играть 5на5 */
   coachId: string;
+  /** Идущий мини-сезон («Игры по сертификатам») — тогда при создании 5v5 есть выбор, какой он */
+  activeSeries?: ActiveSeries | null;
 }) {
   const [createMode, setCreateMode] = useState<"open" | "manual">("open");
+  // Какой 5v5 создаём: обычный или игру мини-сезона
+  const [kind, setKind] = useState<"regular" | "series">("regular");
+  const forSeries = kind === "series" && activeSeries !== null;
+  const seriesBody = forSeries && activeSeries ? { seriesId: activeSeries.id } : {};
   const router = useRouter();
   const [sessions, setSessions] = useState(initial);
   const [date, setDate] = useState("");
@@ -195,11 +205,22 @@ export function AdminMatchesClient({
   const studentMap = allStudentsMap;
 
   // Только ученики: тренер записывает себя кнопкой «Я тоже играю», а не через Telegram
-  const onlyStudents = useMemo(() => students.filter((s) => s.role === "STUDENT"), [students]);
+  // Игра мини-сезона — только его участники (тренер может играть всегда)
+  const seriesSet = useMemo(
+    () => (forSeries && activeSeries ? new Set(activeSeries.participantIds) : null),
+    [forSeries, activeSeries]
+  );
+  const onlyStudents = useMemo(
+    () => students.filter((s) => s.role === "STUDENT" && (!seriesSet || seriesSet.has(s.id))),
+    [students, seriesSet]
+  );
   // В «Свой состав» тренер первым в списке
   const manualPlayers = useMemo(
-    () => [...students.filter((s) => s.id === coachId), ...students.filter((s) => s.id !== coachId)],
-    [students, coachId]
+    () => [
+      ...students.filter((s) => s.id === coachId),
+      ...students.filter((s) => s.id !== coachId && (!seriesSet || seriesSet.has(s.id))),
+    ],
+    [students, coachId, seriesSet]
   );
   const [coachBusy, setCoachBusy] = useState(false);
 
@@ -232,6 +253,7 @@ export function AdminMatchesClient({
         date,
         playerIds: selectedPlayers,
         onlyListedRoles,
+        ...seriesBody,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -302,11 +324,13 @@ export function AdminMatchesClient({
                   date: openDate,
                   inviteAll: true,
                   inviteImageUrl: inviteImageUrl || null,
+                  ...seriesBody,
                 }
               : {
                   date: openDate,
                   inviteUserIds: inviteIds,
                   inviteImageUrl: inviteImageUrl || null,
+                  ...seriesBody,
                 }
         ),
       });
@@ -795,6 +819,30 @@ export function AdminMatchesClient({
         defaultOpen={!sessions.some((x) => x.status !== "COMPLETED")}
       >
         <div className="space-y-4">
+          {activeSeries && (
+            <div className="space-y-1.5">
+              <Label>Какой 5v5 собираем</Label>
+              <Segmented
+                value={kind}
+                onChange={(v) => {
+                  setKind(v);
+                  // список игроков меняется — старый выбор сбрасываем
+                  setInviteIds([]);
+                  setSelectedPlayers([]);
+                }}
+                items={[
+                  { value: "regular", label: "Обычный" },
+                  { value: "series", label: `«${activeSeries.name}»` },
+                ]}
+              />
+              {forSeries && (
+                <p className="text-xs text-[var(--text-3)]">
+                  В приглашении будет название мини-сезона. Очки — только в его таблицу. Позвать можно
+                  только участников ({activeSeries.participantIds.length}).
+                </p>
+              )}
+            </div>
+          )}
           <Segmented
             value={createMode}
             onChange={setCreateMode}
@@ -913,7 +961,7 @@ export function AdminMatchesClient({
               onClick={() => createOpenSignup(true)}
               disabled={!openDate || withTelegram.length === 0 || creatingOpen}
             >
-              Всем с Telegram ({withTelegram.length})
+              {forSeries ? "Всем участникам" : "Всем с Telegram"} ({withTelegram.length})
             </Button>
             <Button
               size="sm"
@@ -1038,6 +1086,7 @@ export function AdminMatchesClient({
                   <Badge variant="admin">
                     {MATCH_MODE_LABELS[session.mode] ?? session.mode}
                   </Badge>
+                  {session.series && <Badge variant="points">«{session.series.name}»</Badge>}
                   <Badge>{MATCH_STATUS_LABELS[session.status]}</Badge>
                   {canEdit && !isEditing && (
                     <>
@@ -1358,7 +1407,7 @@ export function AdminMatchesClient({
                     <Button onClick={() => startSession(session.id)}>
                       Старт сессии (все за ПК)
                     </Button>
-                    {session.predictionsOpen ? (
+                    {session.seriesId ? null : session.predictionsOpen ? (
                       <Badge variant="success" className="self-center h-11 px-3.5 text-[13px]">
                         Прогнозы открыты · закроются при старте
                       </Badge>

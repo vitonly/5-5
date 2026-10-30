@@ -94,7 +94,13 @@ export function formatHallValue(n: Nomination, v: number) {
 /** Рекорды по демкам; seasonFrom — только игры с этой даты (сезон), иначе за всё время */
 export async function computeHall(opts: { from?: Date | null; to?: Date | null } = {}) {
   const replays = await prisma.matchReplay.findMany({
-    where: opts.from ? { session: { date: { gte: opts.from, ...(opts.to ? { lte: opts.to } : {}) } } } : undefined,
+    // Игры мини-сезона («Игры по сертификатам») в зал славы не идут
+    where: {
+      session: {
+        seriesId: null,
+        ...(opts.from ? { date: { gte: opts.from, ...(opts.to ? { lte: opts.to } : {}) } } : {}),
+      },
+    },
     select: {
       sessionId: true,
       gameNumber: true,

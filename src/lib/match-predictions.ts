@@ -24,6 +24,8 @@ type SessionLike = {
   teamAssignments: string;
   teamAssignmentsGame2: string | null;
   lineupsGame2Confirmed: boolean;
+  /** День мини-сезона («Игры по сертификатам») — прогнозов там нет */
+  seriesId?: string | null;
   /** Замороженная сила игроков (lib/match-power.ts) */
   powerSnapshot?: string | null;
 };
@@ -42,7 +44,7 @@ export function predictionsAcceptingVotes(s: SessionLike) {
 }
 
 export function canOpenPredictions(s: SessionLike) {
-  return s.status === "LINEUPS_CONFIRMED" && !s.predictionsOpen && (!hasGame2Lineup(s) || s.lineupsGame2Confirmed);
+  return !s.seriesId && s.status === "LINEUPS_CONFIRMED" && !s.predictionsOpen && (!hasGame2Lineup(s) || s.lineupsGame2Confirmed);
 }
 
 /** Команды игры N: названия (Team <лучший игрок>) и текст составов по позициям для Telegram */
@@ -130,7 +132,9 @@ export async function openPredictions(sessionId: string) {
   if (!session) throw new Error("Матч не найден");
   if (!canOpenPredictions(session)) {
     throw new Error(
-      session.predictionsOpen ? "Прогнозы уже открыты" : "Сначала утвердите составы на все игры (до старта сессии)"
+      session.seriesId
+        ? "В играх мини-сезона прогнозов нет"
+        : session.predictionsOpen ? "Прогнозы уже открыты" : "Сначала утвердите составы на все игры (до старта сессии)"
     );
   }
   const updated = await prisma.matchSession.update({ where: { id: sessionId }, data: { predictionsOpen: true } });

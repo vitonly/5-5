@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdminMatchesClient } from "@/components/AdminMatchesClient";
 import type { ReplayData } from "@/lib/replay";
+import { AdminSeriesCard } from "@/components/match/AdminSeriesCard";
+import { getActiveSeries, getSeriesLeaderboard, seriesParticipantIds } from "@/lib/match-series";
 
 export const metadata = { title: "Матчи · Админка" };
 
@@ -14,10 +16,11 @@ export default async function AdminMatchesPage() {
   // Пересчёт очков за все победы раньше шёл тут при каждом открытии страницы
   // (по запросу к базе на каждую победу) — теперь раз в час в автоматизации (lib/automation.ts)
 
-  const [sessions, students] = await Promise.all([
+  const [sessions, students, series] = await Promise.all([
     prisma.matchSession.findMany({
       include: {
         games: true,
+        series: { select: { name: true } },   // игра мини-сезона — подпишем её в карточке
         replays: {
           select: {
             gameNumber: true,
@@ -73,11 +76,23 @@ export default async function AdminMatchesPage() {
       include: { profile: true },
       orderBy: { firstName: "asc" },
     }),
+    getActiveSeries(),   // мини-сезон («Игры по сертификатам»), если идёт
   ]);
+  const activeSeries = series
+    ? { id: series.id, name: series.name, participantIds: seriesParticipantIds(series) }
+    : null;
+  const seriesTable = series ? await getSeriesLeaderboard(series) : [];
 
   return (
     <div>
       <PageHeader eyebrow="Панель тренера" title="Субботние 5v5" description="Запись, составы, результаты игр и MVP." />
+      <div className="mb-8">
+        <AdminSeriesCard
+          series={activeSeries}
+          table={seriesTable}
+          allStudentIds={students.filter((s) => s.role === "STUDENT").map((s) => s.id)}
+        />
+      </div>
       <AdminMatchesClient
         sessions={sessions.map(({ replays, ...rest }) => ({
           ...rest,
@@ -96,6 +111,7 @@ export default async function AdminMatchesPage() {
         }))}
         students={students}
         coachId={coach.id}
+        activeSeries={activeSeries}
       />
     </div>
   );

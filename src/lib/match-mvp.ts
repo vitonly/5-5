@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getCoachIds } from "@/lib/coach";
 import { POINT_VALUES, addPoints } from "@/lib/points";
+import { addSeriesPoints, matchLabel } from "@/lib/match-series";
 import { displayName, parseJsonArray, APP_TIMEZONE, formatDate } from "@/lib/utils";
 import { parseTeamAssignments } from "@/lib/match-lineup";
 import {
@@ -175,16 +176,18 @@ export async function broadcastMvpResult(sessionId: string) {
     })
     .join("\n");
 
+  // «Итоги 5v5» или «Итоги 5v5 «Игры по сертификатам»»
+  const label = await matchLabel(session);
   let caption: string;
   if (session.mvpWinnerId && byId[session.mvpWinnerId]) {
     const w = byId[session.mvpWinnerId];
     caption =
-      `🏆 <b>Итоги 5v5</b> — ${formatDate(session.date)}\n` +
-      `MVP: <b>${displayName(w)}</b> ⭐ · +${POINT_VALUES.MVP_DAY} очк.` +
+      `🏆 <b>Итоги ${label}</b> — ${formatDate(session.date)}\n` +
+      `MVP: <b>${displayName(w)}</b> ⭐ · +${POINT_VALUES.MVP_DAY} очк.${session.seriesId ? " в мини-сезон" : ""}` +
       (top3 ? `\n\n<b>Топ-3:</b>\n${top3}` : "");
   } else {
     caption =
-      `🏆 <b>Итоги 5v5</b> — ${formatDate(session.date)}\n` +
+      `🏆 <b>Итоги ${label}</b> — ${formatDate(session.date)}\n` +
       `MVP не определён (ничья или нет голосов).` +
       (top3 ? `\n\n<b>Топ-3:</b>\n${top3}` : "");
   }
@@ -267,10 +270,13 @@ export async function resolveMvpIfReady(sessionId: string) {
   if (claimed.count === 0) return null;
 
   if (winnerId) {
-    await addPoints(winnerId, POINT_VALUES.MVP_DAY, "MVP игрового дня 5v5", {
-      type: "MATCH_MVP",
-      id: sessionId,
-    });
+    const source = { type: "MATCH_MVP", id: sessionId };
+    // День мини-сезона: MVP идёт в его таблицу, а не в общие очки школы
+    if (session.seriesId) {
+      await addSeriesPoints(session.seriesId, winnerId, POINT_VALUES.MVP_DAY, "MVP игрового дня 5v5", source);
+    } else {
+      await addPoints(winnerId, POINT_VALUES.MVP_DAY, "MVP игрового дня 5v5", source);
+    }
   }
 
   const broadcast = await broadcastMvpResult(sessionId).catch((e) => {

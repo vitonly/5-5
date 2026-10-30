@@ -21,6 +21,8 @@ import { teamDisplayName } from "@/lib/team-names";
 import { parseTeamAssignments } from "@/lib/match-lineup";
 import { lineupsForGame, seriesScoreByGame1Roster } from "@/lib/match-score";
 import { parsePowerSnapshot } from "@/lib/match-power-snapshot";
+import { getActiveSeries, getSeriesLeaderboard } from "@/lib/match-series";
+import { SeriesTable } from "@/components/match/SeriesTable";
 
 export const metadata = { title: "Субботние 5v5" };
 
@@ -48,6 +50,7 @@ async function loadSessions() {
       },
       replays: { orderBy: { gameNumber: "asc" } },
       predictions: { select: { userId: true } },
+      series: { select: { name: true } },   // игра мини-сезона — подпишем её
     },
     orderBy: { date: "desc" },
     take: 10,
@@ -64,7 +67,9 @@ export default async function MatchPage({
   const user = await getSessionUser();
   if (!user) return null;
 
-  const sessions = await loadSessions();
+  const [sessions, series] = await Promise.all([loadSessions(), getActiveSeries()]);
+  // Мини-сезон («Игры по сертификатам») — пока идёт, показываем его таблицу
+  const seriesTable = series ? await getSeriesLeaderboard(series) : [];
 
   const allIds = [
     ...new Set(
@@ -98,8 +103,17 @@ export default async function MatchPage({
   });
   const userMap: Record<string, UserRow> = Object.fromEntries(users.map((u) => [u.id, u]));
 
-  const featured = sessions.find((s) => s.status !== "COMPLETED") ?? sessions[0];
-  const rest = sessions.filter((s) => s.id !== featured?.id);
+  // Наверху — все незавершённые дни (в субботу может быть и обычная 5v5, и игра мини-сезона)
+  // (по одному незавершённому дню каждого вида — старые незакрытые не копятся наверху)
+  const upcoming = [
+    sessions.find((s) => s.status !== "COMPLETED" && !s.seriesId),
+    sessions.find((s) => s.status !== "COMPLETED" && s.seriesId),
+  ]
+    .filter((s): s is SessionWithGames => Boolean(s))
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  const featuredList = upcoming.length ? upcoming : sessions.slice(0, 1);
+  const featured = featuredList[0];
+  const rest = sessions.filter((s) => !featuredList.includes(s));
   const numberOf = (s: SessionWithGames) => sessions.length - sessions.indexOf(s);
 
   return (
@@ -113,7 +127,19 @@ export default async function MatchPage({
         </p>
       ) : (
         <div className="space-y-8">
-          <MatchCard session={featured} number={numberOf(featured)} userMap={userMap} viewer={user} initialGame={open === featured.id ? openGame : undefined} />
+          {featuredList.map((f) => (
+            <MatchCard key={f.id} session={f} number={numberOf(f)} userMap={userMap} viewer={user} initialGame={open === f.id ? openGame : undefined} />
+          ))}
+
+          {series && (
+            <section>
+              <h2 className="mb-1 text-[17px] leading-snug min-[720px]:text-[20px]">Мини-сезон «{series.name}»</h2>
+              <p className="mb-3 text-[13px] text-[var(--text-3)]">
+                Отдельная таблица: очки за эти игры не идут в общие очки школы.
+              </p>
+              <SeriesTable rows={seriesTable} viewerId={user.id} />
+            </section>
+          )}
 
           {rest.length > 0 && (
             <section>
@@ -260,7 +286,10 @@ async function MatchCard({
       {!embedded && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-soft)] px-4 py-3 min-[720px]:px-6">
           <div className="min-w-0">
-            <p className="eyebrow">Матч #{number}</p>
+            <p className="eyebrow">
+              Матч #{number}
+              {session.series && <span className="text-[var(--points-ink)]"> · {session.series.name}</span>}
+            </p>
             <p className="text-[15px] font-semibold text-[var(--text)]">{formatShortDateTime(session.date)}</p>
           </div>
           {/* Синий (power) — только для чисел силы; статусы матча — бирюза или нейтральный */}
@@ -441,6 +470,9 @@ function PastMatchRow({
         <span className="w-14 shrink-0 text-[13px] text-[var(--text-2)]">{formatShortDate(session.date)}</span>
         <span className="min-w-0 flex-1 line-clamp-2 break-words text-[14px] font-semibold leading-snug text-[var(--text)]">
           {winner ? winner.name : MATCH_STATUS_LABELS[session.status]}
+          {session.series && (
+            <span className="block text-[12px] font-normal text-[var(--points-ink)]">{session.series.name}</span>
+          )}
         </span>
         {myHeroes.length > 0 && (
           <span className="hidden shrink-0 items-center gap-1 min-[400px]:flex" title="Твои герои">

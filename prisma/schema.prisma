@@ -133,6 +133,7 @@ model User {
   achievements        UserAchievement[]
   ratingSnapshots     RatingSnapshot[]
   matchPredictions    MatchPrediction[]
+  matchSeriesPoints   MatchSeriesPoint[]
 }
 
 model LoginTicket {
@@ -423,6 +424,45 @@ model MatchSession {
   /** Сила игроков, замороженная при сборке составов (JSON { userId: сила }) — см. lib/match-power.ts */
   powerSnapshot         String             @default("{}")
   predictions           MatchPrediction[]
+  /** Мини-сезон («Игры по сертификатам»), к которому относится день. Пусто — обычная 5v5 */
+  seriesId              String?
+  series                MatchSeries?       @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
+  @@index([seriesId])
+}
+
+/**
+ * Мини-сезон 5v5 (например, «Игры по сертификатам» на 3 субботы).
+ * Очки за его игры идут только в его таблицу (MatchSeriesPoint), общие очки школы не меняются.
+ * Закрытый мини-сезон пропадает из 5v5, но его таблица сохраняется.
+ */
+model MatchSeries {
+  id             String             @id @default(cuid())
+  name           String
+  /** Кто играет (JSON-массив id учеников). Тренер может играть всегда */
+  participantIds String             @default("[]")
+  isActive       Boolean            @default(true)
+  closedAt       DateTime?
+  createdAt      DateTime           @default(now())
+  sessions       MatchSession[]
+  points         MatchSeriesPoint[]
+}
+
+/** Очки мини-сезона: победы, ничьи и MVP в его играх */
+model MatchSeriesPoint {
+  id         String      @id @default(cuid())
+  seriesId   String
+  series     MatchSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta      Float
+  reason     String
+  sourceType String
+  sourceId   String
+  createdAt  DateTime    @default(now())
+
+  @@index([seriesId, userId])
+  @@index([sourceType, sourceId])
 }
 
 model MatchDayMvpVote {

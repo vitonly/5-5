@@ -164,10 +164,15 @@ type SharedData = {
 
 async function loadShared(): Promise<SharedData> {
   const [replays, materialsTotal, profiles, sessions] = await Promise.all([
-    prisma.matchReplay.findMany({ select: { sessionId: true, radiantWin: true, data: true } }),
+    // Игры мини-сезона («Игры по сертификатам») в ачивках не считаются
+    prisma.matchReplay.findMany({
+      where: { session: { seriesId: null } },
+      select: { sessionId: true, radiantWin: true, data: true },
+    }),
     prisma.learningMaterial.count(),
     prisma.playerProfile.findMany({ select: { userId: true, finalRating: true } }),
     prisma.matchSession.findMany({
+      where: { seriesId: null },
       select: {
         id: true,
         radiantPlayerIds: true,
@@ -202,7 +207,7 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
         orderBy: { deadline: "asc" },
       }),
       prisma.matchParticipant.findMany({
-        where: { userId },
+        where: { userId, game: { session: { seriesId: null } } },
         select: {
           won: true,
           game: {
@@ -216,7 +221,7 @@ export async function computeAchievementStats(userId: string, shared?: SharedDat
         },
         orderBy: { game: { createdAt: "asc" } },
       }),
-      prisma.matchSession.findMany({ where: { mvpWinnerId: userId }, select: { id: true } }),
+      prisma.matchSession.findMany({ where: { mvpWinnerId: userId, seriesId: null }, select: { id: true } }),
       prisma.progressLog.findMany({ where: { userId }, select: { date: true, createdAt: true } }),
       prisma.materialView.count({ where: { userId } }),
     ]);

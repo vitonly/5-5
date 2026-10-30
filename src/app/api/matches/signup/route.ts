@@ -14,6 +14,7 @@ import {
 import { sendTelegramTestToAdmin } from "@/lib/tg-test";
 import type { InlineKeyboard } from "@/lib/telegram";
 import { handleAuth } from "@/lib/api-auth";
+import { getActiveSeries, seriesParticipantIds } from "@/lib/match-series";
 
 const TEST_SIGNUP_KEYBOARD: InlineKeyboard = {
   inline_keyboard: [
@@ -69,11 +70,25 @@ async function postHandler(request: NextRequest) {
   }
 
   try {
+    // Какой 5v5 собираем: обычный или игру мини-сезона («Игры по сертификатам»)
+    let seriesId: string | null = null;
+    let seriesIds: string[] | null = null;
+    if (body.seriesId) {
+      const series = await getActiveSeries();
+      if (!series || series.id !== body.seriesId) {
+        return NextResponse.json({ error: "Мини-сезон не найден или уже закрыт" }, { status: 400 });
+      }
+      seriesId = series.id;
+      seriesIds = seriesParticipantIds(series);
+    }
+
     let ids: string[] = Array.isArray(inviteUserIds) ? inviteUserIds.map(String) : [];
     if (inviteAll) {
       const withTg = await listStudentsWithTelegram();
       ids = withTg.map((u) => u.id);
     }
+    // В игру мини-сезона зовём только его участников (и «всем», и выбранных)
+    if (seriesIds) ids = ids.filter((id) => seriesIds.includes(id));
     if (!ids.length) {
       return NextResponse.json(
         { error: "Нет учеников для рассылки (нужен привязанный Telegram)" },
@@ -86,6 +101,7 @@ async function postHandler(request: NextRequest) {
       inviteUserIds: ids,
       inviteImageUrl:
         typeof body.inviteImageUrl === "string" ? body.inviteImageUrl : null,
+      seriesId,
     });
     return NextResponse.json({
       session: {

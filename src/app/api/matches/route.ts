@@ -25,6 +25,7 @@ import {
   confirmLineupsGame2,
 } from "@/lib/match-signup";
 import { handleAuth } from "@/lib/api-auth";
+import { getActiveSeries } from "@/lib/match-series";
 
 function parseAssignments(raw: string): TeamAssignment {
   try {
@@ -96,10 +97,21 @@ async function postHandler(request: NextRequest) {
     return NextResponse.json({ error: "Укажите дату и игроков" }, { status: 400 });
   }
 
+  // Игра мини-сезона («Игры по сертификатам») — только пока он открыт
+  let seriesId: string | null = null;
+  if (body.seriesId) {
+    const series = await getActiveSeries();
+    if (!series || series.id !== body.seriesId) {
+      return NextResponse.json({ error: "Мини-сезон не найден или уже закрыт" }, { status: 400 });
+    }
+    seriesId = series.id;
+  }
+
   const session = await prisma.matchSession.create({
     data: {
       date: parseAppDateTime(date),
       status: "PLANNED",
+      seriesId,
     },
   });
 
@@ -581,7 +593,7 @@ async function patchHandler(request: NextRequest) {
 
   if (isDraw) {
     for (const userId of allIds) {
-      const delta = coachIds.has(userId) ? 0 : await applyMatchDrawPoints(userId, game.id);
+      const delta = coachIds.has(userId) ? 0 : await applyMatchDrawPoints(userId, game.id, session.seriesId);
       await prisma.matchParticipant.updateMany({
         where: { gameId: game.id, userId },
         data: { pointsAwarded: delta },
@@ -631,6 +643,7 @@ async function patchHandler(request: NextRequest) {
               secondaryRoles,
               position,
               offRole: isOffRole(profile.primaryRole, position),
+              seriesId: session.seriesId,   // игра мини-сезона — очки в его таблицу
             }
           );
       await prisma.playerProfile.update({

@@ -1,6 +1,7 @@
 import type { DotaRole } from "@prisma/client";
 import { prisma } from "./db";
 import { withSnapshot } from "./match-power";
+import { addSeriesPoints, removeSeriesPointsBySource } from "./match-series";
 
 export const POINT_VALUES = {
   HOMEWORK_DONE: 0.5,
@@ -372,11 +373,11 @@ export function calcMatchWinPoints(options: {
   return { delta, reason: parts.join(", ") };
 }
 
-export async function applyMatchDrawPoints(userId: string, gameId: string) {
-  return addPoints(userId, POINT_VALUES.MATCH_DRAW, "Ничья в 5v5", {
-    type: "MATCH_GAME",
-    id: gameId,
-  });
+/** seriesId — игра мини-сезона: очки идут в его таблицу, а не в общие очки школы */
+export async function applyMatchDrawPoints(userId: string, gameId: string, seriesId?: string | null) {
+  const source = { type: "MATCH_GAME", id: gameId };
+  if (seriesId) return addSeriesPoints(seriesId, userId, POINT_VALUES.MATCH_DRAW, "Ничья в 5v5", source);
+  return addPoints(userId, POINT_VALUES.MATCH_DRAW, "Ничья в 5v5", source);
 }
 
 export async function applyMatchWinPointsForPlayer(
@@ -390,6 +391,8 @@ export async function applyMatchWinPointsForPlayer(
     secondaryRoles?: DotaRole[];
     position?: number;
     offRole?: boolean;
+    /** Игра мини-сезона: очки — в его таблицу, общие очки школы не меняются */
+    seriesId?: string | null;
   }
 ) {
   const { delta, reason } = calcMatchWinPoints({
@@ -401,7 +404,11 @@ export async function applyMatchWinPointsForPlayer(
     position: opts?.position,
     offRole: opts?.offRole,
   });
-  await addPoints(userId, delta, reason, { type: "MATCH_GAME", id: gameId });
+  if (opts?.seriesId) {
+    await addSeriesPoints(opts.seriesId, userId, delta, reason, { type: "MATCH_GAME", id: gameId });
+  } else {
+    await addPoints(userId, delta, reason, { type: "MATCH_GAME", id: gameId });
+  }
   return delta;
 }
 
@@ -646,10 +653,13 @@ export async function undoMatchGame(
   }
 
   const seasonId = await getActiveSeasonId();
+  // Игра мини-сезона: её очки лежат в таблице мини-сезона — просто убираем их оттуда
+  const isSeriesGame = Boolean(game.session.seriesId);
+  if (isSeriesGame) await removeSeriesPointsBySource("MATCH_GAME", gameId);
 
   for (const p of game.participants) {
     const awarded = roundPoints(p.pointsAwarded);
-    if (awarded !== 0) {
+    if (awarded !== 0 && !isSeriesGame) {
       await prisma.$transaction([
         prisma.pointLog.create({
           data: {
@@ -706,6 +716,8 @@ export async function deleteMatchSession(sessionId: string) {
   for (const game of session.games) {
     await undoMatchGame(game.id, { allowCompleted: true });
   }
+  // MVP дня мини-сезона тоже убираем из его таблицы
+  if (session.seriesId) await removeSeriesPointsBySource("MATCH_MVP", sessionId);
 
   await prisma.matchSession.delete({ where: { id: sessionId } });
   return { id: sessionId };
