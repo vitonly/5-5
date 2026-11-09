@@ -56,7 +56,55 @@ export type Block =
   /** Формула Excel или фрагмент кода — моноширинным шрифтом, с кнопкой копирования */
   | { type: "code"; text: string; caption?: string }
   /** Упражнение со скрытым ответом */
-  | { type: "exercise"; title: string; task: string; answer: string };
+  | { type: "exercise"; title: string; task: string; answer: string }
+  /** Схема окна Excel: вкладка, кнопка, строка формул, ячейки с пометками, окно-диалог */
+  | ({ type: "excel" } & ExcelFigure)
+  /** Схема страницы Word: строки со стилями */
+  | { type: "word"; caption?: string; ribbon?: string; active?: string; lines: { style: "title" | "h1" | "h2" | "p" | "li"; text: string }[] }
+  /** Схема слайдов: «плохо» и «хорошо» рядом */
+  | { type: "slides"; caption?: string; items: SlideFigure[] };
+
+/** Пометка ячейки: bad — ошибка в данных, ok — правильно, sel — выделено */
+export type CellMark = "bad" | "ok" | "sel";
+
+export type ExcelFigure = {
+  caption?: string;
+  /** Активная вкладка ленты: «Главная», «Вставка», «Данные»… */
+  tab?: string;
+  /** Кнопки на ленте; active — та, которую надо нажать */
+  ribbon?: string[];
+  active?: string;
+  /** Строка формул: адрес ячейки и формула */
+  cell?: string;
+  formula?: string;
+  /** Буквы столбцов (по умолчанию A, B, C…) и строки таблицы */
+  cols?: string[];
+  rows: string[][];
+  /** Номер первой строки (по умолчанию 1) */
+  firstRow?: number;
+  /** Пометки ячеек: ключ «строка,столбец» от 0 */
+  marks?: Record<string, CellMark>;
+  /** Окно-диалог поверх: заголовок, строки, кнопка */
+  dialog?: { title: string; lines: string[]; button?: string };
+};
+
+export type SlideFigure = {
+  label: string;
+  tone: "bad" | "good";
+  title: string;
+  /** Пункты текста или крупные числа */
+  bullets?: string[];
+  big?: { value: string; label: string }[];
+  /** Схема диаграммы: подписи и высоты 0–100 */
+  bars?: { label: string; value: number }[];
+};
+
+/**
+ * Тренажёры:
+ * a-practicum — весь модуль А; a-reg, a-grid, a-pres, a-app — по одному продукту А;
+ * b-clean — очистка данных, b-calc — ключевые цифры, b-charts — диаграммы и выводы, b-pres — презентация и рекомендации.
+ */
+export type WorkbookId = "a-practicum" | "a-reg" | "a-grid" | "a-pres" | "a-app" | "b-clean" | "b-calc" | "b-charts" | "b-pres";
 
 export type Lesson = {
   id: string;
@@ -81,8 +129,12 @@ export type Deliverable = {
 export type Variant = {
   id: string;
   title: string;
-  /** practice — тренировочное задание (мягкий таймер), championship — прогон как на чемпионате */
-  kind: "practice" | "championship";
+  /**
+   * trainer — тренажёр в «Подготовке» (пишет всё на сайте, мягкий таймер),
+   * practice — тренировочное задание с файлами (мягкий таймер),
+   * championship — прогон как на чемпионате (жёсткий таймер)
+   */
+  kind: "trainer" | "practice" | "championship";
   minutes: number;
   summary: string;
   /** Текст задания */
@@ -96,11 +148,8 @@ export type Variant = {
   deliverables: Deliverable[];
   /** По каким заданиям критериев оценивается попытка (id из CRITERIA) */
   taskIds: string[];
-  /**
-   * Тетрадь-практикум: ученик заполняет всё прямо на сайте, а разбор появляется сразу.
-   * "a-practicum" — модуль А (регламент, сетка, слайды со сметой, заявка).
-   */
-  workbook?: "a-practicum";
+  /** Тетрадь-тренажёр: ученик заполняет всё прямо на сайте, а разбор появляется сразу */
+  workbook?: WorkbookId;
 };
 
 export type PoligonModule = {

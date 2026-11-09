@@ -13,9 +13,9 @@ import { toast } from "@/components/ui/toast";
 import { confirmAction } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import type { AttemptFile } from "@/lib/poligon/core";
-import type { Deliverable } from "@/lib/poligon/types";
+import type { Deliverable, WorkbookId } from "@/lib/poligon/types";
 import type { Workbook } from "@/lib/poligon/a-practicum";
-import { APracticum } from "./workbooks/APracticum";
+import { WorkbookView } from "./workbooks/WorkbookView";
 
 /** Секунды → «1:05:09» */
 function clock(totalSec: number) {
@@ -47,7 +47,7 @@ export function AttemptWorkspace({
   initialText: string;
   deliverables: Deliverable[];
   /** Тетрадь-практикум варианта (если есть) */
-  workbook?: "a-practicum";
+  workbook?: WorkbookId;
   initialWorkbook?: Workbook;
 }) {
   const router = useRouter();
@@ -183,7 +183,7 @@ export function AttemptWorkspace({
         </p>
       </div>
 
-      {workbook === "a-practicum" && !closed && <APracticum initial={initialWorkbook ?? {}} onChange={onWorkbook} />}
+      {workbook && !closed && <WorkbookView id={workbook} initial={initialWorkbook ?? {}} onChange={onWorkbook} />}
 
       {/* Что сдать */}
       <section className="surface-card p-4">

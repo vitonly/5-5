@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GradeForm } from "@/components/poligon/admin/GradeForm";
 import { CopyForReview } from "@/components/poligon/admin/CopyForReview";
-import { APracticum } from "@/components/poligon/workbooks/APracticum";
+import { WorkbookView } from "@/components/poligon/workbooks/WorkbookView";
 import { parseWorkbook, workbookText } from "@/lib/poligon/a-practicum";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
   const overtime = overtimeMinutes(attempt.deadlineAt, attempt.submittedAt);
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
   const reviewText = [
-    `Полигон — проверка попытки ${attempt.id}`,
+    `Профессионалы — проверка попытки ${attempt.id}`,
     `Ученик: ${fullName(attempt.user)}`,
     `Модуль ${mod.letter} — ${variant.title} (${MODE_LABEL[attempt.mode] ?? attempt.mode}, вариант ${variant.id})`,
     `Задания критериев: ${variant.taskIds.join(", ")}`,
@@ -57,7 +57,15 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
     attempt.textAnswer ? `Комментарий ученика: ${attempt.textAnswer}` : "",
     "Файлы:",
     ...files.map((f) => `- ${f.name}: ${base}${f.url}`),
-    ...(variant.workbook ? ["", "Тетрадь:", workbookText(parseWorkbook(attempt.workbook))] : []),
+    ...(variant.workbook
+      ? [
+          "",
+          `Тетрадь (${variant.workbook}):`,
+          variant.workbook.startsWith("a-")
+            ? workbookText(parseWorkbook(attempt.workbook))
+            : Object.entries(parseWorkbook(attempt.workbook)).map(([k, v]) => `${k}: ${v}`).join("\n"),
+        ]
+      : []),
   ]
     .filter(Boolean)
     .join("\n");
@@ -67,7 +75,7 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
       <PageHeader
         eyebrow={
           <Link href="/admin/poligon" className="hover:underline">
-            ← Полигон
+            ← Профессионалы
           </Link>
         }
         title={`${fullName(attempt.user)} · Модуль ${mod.letter}`}
@@ -116,10 +124,10 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
         </div>
       </section>
 
-      {variant.workbook === "a-practicum" && (
+      {variant.workbook && (
         <details className="mb-4">
           <summary className="mb-3 cursor-pointer text-[16px] font-semibold text-[var(--text)]">Тетрадь ученика и автоматический разбор</summary>
-          <APracticum initial={parseWorkbook(attempt.workbook)} readOnly />
+          <WorkbookView id={variant.workbook} initial={parseWorkbook(attempt.workbook)} readOnly />
         </details>
       )}
 

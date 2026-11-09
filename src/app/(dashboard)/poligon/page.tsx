@@ -8,10 +8,11 @@ import { POLIGON_MODULES } from "@/content/poligon";
 import { fmtMinutes, fmtPoints, isModuleCode, parseScores, taskResults, totalOf, variantTasks, getVariant } from "@/lib/poligon/core";
 import { PageHeader, StatTile } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { NoAccess } from "@/components/poligon/NoAccess";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "Полигон" };
+export const metadata = { title: "Профессионалы" };
 export const dynamic = "force-dynamic";
 
 export default async function PoligonPage() {
@@ -30,9 +31,14 @@ export default async function PoligonPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Профессионалы · Технологии компьютерного спорта"
-        title="Полигон"
-        description="Готовимся к чемпионату по модулям: в «Подготовке» — уроки, в «Тестировании» — задания как на площадке. Тренер проверяет и пишет, что подтянуть."
+        eyebrow="Технологии компьютерного спорта"
+        title="Профессионалы"
+        description="Готовимся к чемпионату по модулям: в «Подготовке» — уроки, блиц и тренажёры, в «Тестировании» — прогоны как на площадке. Тренер проверяет и пишет, что подтянуть."
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/poligon/map">Карта ошибок</Link>
+          </Button>
+        }
       />
       <div className="mb-6 grid grid-cols-2 gap-3 min-[720px]:grid-cols-4">
         <StatTile label="Модулей" value={POLIGON_MODULES.length} hint={`${totalMax} баллов всего`} />

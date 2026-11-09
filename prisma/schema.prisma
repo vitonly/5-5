@@ -138,6 +138,7 @@ model User {
   matchSeriesPoints   MatchSeriesPoint[]
   poligonAttempts     PoligonAttempt[]
   poligonLessonsDone  PoligonLessonDone[]
+  poligonQuizResults  PoligonQuizResult[]
 }
 
 model LoginTicket {
@@ -712,4 +713,19 @@ model PoligonVariantFile {
   createdAt DateTime @default(now())
 
   @@index([variantId])
+}
+
+/** Блиц по модулю «Профессионалов»: результат одной попытки */
+model PoligonQuizResult {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleCode String
+  correct    Int
+  total      Int
+  /** JSON-массив id вопросов, где ошибся */
+  wrongIds   String   @default("[]")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, moduleCode])
 }

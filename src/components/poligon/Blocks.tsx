@@ -5,6 +5,7 @@ import type { Block } from "@/lib/poligon/types";
 import { cn } from "@/lib/utils";
 import { RichText } from "./RichText";
 import { CopyButton } from "./CopyButton";
+import { ExcelMock, SlidesMock, WordMock } from "./Figures";
 
 const CALLOUT_STYLE = {
   points: {
@@ -108,6 +109,15 @@ function BlockView({ block }: { block: Block }) {
           )}
         </figure>
       );
+    case "excel": {
+      const { type: _t, ...fig } = block;
+      void _t;
+      return <ExcelMock {...fig} />;
+    }
+    case "word":
+      return <WordMock caption={block.caption} ribbon={block.ribbon} active={block.active} lines={block.lines} />;
+    case "slides":
+      return <SlidesMock caption={block.caption} items={block.items} />;
     case "exercise":
       return (
         <div className="rounded-[var(--radius-control)] border border-[var(--admin-border)] bg-[var(--admin-bg)] px-4 py-3">
