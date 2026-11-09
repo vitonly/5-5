@@ -43,7 +43,7 @@ async function putHandler(request: NextRequest, { params }: { params: Promise<{ 
   if (body.workbook && typeof body.workbook === "object" && !Array.isArray(body.workbook)) {
     const clean: Record<string, string | boolean> = {};
     for (const [k, v] of Object.entries(body.workbook as Record<string, unknown>).slice(0, 500)) {
-      if (!/^[a-z0-9_]{1,24}$/i.test(k)) continue;
+      if (!/^[a-z0-9_-]{1,32}$/i.test(k)) continue;
       if (typeof v === "boolean") clean[k] = v;
       else if (typeof v === "string" || typeof v === "number") clean[k] = String(v).slice(0, 10_000);
     }

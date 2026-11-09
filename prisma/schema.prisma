@@ -139,6 +139,7 @@ model User {
   poligonAttempts     PoligonAttempt[]
   poligonLessonsDone  PoligonLessonDone[]
   poligonQuizResults  PoligonQuizResult[]
+  poligonPcRuns       PoligonPcRun[]
 }
 
 model LoginTicket {
@@ -728,4 +729,26 @@ model PoligonQuizResult {
   createdAt  DateTime @default(now())
 
   @@index([userId, moduleCode])
+}
+
+/** Практика на настоящем ПК (модуль В): тренер внёс неисправность, ученик ищет */
+model PoligonPcRun {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** id неисправности из src/content/poligon/pc-faults.ts */
+  faultId   String
+  startedAt DateTime  @default(now())
+  foundAt   DateTime?
+  fixedAt   DateTime?
+  /** Сколько подсказок дал тренер */
+  hints     Int       @default(0)
+  /** JSON-массив утилит, которые ученик использовал */
+  utilities String    @default("[]")
+  notes     String    @default("")
+  /** Тренер закончил попытку (дальше она только в истории) */
+  done      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

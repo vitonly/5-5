@@ -59,6 +59,12 @@ export default async function AdminPoligonPage() {
         <StatTile label="Модулей готово" value={POLIGON_MODULES.filter((m) => m.ready).length} hint={`из ${POLIGON_MODULES.length}`} />
       </div>
 
+      <div className="mb-6">
+        <Link href="/admin/poligon/pc" className="surface-card inline-flex items-center gap-2 px-4 py-3 text-[15px] font-medium text-[var(--text)] hover:border-[var(--border-field)]">
+          Практика на ПК (модуль В) — пульт тренера →
+        </Link>
+      </div>
+
       {withAccess.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-[18px]">Ученики: блиц и карта ошибок</h2>

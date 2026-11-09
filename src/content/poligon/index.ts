@@ -5,6 +5,7 @@
 import type { PoligonModule } from "@/lib/poligon/types";
 import { MODULE_A } from "./a";
 import { MODULE_B } from "./b";
+import { MODULE_V } from "./v";
 
 const soon = (m: Omit<PoligonModule, "ready" | "lessons" | "variants">): PoligonModule => ({
   ...m,
@@ -16,15 +17,7 @@ const soon = (m: Omit<PoligonModule, "ready" | "lessons" | "variants">): Poligon
 export const POLIGON_MODULES: PoligonModule[] = [
   MODULE_A,
   MODULE_B,
-  soon({
-    code: "v",
-    letter: "В",
-    title: "Техническое обеспечение соревнований",
-    hours: 5,
-    maxPoints: 20,
-    about: "Ты — технический специалист: готовишь рабочее место, находишь и устраняешь неисправность, заполняешь акт и отчёт.",
-    rules: ["Время — 5 часов.", "Перед работой внутри ПК — обесточить."],
-  }),
+  MODULE_V,
   soon({
     code: "g",
     letter: "Г",

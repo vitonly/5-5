@@ -96,6 +96,23 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
         </section>
       )}
 
+      {map.weakPc.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-[18px]">Практика на ПК: где не уложился</h2>
+          <ul className="flex flex-col gap-1.5 text-[15px]">
+            {map.weakPc.map((p, i) => (
+              <li key={i} className="surface-card flex flex-col gap-0.5 px-4 py-2">
+                <span className="text-[var(--text)]">
+                  <span className="mr-1 font-mono text-[12px] text-[var(--text-3)]">{p.category}</span>
+                  {p.title}
+                </span>
+                <span className="text-[13px] text-[var(--warning-ink)]">{p.notes.join("; ")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {map.weakQ.length > 0 && (
         <section>
           <h2 className="mb-2 text-[18px]">Ошибки в блицах (3 последние попытки)</h2>
