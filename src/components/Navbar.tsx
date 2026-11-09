@@ -52,8 +52,14 @@ export async function Navbar() {
       ? [{ href: `/player/${user.id}?tab=achievements`, label: "Ачивки" }]
       : []),
     { href: "/api/admin/achievements/rebuild", label: "Пересчёт ачивок" },
+    { href: "/admin/poligon", label: "Полигон" },
   ];
-  const navLinks = isAdmin ? adminLinks : studentLinks;
+  // «Полигон» (подготовка к «Профессионалам») видят только ученики, которым тренер открыл доступ
+  const navLinks = isAdmin
+    ? adminLinks
+    : user.poligonAccess
+      ? [...studentLinks, { href: "/poligon", label: "Полигон" }]
+      : studentLinks;
 
   // У учеников бейдж только на домашках. На 5v5 уведомлений нет
   // (раньше сюда ошибочно вешали недооценённых в сезоне голосования).
@@ -105,6 +111,7 @@ export async function Navbar() {
     { href: "/progress", label: "Мой прогресс" },
     { href: "/rules", label: "Правила" },
     { href: "/lessons", label: "Архив" },
+    ...(user.poligonAccess ? [{ href: "/poligon", label: "Полигон" }] : []),
   ];
 
   const adminTabs = [

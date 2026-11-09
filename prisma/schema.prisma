@@ -104,6 +104,8 @@ model User {
   role           UserRole @default(STUDENT)
   /** Когда пользователь дал согласие на обработку ПД (152-ФЗ) */
   pdConsentAt    DateTime?
+  /** Доступ к «Полигону» (подготовка к чемпионату «Профессионалы») — включает тренер */
+  poligonAccess  Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -134,6 +136,8 @@ model User {
   ratingSnapshots     RatingSnapshot[]
   matchPredictions    MatchPrediction[]
   matchSeriesPoints   MatchSeriesPoint[]
+  poligonAttempts     PoligonAttempt[]
+  poligonLessonsDone  PoligonLessonDone[]
 }
 
 model LoginTicket {
@@ -641,4 +645,71 @@ model MatchPrediction {
 
   @@unique([sessionId, userId, gameNumber])
   @@index([userId])
+}
+
+/* ---------- Полигон «Профессионалы» ----------
+ * Уроки и задания лежат файлами в src/content/poligon.
+ * Здесь — только то, что делает ученик: попытки, оценки, пройденные уроки.
+ */
+
+/** Попытка тренировочного задания или прогона «как на чемпионате» */
+model PoligonAttempt {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** Модуль: a | b | v | g | d */
+  moduleCode  String
+  /** id варианта из src/content/poligon */
+  variantId   String
+  /** PRACTICE — тренировка (мягкий таймер), CHAMPIONSHIP — как на чемпионате (жёсткий) */
+  mode        String
+  /** IN_PROGRESS → SUBMITTED → GRADED */
+  status      String    @default("IN_PROGRESS")
+  startedAt   DateTime  @default(now())
+  /** Когда заканчивается время */
+  deadlineAt  DateTime
+  submittedAt DateTime?
+  /** Сданные файлы: JSON [{ name, url }] */
+  fileUrls    String    @default("[]")
+  textAnswer  String    @default("")
+  /** Тетрадь-практикум (если у варианта она есть): JSON { id поля: значение } */
+  workbook    String    @default("{}")
+  /** Оценки по аспектам: JSON { aspectId: { value, comment } } */
+  scores      String    @default("{}")
+  /** Итог для ученика: что получилось / что подтянуть / что делать дальше */
+  good        String    @default("")
+  improve     String    @default("")
+  nextSteps   String    @default("")
+  gradedAt    DateTime?
+  /** Когда отчёт открыт ученику */
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+/** Урок полигона, отмеченный учеником как изученный */
+model PoligonLessonDone {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId String
+  doneAt   DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+}
+
+/** Исходные файлы варианта (датасет, бланки), которые тренер загружает через админку.
+ *  Не кладём их в git: репозиторий открытый. */
+model PoligonVariantFile {
+  id        String   @id @default(cuid())
+  variantId String
+  label     String
+  url       String
+  createdAt DateTime @default(now())
+
+  @@index([variantId])
 }

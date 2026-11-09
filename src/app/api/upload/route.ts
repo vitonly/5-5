@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
+import { mkdir } from "fs/promises";
+import { createWriteStream } from "fs";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import path from "path";
 import { randomBytes } from "crypto";
 import { requireUser } from "@/lib/session";
 import { handleAuth } from "@/lib/api-auth";
 import { hit, retryAfterSec } from "@/lib/rate-limit";
 
+/** Обычный лимит на файл */
 const MAX_BYTES = 64 * 1024 * 1024;
+/** Видео (например, видеообзор для «Полигона») может весить больше — до 300 МБ */
+const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
+const VIDEO_EXT = new Set(["mp4", "mov", "webm"]);
 
 /**
  * Лимит для учеников: не больше 30 файлов в час.
@@ -27,6 +34,8 @@ const ALLOWED_EXT = new Set([
   "mp4", "mov", "webm",
   // документы
   "pdf", "txt", "doc", "docx", "ppt", "pptx", "odt", "odp",
+  // таблицы (задания «Полигона»: датасеты и аналитические отчёты)
+  "xlsx", "xls", "csv", "ods",
   // демки Dota
   "dem",
 ]);
@@ -37,13 +46,15 @@ function uploadsDir(): string {
   );
 }
 
-/** VPS / self-host: всегда пишем на диск. */
+/**
+ * VPS / self-host: всегда пишем на диск.
+ * Пишем потоком, кусками — чтобы большое видео не копировалось в память второй раз целиком.
+ */
 async function saveToDisk(file: File, safeName: string): Promise<string> {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
   const dir = uploadsDir();
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, safeName), buffer);
+  const source = Readable.fromWeb(file.stream() as unknown as import("stream/web").ReadableStream);
+  await pipeline(source, createWriteStream(path.join(dir, safeName)));
   return `/uploads/${safeName}`;
 }
 
@@ -84,15 +95,19 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: "Файл не передан" }, { status: 400 });
     }
 
-    if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: "Максимальный размер файла — 64 МБ" }, { status: 400 });
-    }
-
     const cleaned = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const ext = cleaned.includes(".") ? cleaned.split(".").pop()!.toLowerCase() : "";
     if (!ALLOWED_EXT.has(ext)) {
       return NextResponse.json(
-        { error: "Такой тип файла загружать нельзя. Разрешены картинки, видео, PDF, документы и демки." },
+        { error: "Такой тип файла загружать нельзя. Разрешены картинки, видео, PDF, документы, таблицы и демки." },
+        { status: 400 }
+      );
+    }
+
+    const limit = VIDEO_EXT.has(ext) ? MAX_VIDEO_BYTES : MAX_BYTES;
+    if (file.size > limit) {
+      return NextResponse.json(
+        { error: VIDEO_EXT.has(ext) ? "Максимальный размер видео — 300 МБ" : "Максимальный размер файла — 64 МБ" },
         { status: 400 }
       );
     }
