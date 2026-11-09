@@ -11,7 +11,7 @@ import { canUsePoligon, getModule, getVariant } from "@/lib/poligon/core";
 
 async function postHandler(request: NextRequest) {
   const user = await requireUser();
-  if (!canUsePoligon(user)) return NextResponse.json({ error: "Полигон тебе пока не открыт" }, { status: 403 });
+  if (!canUsePoligon(user)) return NextResponse.json({ error: "Раздел «Профессионалы» тебе пока не открыт" }, { status: 403 });
 
   const body = (await request.json().catch(() => ({}))) as { moduleCode?: string; variantId?: string };
   const mod = getModule(String(body.moduleCode ?? ""));

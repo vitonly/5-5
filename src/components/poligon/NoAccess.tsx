@@ -5,9 +5,9 @@ import { PageHeader } from "@/components/ui/page-header";
 export function NoAccess() {
   return (
     <div>
-      <PageHeader eyebrow="Профессионалы" title="Полигон" />
+      <PageHeader eyebrow="Чемпионат" title="Профессионалы" />
       <Card className="p-6 text-[15px] text-[var(--text-2)]">
-        Полигон — тренировка к чемпионату «Профессионалы». Доступ открывает тренер. Если ты участвуешь — напиши ему.
+        Здесь — подготовка к чемпионату «Профессионалы». Доступ открывает тренер. Если ты участвуешь — напиши ему.
       </Card>
     </div>
   );

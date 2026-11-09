@@ -310,8 +310,22 @@ export function crossCheck(w: Workbook): ReviewCard {
   return c;
 }
 
-/** Полный разбор: регламент, сетка, презентация, заявка, сверка */
-export function reviewWorkbook(w: Workbook): ReviewCard[] {
+/** Части тетради модуля А */
+export type APart = "reg" | "grid" | "pres" | "app";
+export const A_ALL_PARTS: APart[] = ["reg", "grid", "pres", "app"];
+
+/** Разбор: регламент, сетка, презентация, заявка; сверка между файлами — только когда заполнены все части */
+export function reviewWorkbook(w: Workbook, parts: APart[] = A_ALL_PARTS): ReviewCard[] {
+  return reviewAll(w).filter((c) =>
+    c.title === "Регламент" ? parts.includes("reg")
+    : c.title === "Сетка" ? parts.includes("grid")
+    : c.title === "Презентация" ? parts.includes("pres")
+    : c.title === "Заявка" ? parts.includes("app")
+    : parts.length === A_ALL_PARTS.length
+  );
+}
+
+function reviewAll(w: Workbook): ReviewCard[] {
   const all = `${A_REG.map((x) => low(w, x.id)).join(" ")} ${low(w, "norm")}`;
   const R: ReviewCard[] = [];
 

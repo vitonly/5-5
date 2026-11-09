@@ -74,7 +74,7 @@ async function putHandler(request: NextRequest, { params }: { params: Promise<{ 
       select: { telegramChatId: true, telegramId: true },
     });
     const text =
-      `🧪 Полигон: ${escapeTelegramHtml(`${user.firstName} ${user.lastName ?? ""}`.trim())} сдал(а) задание\n` +
+      `🧪 Профессионалы: ${escapeTelegramHtml(`${user.firstName} ${user.lastName ?? ""}`.trim())} сдал(а) задание\n` +
       `<b>${escapeTelegramHtml(`Модуль ${mod?.letter ?? ""} — ${variant?.title ?? attempt.variantId}`)}</b>\n` +
       `Проверить: ${absolutePublicUrl(`/admin/poligon/attempt/${id}`) ?? `/admin/poligon/attempt/${id}`}`;
     await Promise.all(coaches.map((c) => sendTelegramMessage(notifyChatId(c), text).catch(() => false)));

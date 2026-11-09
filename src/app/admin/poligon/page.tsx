@@ -1,6 +1,7 @@
 /*
  * Тренер: полигон — работы на проверку, доступ учеников, файлы заданий.
  */
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { POLIGON_MODULES } from "@/content/poligon";
 import { fullName } from "@/lib/poligon/server";
@@ -9,11 +10,11 @@ import { AttemptList } from "@/components/poligon/AttemptList";
 import { AccessManager } from "@/components/poligon/admin/AccessManager";
 import { VariantFiles } from "@/components/poligon/admin/VariantFiles";
 
-export const metadata = { title: "Полигон — тренер" };
+export const metadata = { title: "Профессионалы — тренер" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminPoligonPage() {
-  const [attempts, students, doneCounts, files] = await Promise.all([
+  const [attempts, students, doneCounts, files, quizzes] = await Promise.all([
     prisma.poligonAttempt.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
     prisma.user.findMany({
       where: { role: "STUDENT" },
@@ -22,7 +23,17 @@ export default async function AdminPoligonPage() {
     }),
     prisma.poligonLessonDone.groupBy({ by: ["userId"], _count: { _all: true } }),
     prisma.poligonVariantFile.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.poligonQuizResult.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
+  // Лучший результат блица: ученик → модуль → «верно из всего»
+  const bestQuiz = new Map<string, { correct: number; total: number }>();
+  for (const q of quizzes) {
+    const k = `${q.userId}:${q.moduleCode}`;
+    const cur = bestQuiz.get(k);
+    if (!cur || q.correct > cur.correct) bestQuiz.set(k, { correct: q.correct, total: q.total });
+  }
+  const withAccess = students.filter((s) => s.poligonAccess);
+  const quizModules = POLIGON_MODULES.filter((m) => m.ready);
   const names = Object.fromEntries(students.map((s) => [s.id, fullName(s)]));
   const done = Object.fromEntries(doneCounts.map((d) => [d.userId, d._count._all]));
   const toCheck = attempts.filter((a) => a.status === "SUBMITTED");
@@ -37,8 +48,8 @@ export default async function AdminPoligonPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Профессионалы"
-        title="Полигон"
+        eyebrow="Подготовка к чемпионату"
+        title="Профессионалы"
         description="Ученик сдаёт файлы → ты скачиваешь и отправляешь на проверку → ставишь оценки по аспектам и пишешь итог → «Открыть ученику»."
       />
       <div className="mb-6 grid grid-cols-2 gap-3 min-[720px]:grid-cols-4">
@@ -47,6 +58,32 @@ export default async function AdminPoligonPage() {
         <StatTile label="С доступом" value={students.filter((s) => s.poligonAccess).length} />
         <StatTile label="Модулей готово" value={POLIGON_MODULES.filter((m) => m.ready).length} hint={`из ${POLIGON_MODULES.length}`} />
       </div>
+
+      {withAccess.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-[18px]">Ученики: блиц и карта ошибок</h2>
+          <ul className="flex flex-col gap-2">
+            {withAccess.map((st) => (
+              <li key={st.id} className="surface-card flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="text-[15px] font-medium text-[var(--text)]">{fullName(st)}</span>
+                <span className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--text-2)]">
+                  {quizModules.map((m) => {
+                    const b = bestQuiz.get(`${st.id}:${m.code}`);
+                    return (
+                      <span key={m.code}>
+                        Блиц {m.letter}: {b ? `${b.correct}/${b.total}` : "—"}
+                      </span>
+                    );
+                  })}
+                  <Link className="font-medium text-[var(--points-ink)] underline" href={`/poligon/map?user=${st.id}`}>
+                    Карта ошибок
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="mb-3 text-[18px]">Работы на проверку</h2>

@@ -6,6 +6,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getPoligonUser } from "@/lib/poligon/server";
 import { CRITERIA } from "@/content/poligon/criteria";
+import { QUIZ } from "@/content/poligon/quiz";
+import type { ModuleCode, Variant } from "@/lib/poligon/types";
 import { fmtMinutes, fmtPoints, getModule, maxPoints, variantTasks } from "@/lib/poligon/core";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -36,10 +38,17 @@ export default async function ModulePage({
   if (!mod || !mod.ready) notFound();
   const tab = TABS.some((t) => t.value === rawTab) ? rawTab : "learn";
 
-  const [done, attempts] = await Promise.all([
+  const [done, attempts, quizBest] = await Promise.all([
     prisma.poligonLessonDone.findMany({ where: { userId: user.id }, select: { lessonId: true } }),
     prisma.poligonAttempt.findMany({ where: { userId: user.id, moduleCode: mod.code }, orderBy: { createdAt: "desc" } }),
+    prisma.poligonQuizResult.findFirst({
+      where: { userId: user.id, moduleCode: mod.code },
+      orderBy: [{ correct: "desc" }, { createdAt: "desc" }],
+    }),
   ]);
+  const quiz = QUIZ[mod.code];
+  const trainers = mod.variants.filter((v) => v.kind === "trainer");
+  const runs = mod.variants.filter((v) => v.kind !== "trainer");
   const doneSet = new Set(done.map((d) => d.lessonId));
   const criteria = CRITERIA[mod.code];
 
@@ -48,7 +57,7 @@ export default async function ModulePage({
       <PageHeader
         eyebrow={
           <Link href="/poligon" className="hover:underline">
-            ← Полигон
+            ← Профессионалы
           </Link>
         }
         title={`Модуль ${mod.letter}. ${mod.title}`}
@@ -89,6 +98,29 @@ export default async function ModulePage({
         ))}
       </nav>
 
+      {tab === "learn" && quiz && (
+        <Link
+          href={`/poligon/${mod.code}/quiz`}
+          className="surface-card mb-5 flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:border-[var(--border-field)]"
+        >
+          <span>
+            <span className="block text-[15px] font-semibold text-[var(--text)]">Блиц по модулю {mod.letter} · обязательно</span>
+            <span className="block text-[13px] text-[var(--text-3)]">{quiz.length} вопросов по урокам — как устный блиц на площадке</span>
+          </span>
+          <Badge variant={!quizBest ? "danger" : quizBest.correct === quizBest.total ? "success" : "warning"}>
+            {quizBest ? `лучший: ${quizBest.correct} из ${quizBest.total}` : "не пройден"}
+          </Badge>
+        </Link>
+      )}
+
+      {tab === "learn" && trainers.length > 0 && (
+        <section className="mb-5">
+          <h2 className="mb-2 text-[17px]">Тренажёры — по каждому заданию</h2>
+          <VariantGrid variants={trainers} code={mod.code} />
+        </section>
+      )}
+
+      {tab === "learn" && <h2 className="mb-2 text-[17px]">Уроки</h2>}
       {tab === "learn" && (
         <ol className="flex flex-col gap-2">
           {mod.lessons.map((l, i) => (
@@ -116,29 +148,34 @@ export default async function ModulePage({
         </ol>
       )}
 
-      {tab === "test" && (
-        <div className="grid gap-3 min-[720px]:grid-cols-2">
-          {mod.variants.map((v) => (
-            <Link
-              key={v.id}
-              href={`/poligon/${mod.code}/test/${v.id}`}
-              className="surface-card flex flex-col gap-2 p-4 hover:border-[var(--border-field)]"
-            >
-              <span className="flex flex-wrap gap-1.5">
-                <Badge variant={v.kind === "championship" ? "danger" : "default"}>
-                  {v.kind === "championship" ? "Как на чемпионате · жёсткий таймер" : "Тренировка · мягкий таймер"}
-                </Badge>
-                <Badge>{fmtMinutes(v.minutes)}</Badge>
-                <Badge variant="points">{fmtPoints(maxPoints(variantTasks(mod.code, v)))} б.</Badge>
-              </span>
-              <span className="font-display text-[17px] font-semibold text-[var(--text)]">{v.title}</span>
-              <span className="text-[14px] text-[var(--text-2)]">{v.summary}</span>
-            </Link>
-          ))}
-        </div>
-      )}
+      {tab === "test" && <VariantGrid variants={runs} code={mod.code} />}
 
       {tab === "attempts" && <AttemptList attempts={attempts} hrefBase="/poligon/attempt" />}
+    </div>
+  );
+}
+
+/** Карточки заданий: тренажёры, тренировки с файлами, прогон как на чемпионате */
+function VariantGrid({ variants, code }: { variants: Variant[]; code: ModuleCode }) {
+  return (
+    <div className="grid gap-3 min-[720px]:grid-cols-2">
+      {variants.map((v) => (
+        <Link
+          key={v.id}
+          href={`/poligon/${code}/test/${v.id}`}
+          className="surface-card flex flex-col gap-2 p-4 hover:border-[var(--border-field)]"
+        >
+          <span className="flex flex-wrap gap-1.5">
+            <Badge variant={v.kind === "championship" ? "danger" : v.kind === "trainer" ? "points" : "default"}>
+              {v.kind === "championship" ? "Как на чемпионате · жёсткий таймер" : v.kind === "trainer" ? "Тренажёр · разбор сразу" : "Тренировка с файлами"}
+            </Badge>
+            <Badge>{fmtMinutes(v.minutes)}</Badge>
+            <Badge variant="points">{fmtPoints(maxPoints(variantTasks(code, v)))} б.</Badge>
+          </span>
+          <span className="font-display text-[17px] font-semibold text-[var(--text)]">{v.title}</span>
+          <span className="text-[14px] text-[var(--text-2)]">{v.summary}</span>
+        </Link>
+      ))}
     </div>
   );
 }
