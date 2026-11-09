@@ -1,6 +1,6 @@
 /*
  * Полигон: сохранить или сдать свою попытку.
- * PUT { files?: [{name,url}], textAnswer?: string, submit?: boolean }
+ * PUT { files?: [{name,url}], textAnswer?: string, workbook?: object, submit?: boolean }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -29,16 +29,36 @@ async function putHandler(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Время вышло — как на чемпионате, сдать уже нельзя" }, { status: 403 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { files?: unknown; textAnswer?: unknown; submit?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    files?: unknown;
+    textAnswer?: unknown;
+    workbook?: unknown;
+    submit?: unknown;
+  };
   const files = body.files === undefined ? null : cleanFiles(body.files);
-  const data: { fileUrls?: string; textAnswer?: string; status?: string; submittedAt?: Date } = {};
+  const data: { fileUrls?: string; textAnswer?: string; workbook?: string; status?: string; submittedAt?: Date } = {};
   if (files) data.fileUrls = JSON.stringify(files);
   if (typeof body.textAnswer === "string") data.textAnswer = body.textAnswer.slice(0, 20_000);
+  // Тетрадь: только простой объект «поле → строка/да-нет», не больше 300 КБ
+  if (body.workbook && typeof body.workbook === "object" && !Array.isArray(body.workbook)) {
+    const clean: Record<string, string | boolean> = {};
+    for (const [k, v] of Object.entries(body.workbook as Record<string, unknown>).slice(0, 500)) {
+      if (!/^[a-z0-9_]{1,24}$/i.test(k)) continue;
+      if (typeof v === "boolean") clean[k] = v;
+      else if (typeof v === "string" || typeof v === "number") clean[k] = String(v).slice(0, 10_000);
+    }
+    const json = JSON.stringify(clean);
+    if (json.length > 300_000) return NextResponse.json({ error: "Слишком много текста в тетради" }, { status: 413 });
+    data.workbook = json;
+  }
 
   const submit = body.submit === true;
   if (submit) {
     const count = files ? files.length : JSON.parse(attempt.fileUrls || "[]").length;
-    if (!count) return NextResponse.json({ error: "Сначала загрузи хотя бы один файл" }, { status: 400 });
+    // В задании с тетрадью результат — сама тетрадь, файлы не обязательны
+    const mod = getModule(attempt.moduleCode);
+    const hasWorkbook = !!(mod && getVariant(mod, attempt.variantId)?.workbook);
+    if (!count && !hasWorkbook) return NextResponse.json({ error: "Сначала загрузи хотя бы один файл" }, { status: 400 });
     data.status = "SUBMITTED";
     data.submittedAt = new Date();
   }

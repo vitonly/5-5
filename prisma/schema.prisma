@@ -672,6 +672,8 @@ model PoligonAttempt {
   /** Сданные файлы: JSON [{ name, url }] */
   fileUrls    String    @default("[]")
   textAnswer  String    @default("")
+  /** Тетрадь-практикум (если у варианта она есть): JSON { id поля: значение } */
+  workbook    String    @default("{}")
   /** Оценки по аспектам: JSON { aspectId: { value, comment } } */
   scores      String    @default("{}")
   /** Итог для ученика: что получилось / что подтянуть / что делать дальше */

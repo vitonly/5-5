@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GradeForm } from "@/components/poligon/admin/GradeForm";
 import { CopyForReview } from "@/components/poligon/admin/CopyForReview";
+import { APracticum } from "@/components/poligon/workbooks/APracticum";
+import { parseWorkbook, workbookText } from "@/lib/poligon/a-practicum";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +57,7 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
     attempt.textAnswer ? `Комментарий ученика: ${attempt.textAnswer}` : "",
     "Файлы:",
     ...files.map((f) => `- ${f.name}: ${base}${f.url}`),
+    ...(variant.workbook ? ["", "Тетрадь:", workbookText(parseWorkbook(attempt.workbook))] : []),
   ]
     .filter(Boolean)
     .join("\n");
@@ -112,6 +115,13 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
           <CopyForReview text={reviewText} />
         </div>
       </section>
+
+      {variant.workbook === "a-practicum" && (
+        <details className="mb-4">
+          <summary className="mb-3 cursor-pointer text-[16px] font-semibold text-[var(--text)]">Тетрадь ученика и автоматический разбор</summary>
+          <APracticum initial={parseWorkbook(attempt.workbook)} readOnly />
+        </details>
+      )}
 
       <GradeForm
         attemptId={attempt.id}

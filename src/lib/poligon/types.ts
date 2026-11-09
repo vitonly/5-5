@@ -96,6 +96,11 @@ export type Variant = {
   deliverables: Deliverable[];
   /** По каким заданиям критериев оценивается попытка (id из CRITERIA) */
   taskIds: string[];
+  /**
+   * Тетрадь-практикум: ученик заполняет всё прямо на сайте, а разбор появляется сразу.
+   * "a-practicum" — модуль А (регламент, сетка, слайды со сметой, заявка).
+   */
+  workbook?: "a-practicum";
 };
 
 export type PoligonModule = {

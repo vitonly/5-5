@@ -57,7 +57,7 @@ export function AttemptReport({
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 min-[720px]:grid-cols-3">
         <StatTile
-          label="Баллы"
+          label="Баллы (судейские — примерно)"
           value={`${fmtPoints(total.points)} / ${fmtPoints(total.max)}`}
           tone={share >= 0.8 ? "success" : share >= 0.5 ? "warning" : "danger"}
         />

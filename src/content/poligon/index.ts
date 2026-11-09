@@ -3,6 +3,7 @@
  * Модули с ready: false показываются как «скоро» — контент для них добавим следующими.
  */
 import type { PoligonModule } from "@/lib/poligon/types";
+import { MODULE_A } from "./a";
 import { MODULE_B } from "./b";
 
 const soon = (m: Omit<PoligonModule, "ready" | "lessons" | "variants">): PoligonModule => ({
@@ -13,15 +14,7 @@ const soon = (m: Omit<PoligonModule, "ready" | "lessons" | "variants">): Poligon
 });
 
 export const POLIGON_MODULES: PoligonModule[] = [
-  soon({
-    code: "a",
-    letter: "А",
-    title: "Управление киберспортивным проектом",
-    hours: 4,
-    maxPoints: 15,
-    about: "Ты — организатор турнира: пишешь регламент по шаблону ФКС, заявку, смету и расписание.",
-    rules: ["Время — 4 часа.", "ИИ и интернет нельзя."],
-  }),
+  MODULE_A,
   MODULE_B,
   soon({
     code: "v",

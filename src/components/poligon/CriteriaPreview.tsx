@@ -11,7 +11,8 @@ export function CriteriaPreview({ tasks }: { tasks: CriteriaTask[] }) {
     <div className="flex flex-col gap-4">
       <p className="text-[14px] text-[var(--text-2)]">
         <b className="text-[var(--text)]">Измеримый</b> аспект — либо выполнен (все баллы), либо нет (0).{" "}
-        <b className="text-[var(--text)]">Судейский</b> — эксперт ставит оценку от 0 до 3; баллы = вес × оценка / 3.
+        <b className="text-[var(--text)]">Судейский</b> — три эксперта ставят оценку от 0 до 3, весь вес аспекта — за «3».
+        Как именно оценки переводят в баллы, уточняем у главного эксперта; на сайте баллы считаются примерно: вес × оценка / 3.
       </p>
       {tasks.map((t) => {
         const max = t.aspects.reduce((s, a) => s + a.weight, 0);

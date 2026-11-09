@@ -4,7 +4,7 @@
  * Рабочее место попытки: таймер, загрузка файлов, комментарий тренеру, кнопка «Сдать».
  * Файлы сохраняются в попытку сразу после загрузки — если закрыть вкладку, ничего не пропадёт.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadAppFile } from "@/lib/upload-client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { confirmAction } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import type { AttemptFile } from "@/lib/poligon/core";
 import type { Deliverable } from "@/lib/poligon/types";
+import type { Workbook } from "@/lib/poligon/a-practicum";
+import { APracticum } from "./workbooks/APracticum";
 
 /** Секунды → «1:05:09» */
 function clock(totalSec: number) {
@@ -34,6 +36,8 @@ export function AttemptWorkspace({
   initialFiles,
   initialText,
   deliverables,
+  workbook,
+  initialWorkbook,
 }: {
   attemptId: string;
   championship: boolean;
@@ -42,6 +46,9 @@ export function AttemptWorkspace({
   initialFiles: AttemptFile[];
   initialText: string;
   deliverables: Deliverable[];
+  /** Тетрадь-практикум варианта (если есть) */
+  workbook?: "a-practicum";
+  initialWorkbook?: Workbook;
 }) {
   const router = useRouter();
   const [files, setFiles] = useState(initialFiles);
@@ -51,6 +58,9 @@ export function AttemptWorkspace({
   // Время считаем только в браузере, чтобы сервер и браузер не спорили о секундах
   const [now, setNow] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Тетрадь сохраняем не на каждую букву, а через 1,5 секунды после последнего изменения
+  const wbRef = useRef<Workbook>(initialWorkbook ?? {});
+  const wbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Первое значение — через 0 мс, дальше раз в секунду
@@ -66,7 +76,7 @@ export function AttemptWorkspace({
   const left = now === null ? null : (deadline - now) / 1000;
   const closed = championship && left !== null && left < -graceMin * 60;
 
-  async function save(next: { files?: AttemptFile[]; textAnswer?: string; submit?: boolean }) {
+  async function save(next: { files?: AttemptFile[]; textAnswer?: string; workbook?: Workbook; submit?: boolean }) {
     const res = await fetch(`/api/poligon/attempts/${attemptId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -79,6 +89,21 @@ export function AttemptWorkspace({
     }
     return true;
   }
+
+  const onWorkbook = useCallback(
+    (w: Workbook) => {
+      wbRef.current = w;
+      if (wbTimer.current) clearTimeout(wbTimer.current);
+      wbTimer.current = setTimeout(() => {
+        fetch(`/api/poligon/attempts/${attemptId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workbook: w }),
+        }).catch(() => toast.error("Тетрадь не сохранилась — проверь интернет"));
+      }, 1500);
+    },
+    [attemptId]
+  );
 
   async function onPick(list: FileList | null) {
     if (!list?.length) return;
@@ -105,13 +130,14 @@ export function AttemptWorkspace({
   }
 
   async function submit() {
-    if (!files.length) return toast.error("Сначала загрузи файлы");
+    if (!files.length && !workbook) return toast.error("Сначала загрузи файлы");
+    if (wbTimer.current) clearTimeout(wbTimer.current);
     const ok = await confirmAction("Сдать работу на проверку? После этого файлы поменять нельзя.", {
       confirmLabel: "Сдать",
     });
     if (!ok) return;
     setBusy(true);
-    const done = await save({ files, textAnswer: text, submit: true });
+    const done = await save({ files, textAnswer: text, submit: true, ...(workbook ? { workbook: wbRef.current } : {}) });
     setBusy(false);
     if (done) {
       toast.success("Сдано! Тренер получил уведомление.");
@@ -157,9 +183,11 @@ export function AttemptWorkspace({
         </p>
       </div>
 
+      {workbook === "a-practicum" && !closed && <APracticum initial={initialWorkbook ?? {}} onChange={onWorkbook} />}
+
       {/* Что сдать */}
       <section className="surface-card p-4">
-        <h2 className="mb-2 text-[17px]">Загрузи результат</h2>
+        <h2 className="mb-2 text-[17px]">{workbook ? "Файлы (если делал что-то в Word или PowerPoint)" : "Загрузи результат"}</h2>
         <ul className="mb-3 flex list-disc flex-col gap-0.5 pl-5 text-[14px] text-[var(--text-2)]">
           {deliverables.map((d) => (
             <li key={d.name}>
@@ -213,7 +241,7 @@ export function AttemptWorkspace({
       </section>
 
       <div>
-        <Button size="lg" onClick={submit} disabled={busy || closed || !files.length}>
+        <Button size="lg" onClick={submit} disabled={busy || closed || (!files.length && !workbook)}>
           {busy ? "Сдаю…" : "Сдать на проверку"}
         </Button>
       </div>

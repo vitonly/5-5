@@ -20,6 +20,8 @@ import { Card } from "@/components/ui/card";
 import { NoAccess } from "@/components/poligon/NoAccess";
 import { AttemptWorkspace } from "@/components/poligon/AttemptWorkspace";
 import { AttemptReport } from "@/components/poligon/AttemptReport";
+import { APracticum } from "@/components/poligon/workbooks/APracticum";
+import { parseWorkbook } from "@/lib/poligon/a-practicum";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,8 @@ export default async function AttemptPage({ params }: { params: Promise<{ id: st
           initialFiles={files}
           initialText={attempt.textAnswer}
           deliverables={variant.deliverables}
+          workbook={variant.workbook}
+          initialWorkbook={parseWorkbook(attempt.workbook)}
         />
       )}
 
@@ -97,6 +101,13 @@ export default async function AttemptPage({ params }: { params: Promise<{ id: st
             ))}
           </ul>
         </Card>
+      )}
+
+      {variant.workbook === "a-practicum" && attempt.status !== "IN_PROGRESS" && (
+        <details className="mb-4" open={!published}>
+          <summary className="mb-3 cursor-pointer text-[16px] font-semibold text-[var(--text)]">Моя тетрадь и разбор</summary>
+          <APracticum initial={parseWorkbook(attempt.workbook)} readOnly />
+        </details>
       )}
 
       {published && (
