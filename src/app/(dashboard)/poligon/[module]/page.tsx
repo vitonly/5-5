@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { NoAccess } from "@/components/poligon/NoAccess";
 import { AttemptList } from "@/components/poligon/AttemptList";
+import { PcRunList } from "@/components/poligon/PcRunList";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -38,9 +39,10 @@ export default async function ModulePage({
   if (!mod || !mod.ready) notFound();
   const tab = TABS.some((t) => t.value === rawTab) ? rawTab : "learn";
 
-  const [done, attempts, quizBest] = await Promise.all([
+  const [done, attempts, pcRuns, quizBest] = await Promise.all([
     prisma.poligonLessonDone.findMany({ where: { userId: user.id }, select: { lessonId: true } }),
     prisma.poligonAttempt.findMany({ where: { userId: user.id, moduleCode: mod.code }, orderBy: { createdAt: "desc" } }),
+    mod.code === "v" ? prisma.poligonPcRun.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 30 }) : Promise.resolve([]),
     prisma.poligonQuizResult.findFirst({
       where: { userId: user.id, moduleCode: mod.code },
       orderBy: [{ correct: "desc" }, { createdAt: "desc" }],
@@ -151,6 +153,12 @@ export default async function ModulePage({
       {tab === "test" && <VariantGrid variants={runs} code={mod.code} />}
 
       {tab === "attempts" && <AttemptList attempts={attempts} hrefBase="/poligon/attempt" />}
+      {tab === "attempts" && mod.code === "v" && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-[17px]">Практика на ПК с тренером</h2>
+          <PcRunList runs={pcRuns} />
+        </section>
+      )}
     </div>
   );
 }

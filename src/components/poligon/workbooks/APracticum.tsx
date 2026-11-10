@@ -14,6 +14,11 @@ import {
   A_REG,
   A_SLIDES,
   A_SMETA,
+  A_BRAND,
+  A_FORM_HINTS,
+  A_PACKS,
+  A_REACH,
+  reachSum,
   A_ALL_PARTS,
   reviewWorkbook,
   sideName,
@@ -248,6 +253,18 @@ export function APracticum({
             Заголовок-мысль и 2–4 коротких пункта. Цифры — из своего регламента.
             Дизайн потом в PowerPoint.
           </p>
+          <div className={box}>
+            <h3 className="text-[16px] font-semibold text-[var(--text)]">Бренд турнира</h3>
+            <p className="text-[13px] text-[var(--text-3)]">Придумай заранее и выучи — он работает в модулях А, Г и Д.</p>
+            <div className="grid gap-2 min-[640px]:grid-cols-2">
+              {A_BRAND.map((b) => (
+                <label key={b.id} className={field}>
+                  {b.label}
+                  <Input value={s(b.id)} onChange={(e) => set(b.id, e.target.value)} disabled={readOnly} />
+                </label>
+              ))}
+            </div>
+          </div>
           {A_SLIDES.map((sl) => (
             <div key={sl.id} className={box}>
               <h3 className="text-[16px] font-semibold text-[var(--text)]">
@@ -262,7 +279,7 @@ export function APracticum({
               />
               {sl.smeta && (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[420px] text-[14px]">
+                  <table className="w-full min-w-[560px] text-[14px]">
                     <tbody>
                       {A_SMETA.map((row, i) => (
                         <tr
@@ -270,7 +287,17 @@ export function APracticum({
                           className="border-b border-[var(--border-soft)]"
                         >
                           <td className="py-1.5 pr-2">{row}</td>
-                          <td className="w-40 py-1.5">
+                          <td className="py-1.5 pr-2">
+                            <Input
+                              className="h-9"
+                              placeholder="расчёт: 20 × 2 500"
+                              value={s(`smc${i}`)}
+                              onChange={(e) => set(`smc${i}`, e.target.value)}
+                              disabled={readOnly}
+                              aria-label={`Расчёт: ${row}`}
+                            />
+                          </td>
+                          <td className="w-36 py-1.5">
                             <Input
                               type="number"
                               min={0}
@@ -286,6 +313,7 @@ export function APracticum({
                       ))}
                       <tr>
                         <th className="py-2 text-left">Итого</th>
+                        <th />
                         <th
                           className={cn(
                             "py-2 text-left font-mono-num",
@@ -298,6 +326,41 @@ export function APracticum({
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              )}
+              {sl.id === "s7" && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-[14px]">
+                    <tbody>
+                      {A_REACH.map((r, i) => (
+                        <tr key={r} className="border-b border-[var(--border-soft)]">
+                          <td className="py-1.5 pr-2">{r}</td>
+                          <td className="py-1.5 pr-2">
+                            <Input className="h-9" placeholder="расчёт: 5 постов × 3 000" value={s(`mr${i}c`)} onChange={(e) => set(`mr${i}c`, e.target.value)} disabled={readOnly} aria-label={`Расчёт: ${r}`} />
+                          </td>
+                          <td className="w-32 py-1.5">
+                            <Input className="h-9" placeholder="контактов" value={s(`mr${i}n`)} onChange={(e) => set(`mr${i}n`, e.target.value)} disabled={readOnly} aria-label={`Контактов: ${r}`} />
+                          </td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <th className="py-2 text-left">Итого</th>
+                        <th />
+                        <th className="py-2 text-left font-mono-num">≈ {reachSum(w).toLocaleString("ru-RU")}</th>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {sl.id === "s8" && (
+                <div className="flex flex-col gap-2">
+                  {A_PACKS.map((pk, i) => (
+                    <div key={pk} className="grid gap-2 min-[640px]:grid-cols-[1fr_8rem_2fr]">
+                      <Input className="h-9" placeholder={pk} value={s(`pk${i}n`)} onChange={(e) => set(`pk${i}n`, e.target.value)} disabled={readOnly} aria-label="Пакет" />
+                      <Input className="h-9" placeholder="вклад" value={s(`pk${i}v`)} onChange={(e) => set(`pk${i}v`, e.target.value)} disabled={readOnly} aria-label="Вклад" />
+                      <Input className="h-9" placeholder="что получает партнёр" value={s(`pk${i}g`)} onChange={(e) => set(`pk${i}g`, e.target.value)} disabled={readOnly} aria-label="Что получает" />
+                    </div>
+                  ))}
                 </div>
               )}
               <Textarea
@@ -399,6 +462,7 @@ function FormGroup({
             <td className="py-1.5">
               <Input
                 id={`f-${id}`}
+                placeholder={A_FORM_HINTS[id]}
                 className={cn("h-9", empty && "border-[var(--danger-border)]")}
                 value={s(id)}
                 onChange={(e) => set(id, e.target.value)}

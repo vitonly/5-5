@@ -8,6 +8,8 @@ import { CRITERIA } from "@/content/poligon/criteria";
 import { QUIZ } from "@/content/poligon/quiz";
 import { aspectPoints, isModuleCode, parseScores } from "./core";
 import type { Lesson, ModuleCode, Variant } from "./types";
+import { PC_FAULTS } from "@/content/poligon/pc-faults";
+import { scorePcRun } from "./pc-runs";
 
 export type WeakAspect = {
   module: ModuleCode;
@@ -24,9 +26,10 @@ export type WeakAspect = {
 export type WeakQuestion = { module: ModuleCode; letter: string; q: string; times: number; lesson: Lesson | null };
 
 export async function buildErrorMap(userId: string) {
-  const [attempts, quizzes] = await Promise.all([
+  const [attempts, quizzes, pcRuns] = await Promise.all([
     prisma.poligonAttempt.findMany({ where: { userId, status: "GRADED" }, orderBy: { createdAt: "desc" } }),
     prisma.poligonQuizResult.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    prisma.poligonPcRun.findMany({ where: { userId, done: true }, orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
 
   // 1. Аспекты критериев: копим доли по всем проверенным попыткам
@@ -107,5 +110,15 @@ export async function buildErrorMap(userId: string) {
     plan.push({ module: q.module, text: `Модуль ${q.letter}, блиц: «${q.q}»`, lesson: q.lesson });
   }
 
-  return { weak, weakQ, plan, graded: attempts.length, quizzes: quizzes.length };
+  // 4. Практика на ПК: неисправности, где не уложился в норму или нужны были подсказки
+  const weakPc = pcRuns
+    .map((r) => ({ run: r, score: scorePcRun(r), fault: PC_FAULTS.find((f) => f.id === r.faultId) }))
+    .filter((x) => x.score.notes.length > 0)
+    .map((x) => ({ title: x.fault?.title ?? x.run.faultId, category: x.fault?.category ?? "", notes: x.score.notes }));
+  const simTrainer = POLIGON_MODULES.find((m) => m.code === "v")?.variants.find((v) => v.id === "v-tr-sim");
+  if (weakPc.length && simTrainer && !used.has(simTrainer.id) && plan.length < 7) {
+    plan.push({ module: "v", text: `Модуль В, практика на ПК: ${weakPc[0].title} — ${weakPc[0].notes[0].toLowerCase()}`, trainer: simTrainer });
+  }
+
+  return { weak, weakQ, weakPc, plan, graded: attempts.length, quizzes: quizzes.length, pcRuns: pcRuns.length };
 }

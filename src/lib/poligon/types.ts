@@ -62,7 +62,28 @@ export type Block =
   /** Схема страницы Word: строки со стилями */
   | { type: "word"; caption?: string; ribbon?: string; active?: string; lines: { style: "title" | "h1" | "h2" | "p" | "li"; text: string }[] }
   /** Схема слайдов: «плохо» и «хорошо» рядом */
-  | { type: "slides"; caption?: string; items: SlideFigure[] };
+  | { type: "slides"; caption?: string; items: SlideFigure[] }
+  /** Схема окна Windows: заголовок, путь, список строк со значками, кнопки */
+  | ({ type: "win" } & WinFigure)
+  /** Окно командной строки: команда и вывод */
+  | { type: "console"; caption?: string; lines: string[] }
+  /** Рисунки разъёмов с подписями */
+  | { type: "connectors"; caption?: string; items: ConnectorId[] };
+
+export type ConnectorId = "hdmi" | "dp" | "vga" | "dvi" | "usba" | "usbc" | "rj45" | "jack-green" | "jack-pink" | "c13" | "atx24" | "eps8" | "pcie8" | "sata";
+
+export type WinFigure = {
+  caption?: string;
+  /** Заголовок окна: «Диспетчер устройств», «Параметры» */
+  title: string;
+  /** Путь вверху (для «Параметров»): «Система › Звук» */
+  path?: string;
+  /** Строки окна; icon: warn — жёлтый треугольник, off — стрелка вниз (отключено), ok — галочка */
+  items: { text: string; icon?: "warn" | "off" | "ok" | "folder"; indent?: number; mark?: "sel" | "bad" }[];
+  /** Кнопки внизу; active — какую нажать */
+  buttons?: string[];
+  active?: string;
+};
 
 /** Пометка ячейки: bad — ошибка в данных, ok — правильно, sel — выделено */
 export type CellMark = "bad" | "ok" | "sel";
@@ -102,9 +123,13 @@ export type SlideFigure = {
 /**
  * Тренажёры:
  * a-practicum — весь модуль А; a-reg, a-grid, a-pres, a-app — по одному продукту А;
- * b-clean — очистка данных, b-calc — ключевые цифры, b-charts — диаграммы и выводы, b-pres — презентация и рекомендации.
+ * b-clean — очистка данных, b-calc — ключевые цифры, b-charts — диаграммы и выводы, b-pres — презентация и рекомендации;
+ * v-sim — симулятор неисправностей, v-cmd — командная строка, v-where — пути в Windows и разъёмы, v-docs — акт и отчёт.
  */
-export type WorkbookId = "a-practicum" | "a-reg" | "a-grid" | "a-pres" | "a-app" | "b-clean" | "b-calc" | "b-charts" | "b-pres";
+export type WorkbookId =
+  | "a-practicum" | "a-reg" | "a-grid" | "a-pres" | "a-app"
+  | "b-clean" | "b-calc" | "b-charts" | "b-pres"
+  | "v-sim" | "v-cmd" | "v-where" | "v-docs";
 
 export type Lesson = {
   id: string;
