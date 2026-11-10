@@ -140,6 +140,7 @@ model User {
   poligonLessonsDone  PoligonLessonDone[]
   poligonQuizResults  PoligonQuizResult[]
   poligonPcRuns       PoligonPcRun[]
+  poligonDiag         PoligonDiag?
 }
 
 model LoginTicket {
@@ -751,4 +752,20 @@ model PoligonPcRun {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+/** Входная диагностика конкурсанта: одна попытка на ученика (сбросить может тренер) */
+model PoligonDiag {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** JSON с ответами: id вопроса → ответ (см. src/content/poligon/diag.ts) */
+  answers     String    @default("{}")
+  /** DRAFT — черновик, SUBMITTED — отправлено */
+  status      String    @default("DRAFT")
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  /** Сколько минут шёл тест (от первого ответа до отправки) */
+  minutes     Int?
+  updatedAt   DateTime  @updatedAt
 }

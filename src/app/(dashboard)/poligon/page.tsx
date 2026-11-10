@@ -19,10 +19,12 @@ export default async function PoligonPage() {
   const user = await getPoligonUser();
   if (!user) return <NoAccess />;
 
-  const [done, attempts] = await Promise.all([
+  const [done, attempts, diag] = await Promise.all([
     prisma.poligonLessonDone.findMany({ where: { userId: user.id }, select: { lessonId: true } }),
     prisma.poligonAttempt.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
+    prisma.poligonDiag.findUnique({ where: { userId: user.id }, select: { status: true } }),
   ]);
+  const diagSent = diag?.status === "SUBMITTED";
   const doneSet = new Set(done.map((d) => d.lessonId));
   const totalMax = POLIGON_MODULES.reduce((s, m) => s + m.maxPoints, 0);
   const waiting = attempts.filter((a) => a.status === "SUBMITTED").length;
@@ -46,6 +48,27 @@ export default async function PoligonPage() {
         <StatTile label="Ждут проверки" value={waiting} tone={waiting ? "warning" : "default"} />
         <StatTile label="Проверено" value={graded} tone={graded ? "success" : "default"} />
       </div>
+
+      {/* Входная диагностика — первым делом, пока не отправлена; потом просто отметка */}
+      <Link
+        href="/poligon/diag"
+        className={cn(
+          "surface-card mb-6 flex flex-wrap items-center justify-between gap-3 p-4 hover:border-[var(--border-field)]",
+          !diagSent && "border-[var(--points-ink)] bg-[var(--points-bg)]"
+        )}
+      >
+        <span className="flex flex-col gap-1">
+          <span className="font-display text-[17px] font-semibold text-[var(--text)]">Входная диагностика</span>
+          <span className="text-[14px] text-[var(--text-2)]">
+            {diagSent
+              ? "Отправлена — тренер собирает план под тебя."
+              : diag
+                ? "Начата — ответы сохранены, можно продолжить."
+                : "Пройди один раз в начале: 53 вопроса по всем модулям, около часа."}
+          </span>
+        </span>
+        <Badge variant={diagSent ? "success" : "points"}>{diagSent ? "Отправлена" : diag ? "Продолжить" : "Начать"}</Badge>
+      </Link>
 
       <div className="grid gap-3 min-[720px]:grid-cols-2">
         {POLIGON_MODULES.map((m) => {
