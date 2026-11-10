@@ -14,7 +14,7 @@ export const metadata = { title: "Профессионалы — тренер" }
 export const dynamic = "force-dynamic";
 
 export default async function AdminPoligonPage() {
-  const [attempts, students, doneCounts, files, quizzes] = await Promise.all([
+  const [attempts, students, doneCounts, files, quizzes, diags] = await Promise.all([
     prisma.poligonAttempt.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
     prisma.user.findMany({
       where: { role: "STUDENT" },
@@ -24,7 +24,10 @@ export default async function AdminPoligonPage() {
     prisma.poligonLessonDone.groupBy({ by: ["userId"], _count: { _all: true } }),
     prisma.poligonVariantFile.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.poligonQuizResult.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.poligonDiag.findMany({ select: { userId: true, status: true } }),
   ]);
+  // Статус входной диагностики по ученикам
+  const diagStatus = new Map(diags.map((d) => [d.userId, d.status]));
   // Лучший результат блица: ученик → модуль → «верно из всего»
   const bestQuiz = new Map<string, { correct: number; total: number }>();
   for (const q of quizzes) {
@@ -67,7 +70,7 @@ export default async function AdminPoligonPage() {
 
       {withAccess.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-[18px]">Ученики: блиц и карта ошибок</h2>
+          <h2 className="mb-3 text-[18px]">Ученики: блиц, карта ошибок, диагностика</h2>
           <ul className="flex flex-col gap-2">
             {withAccess.map((st) => (
               <li key={st.id} className="surface-card flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -83,6 +86,10 @@ export default async function AdminPoligonPage() {
                   })}
                   <Link className="font-medium text-[var(--points-ink)] underline" href={`/poligon/map?user=${st.id}`}>
                     Карта ошибок
+                  </Link>
+                  <Link className="font-medium text-[var(--points-ink)] underline" href={`/admin/poligon/diag/${st.id}`}>
+                    Диагностика:{" "}
+                    {diagStatus.get(st.id) === "SUBMITTED" ? "отправлена" : diagStatus.has(st.id) ? "черновик" : "нет"}
                   </Link>
                 </span>
               </li>
