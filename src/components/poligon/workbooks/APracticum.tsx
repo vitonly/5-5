@@ -72,6 +72,8 @@ export function APracticum({
   const set = (id: string, v: string | boolean) =>
     setW((old) => ({ ...old, [id]: v }));
   const total = useMemo(() => smetaSum(w), [w]);
+  /** Скрыты ли подсказки в регламенте (галочка сохраняется вместе с работой) */
+  const hide = !!w.hideHints;
 
   async function copyAll() {
     try {
@@ -97,8 +99,9 @@ export function APracticum({
         </dl>
         {has("reg") && (
           <label className={field}>
-            Пункт 1.2 «Общих положений» по памяти — все нормативные документы
-            (329-ФЗ, приказ № 22, приказ № 554, «боевая арена»)
+            {hide
+              ? "Пункт 1.2 «Общих положений» по памяти"
+              : "Пункт 1.2 «Общих положений» по памяти — все нормативные документы (329-ФЗ, приказ № 22, приказ № 554, «боевая арена»)"}
             <Textarea
               rows={3}
               value={s("norm")}
@@ -115,9 +118,20 @@ export function APracticum({
           <h2 className="text-[18px]">Регламент</h2>
           <p className="text-[14px] text-[var(--text-2)]">
             Пиши полными предложениями, как в официальном документе. Разделы 1–5
-            обязательные — названия ровно такие. 6–8 добавляют баллы за
-            качество.
+            обязательные — названия ровно такие. 6–12 добавляют баллы за
+            качество. После «Показать разбор» у каждого раздела появится эталон
+            на «3» — сравни со своим текстом.
           </p>
+          {/* Режим самопроверки: прячем подсказки-галочки и начало пунктов, остаются только названия разделов */}
+          <label className="flex items-center gap-2 self-start rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-[14px] font-medium text-[var(--text)]">
+            <input
+              type="checkbox"
+              checked={hide}
+              onChange={(e) => set("hideHints", e.target.checked)}
+              disabled={readOnly}
+            />
+            Скрыть подсказки — пишу по памяти
+          </label>
           {A_REG.map((r) => {
             const n = s(r.id).trim().length;
             return (
@@ -130,6 +144,7 @@ export function APracticum({
                     </span>
                   )}
                 </h3>
+                {!hide && (
                 <ul className="flex flex-col gap-1">
                   {r.need.map((t, i) => (
                     <li key={i}>
@@ -148,9 +163,10 @@ export function APracticum({
                     </li>
                   ))}
                 </ul>
+                )}
                 <Textarea
                   rows={6}
-                  placeholder={r.start}
+                  placeholder={hide ? "" : r.start}
                   value={s(r.id)}
                   onChange={(e) => set(r.id, e.target.value)}
                   disabled={readOnly}
@@ -165,6 +181,15 @@ export function APracticum({
                 >
                   {n} знаков · цель {r.min}+
                 </p>
+                {/* Эталон раздела — только после разбора (или у тренера), чтобы не списывать */}
+                {(review || readOnly) && (
+                  <details className="rounded-[var(--radius-control)] border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2">
+                    <summary className="cursor-pointer text-[14px] font-medium text-[var(--success-ink)]">
+                      Эталон на «3» — сравнить
+                    </summary>
+                    <p className="mt-2 whitespace-pre-wrap text-[14px] text-[var(--text)]">{r.model}</p>
+                  </details>
+                )}
               </div>
             );
           })}
