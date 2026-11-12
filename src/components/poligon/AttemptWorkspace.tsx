@@ -183,9 +183,10 @@ export function AttemptWorkspace({
         </p>
       </div>
 
-      {workbook && !closed && <WorkbookView id={workbook} initial={initialWorkbook ?? {}} onChange={onWorkbook} />}
+      {workbook && !closed && <WorkbookView id={workbook} initial={initialWorkbook ?? {}} onChange={onWorkbook} attemptId={attemptId} />}
 
-      {/* Что сдать */}
+      {/* Что сдать. В «Модуле А за 4 часа» файлы загружаются внутри каждого задания — общий блок не нужен */}
+      {workbook !== "a-four" && (
       <section className="surface-card p-4">
         <h2 className="mb-2 text-[17px]">{workbook ? "Файлы (если делал что-то в Word или PowerPoint)" : "Загрузи результат"}</h2>
         <ul className="mb-3 flex list-disc flex-col gap-0.5 pl-5 text-[14px] text-[var(--text-2)]">
@@ -226,6 +227,7 @@ export function AttemptWorkspace({
           </ul>
         )}
       </section>
+      )}
 
       {/* Комментарий */}
       <section className="surface-card p-4">

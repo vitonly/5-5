@@ -22,6 +22,7 @@ import { GradeForm } from "@/components/poligon/admin/GradeForm";
 import { CopyForReview } from "@/components/poligon/admin/CopyForReview";
 import { WorkbookView } from "@/components/poligon/workbooks/WorkbookView";
 import { A_WORKBOOK_PARTS, parseWorkbook, workbookText } from "@/lib/poligon/a-practicum";
+import { aFourText } from "@/lib/poligon/a-four";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,9 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
       ? [
           "",
           `Тетрадь (${variant.workbook}):`,
-          variant.workbook.startsWith("a-")
+          variant.workbook === "a-four"
+            ? aFourText(parseWorkbook(attempt.workbook), base)
+            : variant.workbook.startsWith("a-")
             ? workbookText(parseWorkbook(attempt.workbook), A_WORKBOOK_PARTS[variant.workbook])
             : Object.entries(parseWorkbook(attempt.workbook)).map(([k, v]) => `${k}: ${v}`).join("\n"),
         ]
