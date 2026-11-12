@@ -127,7 +127,7 @@ export type SlideFigure = {
  * v-sim — симулятор неисправностей, v-cmd — командная строка, v-where — пути в Windows и разъёмы, v-docs — акт и отчёт.
  */
 export type WorkbookId =
-  | "a-practicum" | "a-reg" | "a-grid" | "a-pres" | "a-app"
+  | "a-practicum" | "a-reg" | "a-grid" | "a-pres" | "a-app" | "a-four"
   | "b-clean" | "b-calc" | "b-charts" | "b-pres"
   | "v-sim" | "v-cmd" | "v-where" | "v-docs";
 

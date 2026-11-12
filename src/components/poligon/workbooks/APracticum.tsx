@@ -77,7 +77,7 @@ export function APracticum({
 
   async function copyAll() {
     try {
-      await navigator.clipboard.writeText(workbookText(w));
+      await navigator.clipboard.writeText(workbookText(w, parts));
       toast.success("Скопировано — вставь в Word");
     } catch {
       toast.error("Не получилось скопировать");
