@@ -7,12 +7,14 @@
 import { inflateRawSync } from "zlib";
 import type { DocPara, Extract } from "./a-four";
 
-/** Не распаковываем гигантов: архив до 64 МБ, один XML до 30 МБ */
+/** Не распаковываем гигантов: архив до 64 МБ, один XML до 30 МБ, всё вместе до 80 МБ */
 const MAX_XML = 30 * 1024 * 1024;
+const MAX_TOTAL = 80 * 1024 * 1024;
 
 /** Прочитать ZIP: имя файла внутри архива → его байты (только нужные имена) */
 export function readZip(buf: Buffer, want: (name: string) => boolean): Map<string, Buffer> {
   const out = new Map<string, Buffer>();
+  let total = 0; // сколько байт уже распаковали
   // Конец центрального каталога (подпись 0x06054b50) ищем с конца файла
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 66_000); i--) {
@@ -41,8 +43,22 @@ export function readZip(buf: Buffer, want: (name: string) => boolean): Map<strin
     const lxlen = buf.readUInt16LE(local + 28);
     const start = local + 30 + lnlen + lxlen;
     const data = buf.subarray(start, start + csize);
-    if (method === 0) out.set(name, Buffer.from(data));
-    else if (method === 8) out.set(name, inflateRawSync(data));
+    // Размер из оглавления архива можно подделать («zip-бомба»), поэтому лимит ставим самой распаковке:
+    // если XML окажется больше — zlib остановится с ошибкой, а не съест всю память сервера
+    let xml: Buffer | null = null;
+    if (method === 0) xml = Buffer.from(data);
+    else if (method === 8) {
+      try {
+        xml = inflateRawSync(data, { maxOutputLength: MAX_XML });
+      } catch {
+        throw new Error("файл внутри документа слишком большой или повреждён");
+      }
+    }
+    if (!xml) continue;
+    if (xml.length > MAX_XML) throw new Error("файл внутри документа слишком большой");
+    total += xml.length;
+    if (total > MAX_TOTAL) throw new Error("документ слишком большой после распаковки");
+    out.set(name, xml);
   }
   return out;
 }
