@@ -1,6 +1,14 @@
 import type { CardDesign, CardPattern } from "@/lib/card-design";
 import { CARD_HEIGHT, CARD_WIDTH, SHIELD_PATH } from "@/lib/card-design";
 
+/** Слой с «глубиной» для 3D-наклона: чем больше depth, тем сильнее сдвигается (см. .tilt-layer) */
+function depth(d: number) {
+  return { "--depth": d } as React.CSSProperties;
+}
+
+/** Запас по краям у фото и фона: при наклоне слой сдвигается и край не должен показываться */
+const BLEED = 8;
+
 function PatternLayer({ design }: { design: CardDesign }) {
   const id = design.id;
   const o = design.patternOpacity;
@@ -182,41 +190,52 @@ export function CardFrame({
       <path d={SHIELD_PATH} fill={`url(#${borderId})`} />
 
       <g clipPath={`url(#${clipId})`} transform="translate(3.5, 3.5) scale(0.975)">
-        {photoUrl ? (
-          <image
-            href={photoUrl}
-            x="0"
-            y="0"
-            width={CARD_WIDTH}
-            height={CARD_HEIGHT}
-            preserveAspectRatio="xMidYMid slice"
-          />
-        ) : (
-          <>
-            <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#bg-${design.id})`} />
-            <PatternLayer design={design} />
-            <g transform="translate(90, 110)" opacity="0.45" fill={design.accent}>
-              <ellipse cx="50" cy="35" rx="32" ry="36" />
-              <path d="M10 180 Q10 100 50 88 Q90 100 90 180 Z" />
-            </g>
-          </>
-        )}
+        {/* Задний слой: фото или фон — сдвигается меньше всех */}
+        <g className="tilt-layer" style={depth(0.3)}>
+          {photoUrl ? (
+            <image
+              href={photoUrl}
+              x={-BLEED}
+              y={-BLEED}
+              width={CARD_WIDTH + BLEED * 2}
+              height={CARD_HEIGHT + BLEED * 2}
+              preserveAspectRatio="xMidYMid slice"
+            />
+          ) : (
+            <>
+              <rect
+                x={-BLEED}
+                y={-BLEED}
+                width={CARD_WIDTH + BLEED * 2}
+                height={CARD_HEIGHT + BLEED * 2}
+                fill={`url(#bg-${design.id})`}
+              />
+              <PatternLayer design={design} />
+              <g transform="translate(90, 110)" opacity="0.45" fill={design.accent}>
+                <ellipse cx="50" cy="35" rx="32" ry="36" />
+                <path d="M10 180 Q10 100 50 88 Q90 100 90 180 Z" />
+              </g>
+            </>
+          )}
+        </g>
 
-        {/* Сила поверх фото */}
-        <text
-          x="28"
-          y="72"
-          fill={design.text}
-          fontSize="52"
-          fontWeight="900"
-          fontFamily="system-ui, sans-serif"
-          style={{ filter: `drop-shadow(0 2px 6px rgba(0,0,0,0.8))` }}
-        >
-          {rating}
-        </text>
+        {/* Сила поверх фото — передний слой, сдвигается сильнее всех */}
+        <g className="tilt-layer" style={depth(1)}>
+          <text
+            x="28"
+            y="72"
+            fill={design.text}
+            fontSize="52"
+            fontWeight="900"
+            fontFamily="system-ui, sans-serif"
+            style={{ filter: `drop-shadow(0 2px 6px rgba(0,0,0,0.8))` }}
+          >
+            {rating}
+          </text>
+        </g>
 
         {!hideName && (
-          <>
+          <g className="tilt-layer" style={depth(0.65)}>
             {/* Name bar */}
             <rect
               x="24"
@@ -264,10 +283,118 @@ export function CardFrame({
                 </text>
               </>
             )}
-          </>
+          </g>
         )}
 
         {/* Shine line top */}
+        <path
+          d="M20 22 L130 22 L140 14 L150 22 L260 22"
+          stroke={design.shine}
+          strokeWidth="1"
+          fill="none"
+          opacity="0.6"
+        />
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * Оборот FIFA-карточки: тот же щит и цвета, внутри — до 4 крупных цифр сеткой 2×2.
+ * id градиентов с приставкой «b-», чтобы не совпасть с лицевой стороной на той же странице.
+ */
+export function CardBack({
+  design,
+  title,
+  stats,
+  footer,
+  size = CARD_WIDTH,
+}: {
+  design: CardDesign;
+  /** Имя игрока сверху */
+  title: string;
+  /** Цифры: подпись + значение (берутся первые 4) */
+  stats: { label: string; value: string }[];
+  /** Строка внизу, например роль */
+  footer?: string | null;
+  size?: number;
+}) {
+  const id = `b-${design.id}`;
+  // Центры клеток сетки 2×2: столбцы и строки
+  const cols = [80, 200];
+  const rows = [150, 240];
+
+  return (
+    <svg
+      viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`}
+      width={size}
+      height={Math.round((size * CARD_HEIGHT) / CARD_WIDTH)}
+      className="block h-auto max-w-full"
+      style={{ filter: `drop-shadow(0 12px 32px ${design.glow})` }}
+      role="img"
+      aria-label={`${title}: ${stats.map((s) => `${s.label} ${s.value}`).join(", ")}`}
+    >
+      <defs>
+        <clipPath id={`clip-${id}`}>
+          <path d={SHIELD_PATH} />
+        </clipPath>
+        <linearGradient id={`border-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={design.borderGradient[0]} />
+          <stop offset="50%" stopColor={design.borderGradient[1]} />
+          <stop offset="100%" stopColor={design.borderGradient[2]} />
+        </linearGradient>
+        <linearGradient id={`bg-${id}`} x1="100%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%" stopColor={design.bgGradient[0]} />
+          <stop offset="55%" stopColor={design.bgGradient[1]} />
+          <stop offset="100%" stopColor={design.bgGradient[2]} />
+        </linearGradient>
+      </defs>
+
+      <path d={SHIELD_PATH} fill={`url(#border-${id})`} />
+
+      <g clipPath={`url(#clip-${id})`} transform="translate(3.5, 3.5) scale(0.975)">
+        <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={`url(#bg-${id})`} />
+        {/* Затемнение, чтобы цифры читались на любом фоне */}
+        <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill="rgba(0,0,0,0.35)" />
+        <circle cx="220" cy="300" r="70" fill={design.accent} opacity="0.08" />
+        <circle cx="50" cy="90" r="45" fill={design.accentAlt} opacity="0.08" />
+
+        <g fill={design.text} fontFamily="system-ui, sans-serif" textAnchor="middle">
+          <text x={CARD_WIDTH / 2} y="50" fontSize="12" fontWeight="700" letterSpacing="2" opacity="0.7">
+            СТАТИСТИКА
+          </text>
+          <text x={CARD_WIDTH / 2} y="76" fontSize="18" fontWeight="900">
+            {fitLine(title.toUpperCase(), 18)}
+          </text>
+
+          {/* Тонкие линии сетки */}
+          <g stroke={design.text} strokeWidth="1" opacity="0.15">
+            <line x1="140" y1="112" x2="140" y2="278" />
+            <line x1="36" y1="195" x2="244" y2="195" />
+          </g>
+
+          {stats.slice(0, 4).map((s, i) => {
+            const x = cols[i % 2];
+            const y = rows[Math.floor(i / 2)];
+            return (
+              <g key={s.label}>
+                <text x={x} y={y} fontSize="38" fontWeight="900">
+                  {fitLine(s.value, 6)}
+                </text>
+                <text x={x} y={y + 24} fontSize="15" fontWeight="700" letterSpacing="1" opacity="0.75">
+                  {s.label.toUpperCase()}
+                </text>
+              </g>
+            );
+          })}
+
+          {footer && (
+            <text x={CARD_WIDTH / 2} y="318" fontSize="15" fontWeight="700" opacity="0.85">
+              {fitLine(footer, 24)}
+            </text>
+          )}
+        </g>
+
         <path
           d="M20 22 L130 22 L140 14 L150 22 L260 22"
           stroke={design.shine}

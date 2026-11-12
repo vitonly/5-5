@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ViewTransition } from "react";
 import { prisma } from "@/lib/db";
-import { PlayerCard } from "@/components/PlayerCard";
+import { PlayerCard, PlayerCardBack } from "@/components/PlayerCard";
 import { RatingBreakdown } from "@/components/RatingBreakdown";
 import { PointHistory } from "@/components/PointHistory";
 import { WeeklyPointsChart } from "@/components/WeeklyPointsChart";
@@ -19,7 +19,7 @@ import { SHIELD_CLIP } from "@/lib/fx";
 import { DOTA_ROLE_LABELS, SEASON_LABELS, rankLabel } from "@/lib/labels";
 import { parseSecondaryRoles } from "@/lib/secondary-roles";
 import { cn, displayName } from "@/lib/utils";
-import { getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
+import { formatPoints, getActiveSeasonId, getSeasonLeaderboard } from "@/lib/points";
 import { getVotingSeason } from "@/lib/seasons";
 import { seasonPlayerIds } from "@/lib/season-participants";
 import { ensureTelegramLinkToken, isTelegramLinked } from "@/lib/telegram-links";
@@ -313,9 +313,28 @@ export async function PlayerProfileView({
       <section className="surface-card overflow-hidden">
         <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-4 gap-y-4 p-4 min-[720px]:grid-cols-[220px_minmax(0,1fr)] min-[720px]:grid-rows-[auto_1fr] min-[720px]:gap-x-8 min-[720px]:gap-y-5 min-[720px]:p-6">
           <div className="col-start-1 row-start-1 min-[720px]:row-span-2">
-            <TiltCard shape={SHIELD_CLIP}>
+            {/* Нажатие переворачивает карточку: на обороте главные цифры сезона */}
+            <TiltCard
+              shape={SHIELD_CLIP}
+              flipLabel="Перевернуть карточку: статистика игрока"
+              back={
+                <PlayerCardBack
+                  user={user}
+                  profile={profile}
+                  size={220}
+                  stats={[
+                    { label: "Место", value: place != null ? `#${place}` : "—" },
+                    { label: "Побед", value: winrate != null ? `${winrate}%` : "—" },
+                    { label: "Игр", value: String(matchesPlayed) },
+                    { label: "Очки", value: formatPoints(seasonPoints) },
+                  ]}
+                  footer={profile.primaryRole ? DOTA_ROLE_LABELS[profile.primaryRole] : null}
+                />
+              }
+            >
               <PlayerCard user={user} profile={profile} size={220} hideName />
             </TiltCard>
+            <p className="mt-2 text-center text-[11px] text-[var(--text-3)]">Нажми — перевернётся</p>
             <MotionChip className="mt-2 h-7 px-2 text-[11px]" />
           </div>
 

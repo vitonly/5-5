@@ -1,4 +1,4 @@
-import { CardFrame } from "@/components/CardFrame";
+import { CardBack, CardFrame } from "@/components/CardFrame";
 import { cardSeed, generateCardDesign } from "@/lib/card-design";
 import type { DotaRole } from "@prisma/client";
 
@@ -42,4 +42,23 @@ export function PlayerCard({
       hideName={hideName}
     />
   );
+}
+
+/** Оборот карточки игрока: те же цвета, что у лицевой стороны, и цифры профиля */
+export function PlayerCardBack({
+  user,
+  profile,
+  stats,
+  footer,
+  size,
+}: Pick<PlayerCardProps, "user"> & {
+  profile: Pick<PlayerCardProps["profile"], "finalRating">;
+  stats: { label: string; value: string }[];
+  footer?: string | null;
+  size?: number;
+}) {
+  const design = generateCardDesign(cardSeed(user), profile.finalRating);
+  const name = [user.firstName || user.username || "Игрок", user.lastName].filter(Boolean).join(" ");
+
+  return <CardBack design={design} title={name} stats={stats} footer={footer} size={size} />;
 }
