@@ -433,6 +433,14 @@ export function crossCheck(w: Workbook): ReviewCard {
 /** Части тетради модуля А */
 export type APart = "reg" | "grid" | "pres" | "app";
 export const A_ALL_PARTS: APart[] = ["reg", "grid", "pres", "app"];
+/** Какие части тетради входят в каждый тренажёр модуля А (по id тетради) */
+export const A_WORKBOOK_PARTS: Record<string, APart[]> = {
+  "a-practicum": A_ALL_PARTS,
+  "a-reg": ["reg"],
+  "a-grid": ["grid"],
+  "a-pres": ["pres"],
+  "a-app": ["app"],
+};
 
 /** Разбор: регламент, сетка, презентация, заявка; сверка между файлами — только когда заполнены все части */
 export function reviewWorkbook(w: Workbook, parts: APart[] = A_ALL_PARTS): ReviewCard[] {
@@ -566,16 +574,23 @@ function reviewAll(w: Workbook): ReviewCard[] {
   return R;
 }
 
-/** Работа текстом — тренеру и для переноса в Word */
-export function workbookText(w: Workbook): string {
-  return [
+/**
+ * Работа текстом — тренеру и для переноса в Word.
+ * parts — какие части тетради копировать: в тренажёре «Регламент» только регламент, а не пустые сетка, слайды и заявка.
+ */
+export function workbookText(w: Workbook, parts: APart[] = A_ALL_PARTS): string {
+  const reg = [
     "Участник № __",
     "ПОЛОЖЕНИЕ о проведении любительского турнира «Кубок Профессионалов» по компьютерному спорту, дисциплина «боевая арена» (Dota 2)",
     "",
     ...A_REG.flatMap((s) => [s.title, str(w, s.id) || "(не написано)", ""]),
+  ];
+  const grid = [
     "Сетка (Single Elimination, 8 команд):",
     ...A_MATCHES.map((m) => `${m.label} (${m.round}, ${m.bo}) ${str(w, `${m.id}t`) || "время не указано"}: ${sideName(w, m.a)} — ${sideName(w, m.b)} → ${w[`${m.id}w`] ? winnerName(w, m.id) : "?"}`),
     "",
+  ];
+  const pres = [
     "Бренд:",
     ...A_BRAND.map((b) => `  ${b.label}: ${str(w, b.id) || "—"}`),
     "",
@@ -588,9 +603,14 @@ export function workbookText(w: Workbook): string {
       ...(s.id === "s8" ? A_PACKS.map((_, i) => `  ${str(w, `pk${i}n`) || A_PACKS[i]}: ${str(w, `pk${i}v`) || "—"} — ${str(w, `pk${i}g`) || "—"}`) : []),
       "",
     ]),
+  ];
+  const app = [
     "ЗАЯВКА на проведение киберспортивного мероприятия",
     ...A_FORM.flatMap(([g, fields], gi) => [g, ...fields.map((f, fi) => `  ${f}: ${zv(w, gi, fi) || "(пусто)"}`)]),
-  ].join("\n");
+  ];
+  // Склеиваем только выбранные части, в обычном порядке модуля
+  const byPart: Record<APart, string[]> = { reg, grid, pres, app };
+  return A_ALL_PARTS.filter((p) => parts.includes(p)).flatMap((p) => byPart[p]).join("\n").trim();
 }
 
 export function parseWorkbook(raw: string | null | undefined): Workbook {
