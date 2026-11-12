@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
- * Число «докручивается» от 0 до значения, когда впервые попадает в экран.
+ * Число «докручивается» от 0 (или от from) до значения, когда впервые попадает в экран.
  * ease-out, ~700 мс; при prefers-reduced-motion сразу показывает итог.
  */
 export function CountUp({
@@ -15,6 +15,7 @@ export function CountUp({
   prefix = "",
   suffix = "",
   className,
+  from = 0,
 }: {
   value: number;
   decimals?: number | "auto";
@@ -22,6 +23,8 @@ export function CountUp({
   prefix?: string;
   suffix?: string;
   className?: string;
+  /** С какого числа начинать (например, сколько очков было в прошлый раз) */
+  from?: number;
 }) {
   const [shown, setShown] = useState(value);
   const ref = useRef<HTMLSpanElement>(null);
@@ -43,11 +46,11 @@ export function CountUp({
     }
     const el = ref.current;
     if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || value === 0) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || value === from) {
       setShown(value);
       return;
     }
-    setShown(0);
+    setShown(from);
 
     let raf = 0;
     const target = value;
@@ -57,7 +60,7 @@ export function CountUp({
       const tick = (t: number) => {
         const p = Math.min(1, (t - t0) / duration);
         const eased = 1 - Math.pow(1 - p, 3);
-        setShown(target * eased);
+        setShown(from + (target - from) * eased);
         if (p < 1) raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -77,7 +80,7 @@ export function CountUp({
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [value, duration]);
+  }, [value, duration, from]);
 
   return (
     <span ref={ref} className={className}>

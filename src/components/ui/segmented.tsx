@@ -1,8 +1,9 @@
 "use client";
 
+import { SlidingPill } from "@/components/fx/SlidingPill";
 import { cn } from "@/lib/utils";
 
-/** Переключатель вкладок в стиле навигации: серая дорожка, белая активная плашка */
+/** Переключатель вкладок в стиле навигации: серая дорожка, белая плашка плавно едет к выбранной вкладке */
 export function Segmented<T extends string>({
   value,
   onChange,
@@ -21,11 +22,12 @@ export function Segmented<T extends string>({
     <div
       role="tablist"
       className={cn(
-        "no-scrollbar flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1",
+        "pill-track no-scrollbar flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1",
         stretch ? "min-[720px]:inline-flex" : "inline-flex",
         className
       )}
     >
+      <SlidingPill activeKey={value} />
       {items.map((it) => {
         const active = it.value === value;
         return (

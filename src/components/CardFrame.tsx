@@ -381,7 +381,7 @@ export function CardBack({
                 <text x={x} y={y} fontSize="38" fontWeight="900">
                   {fitLine(s.value, 6)}
                 </text>
-                <text x={x} y={y + 24} fontSize="15" fontWeight="700" letterSpacing="1" opacity="0.75">
+                <text x={x} y={y + 26} fontSize="18" fontWeight="700" letterSpacing="0.5" opacity="0.8">
                   {s.label.toUpperCase()}
                 </text>
               </g>

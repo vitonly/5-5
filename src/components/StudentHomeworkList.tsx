@@ -4,12 +4,12 @@ import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, ChevronDown, FileUp, MessageSquareWarning, Paperclip, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/page-header";
 import { Segmented } from "@/components/ui/segmented";
 import { toast } from "@/components/ui/toast";
 import { HomeworkMaterials } from "@/components/HomeworkMaterials";
+import { ActionButton, useActionStatus } from "@/components/fx/ActionButton";
 import { HOMEWORK_STATUS_LABELS } from "@/lib/labels";
 import { POINT_VALUES, formatPoints } from "@/lib/points";
 import { formatShortDateTime } from "@/lib/format";
@@ -255,7 +255,8 @@ function HomeworkCard({
   const [text, setText] = useState("");
   const [files, setFiles] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // Кнопка «Отправить»: загрузка → галочка с салютом → карточка обновляется
+  const { status: sendStatus, run: runSend } = useActionStatus();
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -315,22 +316,25 @@ function HomeworkCard({
   }
 
   async function submit() {
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/homework", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignmentId: assignment.id, textAnswer: text, fileUrls: files }),
+    const ok = await runSend(async () => {
+      const res = await fetch("/api/homework", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId: assignment.id, textAnswer: text, fileUrls: files }),
+      }).catch(() => null);
+      if (!res?.ok) {
+        setError("Не удалось отправить");
+        toast.error("Не удалось отправить работу");
+        return false;
+      }
+      toast.success(isRevision ? "Доработка отправлена тренеру" : "Работа отправлена на проверку");
+      return true;
     });
-    setLoading(false);
-    if (!res.ok) {
-      setError("Не удалось отправить");
-      toast.error("Не удалось отправить работу");
-      return;
-    }
+    // Галочку уже показали — теперь очищаем форму и обновляем список
+    if (!ok) return;
     setText("");
     setFiles([]);
-    toast.success(isRevision ? "Доработка отправлена тренеру" : "Работа отправлена на проверку");
     onSubmitted();
   }
 
@@ -492,13 +496,17 @@ function HomeworkCard({
 
               {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-              <Button
+              <ActionButton
+                status={sendStatus}
                 onClick={submit}
-                disabled={loading || !text.trim() || busy}
+                disabled={!text.trim() || busy}
                 className="w-full min-[720px]:w-auto"
+                loadingText="Отправка…"
+                successText="Отправлено"
+                celebrate
               >
-                {loading ? "Отправка…" : isRevision ? "Отправить доработку" : "Отправить на проверку"}
-              </Button>
+                {isRevision ? "Отправить доработку" : "Отправить на проверку"}
+              </ActionButton>
             </div>
           )}
 

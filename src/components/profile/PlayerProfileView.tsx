@@ -13,6 +13,7 @@ import { ProfileForm } from "@/components/ProfileForm";
 import { TelegramConnect } from "@/components/TelegramConnect";
 import { ProfileTabs, type ProfileTab } from "@/components/profile/ProfileTabs";
 import { CountUp } from "@/components/fx/CountUp";
+import { PointsGain } from "@/components/fx/PointsGain";
 import { TiltCard } from "@/components/fx/TiltCard";
 import { MotionChip } from "@/components/fx/MotionChip";
 import { SHIELD_CLIP } from "@/lib/fx";
@@ -357,7 +358,16 @@ export async function PlayerProfileView({
               </div>
               <span className="mt-2.5 inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--points-border)] bg-[var(--points-bg)] px-2.5 text-[var(--points-ink)] min-[720px]:mt-0 min-[720px]:h-9 min-[720px]:gap-2 min-[720px]:px-3.5">
                 <span className="inline-block h-[7px] w-[7px] bg-[var(--points)] min-[720px]:h-2 min-[720px]:w-2" style={{ transform: "rotate(45deg)" }} aria-hidden />
-                <CountUp value={seasonPoints} className="font-mono-num text-[13px] font-semibold min-[720px]:text-[17px] min-[720px]:font-bold" />
+                {/* В своём профиле очки «набегают» с прошлого захода, с салютом и «+N» */}
+                {isOwn ? (
+                  <PointsGain
+                    value={seasonPoints}
+                    storageKey={`startplus:season-points:${user.id}`}
+                    className="font-mono-num text-[13px] font-semibold min-[720px]:text-[17px] min-[720px]:font-bold"
+                  />
+                ) : (
+                  <CountUp value={seasonPoints} className="font-mono-num text-[13px] font-semibold min-[720px]:text-[17px] min-[720px]:font-bold" />
+                )}
                 <span className="text-[11px] font-medium min-[720px]:text-[12px]">
                   очк.<span className="hidden min-[720px]:inline"> в сезоне</span>
                 </span>

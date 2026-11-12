@@ -309,15 +309,17 @@ function RoomLineup({
 }) {
   const showPower = viewer.role === "ADMIN";
 
-  const tile = (slot: LineupSlot) => {
+  // side: −1 — левая команда (вылетает слева), 1 — правая; i — порядок, чтобы плитки появлялись по очереди
+  const tile = (slot: LineupSlot, i: number, side: -1 | 1) => {
     const u = userMap[slot.userId];
     const me = slot.userId === viewer.id;
     const isMvp = Boolean(mvpId && slot.userId === mvpId);
     return (
       <li
         key={slot.userId}
+        style={{ "--i": i, "--side": side } as React.CSSProperties}
         className={cn(
-          "flex min-h-[48px] items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 min-[720px]:gap-3 min-[720px]:px-3",
+          "fan-in flex min-h-[48px] items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 min-[720px]:gap-3 min-[720px]:px-3",
           me ? "bg-[var(--points-bg)]" : "bg-[var(--surface-muted)]"
         )}
       >
@@ -359,8 +361,9 @@ function RoomLineup({
 
   return (
     <div className="mt-4 grid grid-cols-2 gap-2 min-[720px]:gap-3">
-      <ul className="space-y-1.5 min-[720px]:space-y-2">{radiant.map(tile)}</ul>
-      <ul className="space-y-1.5 min-[720px]:space-y-2">{dire.map(tile)}</ul>
+      {/* Составы раскрываются веером: плитки по очереди вылетают со своей стороны */}
+      <ul className="space-y-1.5 min-[720px]:space-y-2">{radiant.map((slot, i) => tile(slot, i, -1))}</ul>
+      <ul className="space-y-1.5 min-[720px]:space-y-2">{dire.map((slot, i) => tile(slot, i, 1))}</ul>
     </div>
   );
 }

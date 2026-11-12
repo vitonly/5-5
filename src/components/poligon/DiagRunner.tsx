@@ -16,11 +16,10 @@ import {
   type DiagAnswers,
   type DiagItem,
 } from "@/content/poligon/diag";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { confirmAction } from "@/components/ui/confirm";
+import { HoldButton } from "@/components/fx/HoldButton";
 import { cn } from "@/lib/utils";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -29,7 +28,6 @@ export function DiagRunner({ initial }: { initial: DiagAnswers }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<DiagAnswers>(initial);
   const [save, setSave] = useState<SaveState>("idle");
-  const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(answers);
 
@@ -63,25 +61,27 @@ export function DiagRunner({ initial }: { initial: DiagAnswers }) {
   const done = DIAG_ITEMS.filter((it) => isDiagAnswered(it, answers[it.id])).length;
   const total = DIAG_ITEMS.length;
 
+  const left = total - done;
+
+  /** Отправка после удержания кнопки: true — получилось (на кнопке появится галочка) */
   async function submit() {
-    const left = total - done;
-    const ok = await confirmAction(
-      `${left ? `Без ответа: ${left}. ` : ""}Отправить тест? После отправки ответы уже не изменить.`,
-      { confirmLabel: "Отправить" }
-    );
-    if (!ok) return;
     if (timer.current) clearTimeout(timer.current);
-    setBusy(true);
     const res = await fetch("/api/poligon/diag", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answers: latest.current }),
     }).catch(() => null);
-    setBusy(false);
-    if (!res?.ok) return toast.error("Не получилось отправить. Проверь интернет и нажми ещё раз.");
+    if (!res?.ok) {
+      toast.error("Не получилось отправить. Проверь интернет и удержи кнопку ещё раз.");
+      return false;
+    }
     toast.success("Тест отправлен");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    router.refresh();
+    // Чуть позже, когда галочку уже увидели, — наверх и показать «Тест отправлен»
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      router.refresh();
+    }, 900);
+    return true;
   }
 
   // Сквозная нумерация вопросов внутри раздела: «А-1», «Б-3»…
@@ -151,9 +151,17 @@ export function DiagRunner({ initial }: { initial: DiagAnswers }) {
               <div className="h-full bg-[var(--points-ink)] transition-[width]" style={{ width: `${(done / total) * 100}%` }} />
             </div>
           </div>
-          <Button onClick={submit} disabled={busy}>
-            {busy ? "Отправляю…" : "Завершить тест"}
-          </Button>
+          {/* Удерживать, а не просто нажать: после отправки ответы уже не изменить */}
+          <HoldButton
+            onConfirm={submit}
+            holdText="Держи — отправляю…"
+            loadingText="Отправляю…"
+            successText="Отправлено"
+            hint={left ? `Удерживай. Без ответа: ${left}` : "Удерживай, чтобы отправить"}
+            celebrate
+          >
+            Завершить тест
+          </HoldButton>
         </div>
       </div>
     </div>

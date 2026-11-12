@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isTouchOnly, subscribeTilt } from "@/components/fx/motion";
 
@@ -10,6 +11,7 @@ import { isTouchOnly, subscribeTilt } from "@/components/fx/motion";
  * (относительно того, как держат телефон; «ноль» плавно подстраивается).
  * Слои внутри карточки (класс .tilt-layer) сдвигаются на разную глубину — получается объём.
  * Если передан back — по нажатию карточка переворачивается и показывает оборот.
+ * flipButton — переворачивать маленькой кнопкой ↻ в углу (когда сама карточка — ссылка).
  * При prefers-reduced-motion — обычная карточка без движения.
  */
 export function TiltCard({
@@ -19,6 +21,7 @@ export function TiltCard({
   shape,
   back,
   flipLabel = "Перевернуть карточку",
+  flipButton = false,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -29,6 +32,8 @@ export function TiltCard({
   back?: React.ReactNode;
   /** Подпись для экранного диктора */
   flipLabel?: string;
+  /** Переворот кнопкой в углу, а не нажатием на всю карточку */
+  flipButton?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const frame = useRef(0);
@@ -120,28 +125,51 @@ export function TiltCard({
 
   const glare = <span className="tilt-glare" style={shape ? { clipPath: shape } : undefined} aria-hidden />;
 
+  // Кнопка ↻ — на обеих сторонах, чтобы можно было и перевернуть, и вернуть обратно
+  const flipBtn = (
+    <button
+      type="button"
+      className="flip-btn"
+      aria-label={flipLabel}
+      aria-pressed={flipped}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setFlipped((f) => !f);
+      }}
+    >
+      <RefreshCw aria-hidden />
+    </button>
+  );
+
+  // Переворот по нажатию на всю карточку (без кнопки)
+  const wholeCard = flipButton
+    ? {}
+    : {
+        role: "button" as const,
+        tabIndex: 0,
+        "aria-pressed": flipped,
+        "aria-label": flipLabel,
+        onClick: () => setFlipped((f) => !f),
+        onKeyDown: onKey,
+      };
+
   return (
     <div className={cn("tilt-scene", className)}>
       <div ref={ref} className="tilt-card" onPointerMove={onMove} onPointerLeave={onLeave}>
         {back ? (
           // Две стороны в одном «листе»: лицо и оборот, оборот заранее развёрнут на 180°
-          <div
-            className="flip-inner"
-            data-flipped={flipped}
-            role="button"
-            tabIndex={0}
-            aria-pressed={flipped}
-            aria-label={flipLabel}
-            onClick={() => setFlipped((f) => !f)}
-            onKeyDown={onKey}
-          >
-            <div className="flip-face" aria-hidden={flipped}>
+          <div className="flip-inner" data-flipped={flipped} data-button={flipButton || undefined} {...wholeCard}>
+            {/* inert — невидимую сторону нельзя нажать и в неё не попадёт фокус */}
+            <div className="flip-face" inert={flipped}>
               {children}
               {glare}
+              {flipButton && flipBtn}
             </div>
-            <div className="flip-face flip-back" aria-hidden={!flipped}>
+            <div className="flip-face flip-back" inert={!flipped}>
               {back}
               {glare}
+              {flipButton && flipBtn}
             </div>
           </div>
         ) : (

@@ -4,13 +4,13 @@
  * Тренер: кнопки на странице диагностики.
  * «Скопировать для Claude» — весь тест одним текстом (вопросы, ответы, автооценка, ключи),
  * его вставляешь в чат с Claude, он оценивает развёрнутые ответы и собирает план.
- * «Сбросить попытку» — ученик сможет пройти тест заново.
+ * «Сбросить попытку» — ученик сможет пройти тест заново (нужно удержать кнопку).
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { confirmAction } from "@/components/ui/confirm";
+import { HoldButton } from "@/components/fx/HoldButton";
 
 export function DiagAdminActions({ userId, text }: { userId: string; text: string }) {
   const router = useRouter();
@@ -26,12 +26,16 @@ export function DiagAdminActions({ userId, text }: { userId: string; text: strin
     }
   }
 
+  /** Сброс после удержания кнопки: true — получилось */
   async function reset() {
-    if (!(await confirmAction("Сбросить диагностику? Все ответы ученика удалятся, он пройдёт тест заново."))) return;
     const res = await fetch(`/api/admin/poligon/diag/${userId}`, { method: "DELETE" }).catch(() => null);
-    if (!res?.ok) return toast.error("Не получилось сбросить");
+    if (!res?.ok) {
+      toast.error("Не получилось сбросить");
+      return false;
+    }
     toast.success("Попытка сброшена");
-    router.refresh();
+    setTimeout(() => router.refresh(), 900);
+    return true;
   }
 
   return (
@@ -41,9 +45,15 @@ export function DiagAdminActions({ userId, text }: { userId: string; text: strin
         <Button variant="outline" onClick={() => setShow((s) => !s)}>
           {show ? "Скрыть текст" : "Показать текст"}
         </Button>
-        <Button variant="ghost" onClick={reset}>
+        <HoldButton
+          variant="ghost"
+          onConfirm={reset}
+          holdText="Держи — сбрасываю…"
+          successText="Сброшено"
+          hint="Удерживай: ответы ученика удалятся"
+        >
           Сбросить попытку
-        </Button>
+        </HoldButton>
       </div>
       {show && (
         <textarea

@@ -3,7 +3,7 @@
 import { toast } from "@/components/ui/toast";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { ActionButton, useActionStatus } from "@/components/fx/ActionButton";
 import { displayName } from "@/lib/utils";
 
 type Nominee = {
@@ -44,7 +44,9 @@ export function MatchMvpClient({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState(false);
+  // За кого голосуем сейчас — на его кнопке будет загрузка, потом галочка с салютом
+  const [votingId, setVotingId] = useState<string | null>(null);
+  const { status: voteStatus, run: runVote } = useActionStatus();
 
   useEffect(() => {
     let cancelled = false;
@@ -59,26 +61,27 @@ export function MatchMvpClient({
   }, [sessionId]);
 
   async function vote(nomineeId: string) {
-    setBusy(true);
-    try {
+    setVotingId(nomineeId);
+    const ok = await runVote(async () => {
       const res = await fetch("/api/matches/mvp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, nomineeId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Не удалось проголосовать");
-        return;
+      }).catch(() => null);
+      const data = await res?.json().catch(() => ({}));
+      if (!res?.ok) {
+        toast.error(data?.error || "Не удалось проголосовать");
+        return false;
       }
       toast.success("Голос за MVP учтён");
-      router.refresh();
-      const st = await fetch(`/api/matches/mvp?sessionId=${sessionId}`);
-      const stData = await st.json().catch(() => ({}));
-      if (stData.status) setStatus(stData.status);
-    } finally {
-      setBusy(false);
-    }
+      return true;
+    });
+    if (!ok) return;
+    // Галочку показали — обновляем страницу и итоги голосования
+    router.refresh();
+    const st = await fetch(`/api/matches/mvp?sessionId=${sessionId}`).catch(() => null);
+    const stData = await st?.json().catch(() => ({}));
+    if (stData?.status) setStatus(stData.status);
   }
 
   if (!status) return null;
@@ -153,15 +156,18 @@ export function MatchMvpClient({
       {turnout}
       <div className="flex flex-wrap gap-2">
         {nominees.map((n) => (
-          <Button
+          <ActionButton
             key={n.id}
             size="sm"
             variant="outline"
-            disabled={busy}
+            status={votingId === n.id ? voteStatus : "idle"}
+            disabled={voteStatus !== "idle" && votingId !== n.id}
             onClick={() => vote(n.id)}
+            successText="Голос учтён"
+            celebrate
           >
             {displayName(n)}
-          </Button>
+          </ActionButton>
         ))}
       </div>
     </div>

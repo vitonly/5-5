@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toast";
-import { confirmAction } from "@/components/ui/confirm";
+import { HoldButton } from "@/components/fx/HoldButton";
 import { SeriesTable } from "@/components/match/SeriesTable";
 import type { SeriesRow } from "@/lib/match-series";
 
@@ -66,14 +66,12 @@ export function AdminSeriesCard({
     }
   }
 
+  /** Закрытие после удержания кнопки: true — получилось */
   async function closeSeries() {
-    if (!series) return;
-    const yes = await confirmAction(
-      `Закрыть мини-сезон «${series.name}»?\nОн пропадёт из 5v5, всё станет как обычно. Таблица и игры сохранятся.`
-    );
-    if (yes && (await send("PATCH", { seriesId: series.id, action: "close" }))) {
-      toast.success("Мини-сезон закрыт");
-    }
+    if (!series) return false;
+    const ok = await send("PATCH", { seriesId: series.id, action: "close" });
+    if (ok) toast.success("Мини-сезон закрыт");
+    return Boolean(ok);
   }
 
   const picker = (
@@ -128,9 +126,15 @@ export function AdminSeriesCard({
           <Button variant="secondary" disabled={busy} onClick={() => setPicking(true)}>
             Участники ({series.participantIds.length})…
           </Button>
-          <Button variant="outline" disabled={busy} onClick={closeSeries}>
+          <HoldButton
+            variant="outline"
+            onConfirm={closeSeries}
+            holdText="Держи — закрываю…"
+            successText="Закрыт"
+            hint="Удерживай. Таблица и игры сохранятся"
+          >
             Закрыть мини-сезон
-          </Button>
+          </HoldButton>
         </div>
         <p className="text-xs text-[var(--text-3)]">
           Игру мини-сезона создают в карточке «Новый 5v5» ниже — выберите «{series.name}».

@@ -10,7 +10,7 @@ import { uploadAppFile } from "@/lib/upload-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { confirmAction } from "@/components/ui/confirm";
+import { HoldButton } from "@/components/fx/HoldButton";
 import { cn } from "@/lib/utils";
 import type { AttemptFile } from "@/lib/poligon/core";
 import type { Deliverable, WorkbookId } from "@/lib/poligon/types";
@@ -54,7 +54,6 @@ export function AttemptWorkspace({
   const [files, setFiles] = useState(initialFiles);
   const [text, setText] = useState(initialText);
   const [uploading, setUploading] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   // Время считаем только в браузере, чтобы сервер и браузер не спорили о секундах
   const [now, setNow] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -129,20 +128,19 @@ export function AttemptWorkspace({
     await save({ files: next });
   }
 
+  /** Сдача после удержания кнопки: true — получилось (на кнопке появится галочка) */
   async function submit() {
-    if (!files.length && !workbook) return toast.error("Сначала загрузи файлы");
-    if (wbTimer.current) clearTimeout(wbTimer.current);
-    const ok = await confirmAction("Сдать работу на проверку? После этого файлы поменять нельзя.", {
-      confirmLabel: "Сдать",
-    });
-    if (!ok) return;
-    setBusy(true);
-    const done = await save({ files, textAnswer: text, submit: true, ...(workbook ? { workbook: wbRef.current } : {}) });
-    setBusy(false);
-    if (done) {
-      toast.success("Сдано! Тренер получил уведомление.");
-      router.refresh();
+    if (!files.length && !workbook) {
+      toast.error("Сначала загрузи файлы");
+      return false;
     }
+    if (wbTimer.current) clearTimeout(wbTimer.current);
+    const done = await save({ files, textAnswer: text, submit: true, ...(workbook ? { workbook: wbRef.current } : {}) });
+    if (!done) return false;
+    toast.success("Сдано! Тренер получил уведомление.");
+    // Обновляем страницу, когда галочку уже увидели
+    setTimeout(() => router.refresh(), 900);
+    return true;
   }
 
   return (
@@ -243,9 +241,19 @@ export function AttemptWorkspace({
       </section>
 
       <div>
-        <Button size="lg" onClick={submit} disabled={busy || closed || (!files.length && !workbook)}>
-          {busy ? "Сдаю…" : "Сдать на проверку"}
-        </Button>
+        {/* Удерживать, а не просто нажать: после сдачи файлы уже не поменять */}
+        <HoldButton
+          size="lg"
+          onConfirm={submit}
+          disabled={closed || (!files.length && !workbook)}
+          holdText="Держи — сдаю…"
+          loadingText="Сдаю…"
+          successText="Сдано"
+          hint="Удерживай — после сдачи файлы не поменять"
+          celebrate
+        >
+          Сдать на проверку
+        </HoldButton>
       </div>
     </div>
   );

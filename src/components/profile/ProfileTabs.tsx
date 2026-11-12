@@ -3,6 +3,7 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { SlidingPill } from "@/components/fx/SlidingPill";
 
 export type ProfileTab = { id: string; label: string; content: React.ReactNode };
 
@@ -30,8 +31,10 @@ function ProfileTabsInner({ tabs, initial }: { tabs: ProfileTab[]; initial?: str
       <div className="sticky top-[97px] z-30 -mx-4 bg-[var(--bg)]/90 px-4 py-2 backdrop-blur-md min-[720px]:static min-[720px]:mx-0 min-[720px]:bg-transparent min-[720px]:px-0 min-[720px]:py-0 min-[720px]:backdrop-blur-none">
         <Tabs.List
           aria-label="Разделы профиля"
-          className="no-scrollbar flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1 min-[720px]:inline-flex"
+          className="pill-track no-scrollbar flex gap-1 overflow-x-auto rounded-[var(--radius-control)] bg-[var(--control)] p-1 min-[720px]:inline-flex"
         >
+          {/* Белая плашка плавно едет под выбранную вкладку */}
+          <SlidingPill activeKey={value} />
           {tabs.map((t) => (
             <Tabs.Trigger
               key={t.id}
