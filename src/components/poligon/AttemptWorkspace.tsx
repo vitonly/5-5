@@ -60,6 +60,26 @@ export function AttemptWorkspace({
   // Тетрадь сохраняем не на каждую букву, а через 1,5 секунды после последнего изменения
   const wbRef = useRef<Workbook>(initialWorkbook ?? {});
   const wbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const [saved, setSaved] = useState("Все изменения сохранены");
+
+  // Запросы идут по очереди: медленный старый ответ не перезапишет новый текст.
+  const saveWorkbook = useCallback((w: Workbook) => {
+    setSaved("Сохраняю…");
+    const job = saveQueue.current.catch(() => undefined).then(async () => {
+      const res = await fetch(`/api/poligon/attempts/${attemptId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workbook: w }),
+      });
+      if (!res.ok) throw new Error("Не получилось сохранить тетрадь");
+      if (JSON.stringify(wbRef.current) === JSON.stringify(w)) {
+        setSaved("Все изменения сохранены");
+        try { localStorage.removeItem(`startplus:b-draft:${attemptId}`); } catch { /* Хранилище может быть выключено в браузере. */ }
+      }
+    });
+    saveQueue.current = job;
+    job.catch(() => { setSaved("Не сохранено — нажми «Сохранить сейчас»"); toast.error("Тетрадь не сохранилась. Повтори сохранение."); });
+    return job;
+  }, [attemptId]);
 
   useEffect(() => {
     // Первое значение — через 0 мс, дальше раз в секунду
@@ -76,32 +96,31 @@ export function AttemptWorkspace({
   const closed = championship && left !== null && left < -graceMin * 60;
 
   async function save(next: { files?: AttemptFile[]; textAnswer?: string; workbook?: Workbook; submit?: boolean }) {
-    const res = await fetch(`/api/poligon/attempts/${attemptId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(next),
-    }).catch(() => null);
-    const data = (await res?.json().catch(() => ({}))) as { error?: string };
-    if (!res?.ok) {
-      toast.error(data?.error ?? "Не получилось сохранить. Проверь интернет.");
-      return false;
-    }
-    return true;
+    const job = saveQueue.current.catch(() => undefined).then(async () => {
+      const res = await fetch(`/api/poligon/attempts/${attemptId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      }).catch(() => null);
+      const data = (await res?.json().catch(() => ({}))) as { error?: string };
+      if (!res?.ok) {
+        toast.error(data?.error ?? "Не получилось сохранить. Проверь интернет.");
+        return false;
+      }
+      return true;
+    });
+    saveQueue.current = job;
+    return job;
   }
 
   const onWorkbook = useCallback(
     (w: Workbook) => {
       wbRef.current = w;
+      setSaved("Есть несохранённые изменения");
       if (wbTimer.current) clearTimeout(wbTimer.current);
-      wbTimer.current = setTimeout(() => {
-        fetch(`/api/poligon/attempts/${attemptId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workbook: w }),
-        }).catch(() => toast.error("Тетрадь не сохранилась — проверь интернет"));
-      }, 1500);
+      wbTimer.current = setTimeout(() => { void saveWorkbook(w).catch(() => undefined); }, 600);
     },
-    [attemptId]
+    [saveWorkbook]
   );
 
   async function onPick(list: FileList | null) {
@@ -121,6 +140,10 @@ export function AttemptWorkspace({
     if (inputRef.current) inputRef.current.value = "";
     if (await save({ files: next })) toast.success("Файлы сохранены");
   }
+  const flushWorkbook = useCallback(async () => {
+    if (wbTimer.current) clearTimeout(wbTimer.current);
+    await saveWorkbook(wbRef.current);
+  }, [saveWorkbook]);
 
   async function remove(url: string) {
     const next = files.filter((f) => f.url !== url);
@@ -135,6 +158,7 @@ export function AttemptWorkspace({
       return false;
     }
     if (wbTimer.current) clearTimeout(wbTimer.current);
+    await saveQueue.current.catch(() => undefined);
     const done = await save({ files, textAnswer: text, submit: true, ...(workbook ? { workbook: wbRef.current } : {}) });
     if (!done) return false;
     toast.success("Сдано! Тренер получил уведомление.");
@@ -181,12 +205,13 @@ export function AttemptWorkspace({
         </p>
       </div>
 
-      {workbook && !closed && <WorkbookView id={workbook} initial={initialWorkbook ?? {}} onChange={onWorkbook} attemptId={attemptId} />}
+      {workbook && !closed && <WorkbookView id={workbook} initial={initialWorkbook ?? {}} onChange={onWorkbook} attemptId={attemptId} onFlush={flushWorkbook} />}
+      {workbook && !closed && <div className="flex flex-wrap items-center gap-3 text-[14px]"><span role="status">{saved}</span><Button variant="outline" onClick={() => { if (wbTimer.current) clearTimeout(wbTimer.current); void saveWorkbook(wbRef.current).catch(() => undefined); }}>Сохранить сейчас</Button></div>}
 
       {/* Что сдать. В «Модуле А за 4 часа» файлы загружаются внутри каждого задания — общий блок не нужен */}
       {workbook !== "a-four" && (
       <section className="surface-card p-4">
-        <h2 className="mb-2 text-[17px]">{workbook ? "Файлы (если делал что-то в Word или PowerPoint)" : "Загрузи результат"}</h2>
+        <h2 className="mb-2 text-[17px]">{workbook?.startsWith("b-practice-") ? "Файлы Excel и PowerPoint для проверки" : workbook ? "Файлы (если делал что-то в Word или PowerPoint)" : "Загрузи результат"}</h2>
         <ul className="mb-3 flex list-disc flex-col gap-0.5 pl-5 text-[14px] text-[var(--text-2)]">
           {deliverables.map((d) => (
             <li key={d.name}>
@@ -245,7 +270,7 @@ export function AttemptWorkspace({
         <HoldButton
           size="lg"
           onConfirm={submit}
-          disabled={closed || (!files.length && !workbook)}
+          disabled={closed || !!uploading || (!files.length && !workbook)}
           holdText="Держи — сдаю…"
           loadingText="Сдаю…"
           successText="Сдано"

@@ -20,6 +20,8 @@ import { Blocks } from "@/components/poligon/Blocks";
 import { CriteriaPreview } from "@/components/poligon/CriteriaPreview";
 import { StartAttemptButton } from "@/components/poligon/StartAttemptButton";
 import { NoAccess } from "@/components/poligon/NoAccess";
+import { isBPractice } from "@/lib/poligon/b-practice";
+import { BPracticeStart } from "@/components/poligon/BPracticeStart";
 
 export const dynamic = "force-dynamic";
 
@@ -36,16 +38,19 @@ export default async function VariantPage({
   if (!mod || !variant) notFound();
 
   const tasks = variantTasks(mod.code, variant);
-  const [running, uploaded] = await Promise.all([
+  const [running, available] = await Promise.all([
     prisma.poligonAttempt.findFirst({
       where: { userId: user.id, variantId: variant.id, status: "IN_PROGRESS" },
       select: { id: true },
     }),
     prisma.poligonVariantFile.findMany({
-      where: { variantId: variant.id },
+      where: { variantId: variant.id === "b-official-two-day" ? { in: [variant.id, "b-chempionat"] } : variant.id },
       orderBy: { createdAt: "asc" },
     }),
   ]);
+  const assigned = available.filter(f => f.variantId === variant.id);
+  // Старое приложение 9 уже могло быть прикреплено: не заставляем загружать его повторно.
+  const uploaded = assigned.length ? assigned : available;
   const championship = variant.kind === "championship";
   // Файлы, которые тренер должен приложить сам, а ещё не приложил
   const missing =
@@ -79,6 +84,9 @@ export default async function VariantPage({
         <Badge variant="points">до {fmtPoints(maxPoints(tasks))} баллов</Badge>
       </div>
 
+      {variant.id === "b-official-two-day" && missing && user.role === "ADMIN" && (
+        <p className="surface-card mb-4 p-4">Прикрепите приложение 9: <Link className="underline" href="/admin/poligon#variant-files">Профессионалы → Файлы заданий → Официальный прогон Б</Link>. Учебные ответы к нему не применяются.</p>
+      )}
       <section className="surface-card mb-4 p-4 min-[720px]:p-6">
         <h2 className="mb-3 text-[18px]">Задание</h2>
         <Blocks blocks={variant.brief} />
@@ -149,6 +157,10 @@ export default async function VariantPage({
               Продолжить попытку →
             </Link>
           </Button>
+        ) : isBPractice(variant.id) ? (
+          <BPracticeStart variantId={variant.id} />
+        ) : missing && championship ? (
+          <p className="text-[var(--warning-ink)]">Сначала наставник должен прикрепить исходный файл. Таймер пока не запускается.</p>
         ) : (
           <StartAttemptButton
             moduleCode={mod.code}

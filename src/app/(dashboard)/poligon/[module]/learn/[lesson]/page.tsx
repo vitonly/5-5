@@ -57,6 +57,11 @@ export default async function LessonPage({ params }: { params: Promise<{ module:
       <article className="surface-card p-4 min-[720px]:p-6">
         <Blocks blocks={lesson.blocks} />
       </article>
+      {lesson.practiceVariantId && (
+        <Button asChild className="mt-4">
+          <Link href={`/poligon/${mod.code}/test/${lesson.practiceVariantId}`}>Отработать навык в Excel →</Link>
+        </Button>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <LessonDoneButton lessonId={lesson.id} initialDone={!!done} />

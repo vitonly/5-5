@@ -87,6 +87,7 @@ export default async function AdminPoligonPage() {
                   <Link className="font-medium text-[var(--points-ink)] underline" href={`/poligon/map?user=${st.id}`}>
                     Карта ошибок
                   </Link>
+                  <Link className="font-medium text-[var(--points-ink)] underline" href={`/admin/poligon/b/${st.id}`}>Практика Б</Link>
                   <Link className="font-medium text-[var(--points-ink)] underline" href={`/admin/poligon/diag/${st.id}`}>
                     Диагностика:{" "}
                     {diagStatus.get(st.id) === "SUBMITTED" ? "отправлена" : diagStatus.has(st.id) ? "черновик" : "нет"}
@@ -111,7 +112,7 @@ export default async function AdminPoligonPage() {
           />
         </section>
         <section className="surface-card p-4">
-          <h2 className="mb-3 text-[18px]">Файлы заданий</h2>
+          <h2 id="variant-files" className="mb-3 text-[18px]">Файлы заданий</h2>
           <div className="flex flex-col gap-4">
             {needFiles.map(({ module, variant }) => (
               <div key={variant.id}>

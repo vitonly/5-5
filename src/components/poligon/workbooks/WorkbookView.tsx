@@ -10,6 +10,7 @@ import { APracticum } from "./APracticum";
 import { AFour } from "./AFour";
 import { BTrainer } from "./BTrainer";
 import { VTrainer } from "./VTrainer";
+import { BPractice } from "./BPractice";
 
 export function WorkbookView({
   id,
@@ -17,6 +18,7 @@ export function WorkbookView({
   readOnly,
   onChange,
   attemptId,
+  onFlush,
 }: {
   id: WorkbookId;
   initial: Workbook;
@@ -24,8 +26,10 @@ export function WorkbookView({
   onChange?: (w: Workbook) => void;
   /** id попытки — нужен «Модулю А за 4 часа» для проверки файлов */
   attemptId?: string;
+  onFlush?: () => Promise<void>;
 }) {
   // Модуль А за 4 часа: задания по очереди в настоящих файлах
+  if (id.startsWith("b-practice-")) return <BPractice id={id} initial={initial} readOnly={readOnly} onChange={onChange} attemptId={attemptId} onFlush={onFlush} />;
   if (id === "a-four") return <AFour initial={initial} readOnly={readOnly} onChange={onChange} attemptId={attemptId} />;
   const parts = A_WORKBOOK_PARTS[id];
   if (parts) return <APracticum initial={initial} readOnly={readOnly} onChange={onChange} parts={parts} />;

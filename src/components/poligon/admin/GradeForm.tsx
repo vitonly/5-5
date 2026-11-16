@@ -148,6 +148,7 @@ export function GradeForm({
                       </span>
                     </div>
                     {a.method && <p className="mb-1.5 text-[12px] text-[var(--text-3)]">Как проверять: {a.method}</p>}
+                    {a.id.startsWith("b") && s?.value == null && <p className="mb-2 text-[13px] text-[var(--warning-ink)]">Ожидает проверки наставника{a.id === "b4-1" || a.id === "b4-2" ? ": только очное наблюдение, сайт это не подтверждает" : ""}.</p>}
 
                     {a.type === "I" ? (
                       <div className="flex flex-wrap items-center gap-2">

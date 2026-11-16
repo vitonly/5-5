@@ -22,6 +22,9 @@ import { AttemptWorkspace } from "@/components/poligon/AttemptWorkspace";
 import { AttemptReport } from "@/components/poligon/AttemptReport";
 import { WorkbookView } from "@/components/poligon/workbooks/WorkbookView";
 import { parseWorkbook } from "@/lib/poligon/a-practicum";
+import { isBPractice } from "@/lib/poligon/b-practice";
+import { BPracticeStart } from "@/components/poligon/BPracticeStart";
+import { BOfficialDays } from "@/components/poligon/BOfficialDays";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +42,9 @@ export default async function AttemptPage({ params }: { params: Promise<{ id: st
   const files = parseFiles(attempt.fileUrls);
   const published = attempt.status === "GRADED" && attempt.publishedAt;
   const closed = attempt.status === "IN_PROGRESS" && isHardClosed(attempt.mode, attempt.deadlineAt);
+  const savedWorkbook = parseWorkbook(attempt.workbook);
+  const betweenDays = variant.id === "b-official-two-day" && savedWorkbook._b_day === "break";
+  const officialSources = variant.id === "b-official-two-day" ? parseFiles(String(savedWorkbook._b_sources || "[]")) : [];
 
   return (
     <div className="mx-auto max-w-[860px]">
@@ -63,7 +69,8 @@ export default async function AttemptPage({ params }: { params: Promise<{ id: st
         }
       />
 
-      {attempt.status === "IN_PROGRESS" && isOwner && !closed && (
+      {officialSources.length > 0 && <section className="surface-card mb-4 p-4"><h2 className="mb-2 text-[18px]">Приложение 9 этой попытки</h2>{officialSources.map(f => <p key={f.url}><a className="underline" href={f.url} download>{f.name}</a></p>)}</section>}
+      {attempt.status === "IN_PROGRESS" && isOwner && !closed && !betweenDays && (
         <AttemptWorkspace
           attemptId={attempt.id}
           championship={attempt.mode === "CHAMPIONSHIP"}
@@ -76,8 +83,11 @@ export default async function AttemptPage({ params }: { params: Promise<{ id: st
           initialWorkbook={parseWorkbook(attempt.workbook)}
         />
       )}
+      {variant.id === "b-official-two-day" && isOwner && attempt.status === "IN_PROGRESS" && (
+        <BOfficialDays attemptId={attempt.id} day={String(parseWorkbook(attempt.workbook)._b_day || "1")} />
+      )}
 
-      {closed && (
+      {closed && !betweenDays && (
         <Card className="p-5 text-[15px] text-[var(--text-2)]">
           Время прогона вышло, работа не сдана — как на чемпионате, такую попытку не оценивают.
           {files.length > 0 && " Загруженные файлы тренер всё равно увидит и может разобрать их с тобой."}
@@ -106,8 +116,14 @@ export default async function AttemptPage({ params }: { params: Promise<{ id: st
       {variant.workbook && attempt.status !== "IN_PROGRESS" && (
         <details className="mb-4" open={!published}>
           <summary className="mb-3 cursor-pointer text-[16px] font-semibold text-[var(--text)]">Моя тетрадь и разбор</summary>
-          <WorkbookView id={variant.workbook} initial={parseWorkbook(attempt.workbook)} readOnly />
+          <WorkbookView id={variant.workbook} initial={parseWorkbook(attempt.workbook)} readOnly attemptId={attempt.id} />
         </details>
+      )}
+      {isOwner && isBPractice(variant.id) && attempt.status !== "IN_PROGRESS" && (
+        <section className="surface-card mt-4 p-4">
+          <h2 className="mb-3 text-[18px]">Ещё один вариант того же навыка</h2>
+          <BPracticeStart variantId={variant.id} retryFrom={attempt.id} />
+        </section>
       )}
 
       {published && (

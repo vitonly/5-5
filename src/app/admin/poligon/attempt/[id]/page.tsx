@@ -130,7 +130,7 @@ export default async function AdminAttemptPage({ params }: { params: Promise<{ i
       {variant.workbook && (
         <details className="mb-4">
           <summary className="mb-3 cursor-pointer text-[16px] font-semibold text-[var(--text)]">Тетрадь ученика и автоматический разбор</summary>
-          <WorkbookView id={variant.workbook} initial={parseWorkbook(attempt.workbook)} readOnly />
+          <WorkbookView id={variant.workbook} initial={parseWorkbook(attempt.workbook)} readOnly attemptId={attempt.id} />
         </details>
       )}
 

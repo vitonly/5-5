@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { NoAccess } from "@/components/poligon/NoAccess";
 import { AttemptList } from "@/components/poligon/AttemptList";
 import { PcRunList } from "@/components/poligon/PcRunList";
+import { BTaskMenu } from "@/components/poligon/BTaskMenu";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -115,15 +116,19 @@ export default async function ModulePage({
         </Link>
       )}
 
-      {tab === "learn" && trainers.length > 0 && (
+      {mod.code === "b" && (tab === "learn" || tab === "test") && (
+        <BTaskMenu module={mod} doneIds={done.map((item) => item.lessonId)} tab={tab} />
+      )}
+
+      {mod.code !== "b" && tab === "learn" && trainers.length > 0 && (
         <section className="mb-5">
           <h2 className="mb-2 text-[17px]">Тренажёры — по каждому заданию</h2>
           <VariantGrid variants={trainers} code={mod.code} />
         </section>
       )}
 
-      {tab === "learn" && <h2 className="mb-2 text-[17px]">Уроки</h2>}
-      {tab === "learn" && (
+      {mod.code !== "b" && tab === "learn" && <h2 className="mb-2 text-[17px]">Уроки</h2>}
+      {mod.code !== "b" && tab === "learn" && (
         <ol className="flex flex-col gap-2">
           {mod.lessons.map((l, i) => (
             <li key={l.id}>
@@ -150,7 +155,7 @@ export default async function ModulePage({
         </ol>
       )}
 
-      {tab === "test" && <VariantGrid variants={runs} code={mod.code} />}
+      {mod.code !== "b" && tab === "test" && <VariantGrid variants={runs} code={mod.code} />}
 
       {tab === "attempts" && <AttemptList attempts={attempts} hrefBase="/poligon/attempt" />}
       {tab === "attempts" && mod.code === "v" && (

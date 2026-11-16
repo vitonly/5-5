@@ -129,9 +129,12 @@ export type SlideFigure = {
 export type WorkbookId =
   | "a-practicum" | "a-reg" | "a-grid" | "a-pres" | "a-app" | "a-four"
   | "b-clean" | "b-calc" | "b-charts" | "b-pres"
+  | "b-practice-clean" | "b-practice-report" | "b-practice-visual" | "b-practice-delivery" | "b-practice-full"
   | "v-sim" | "v-cmd" | "v-where" | "v-docs";
 
 export type Lesson = {
+  /** Практика по тому же навыку: старые адреса уроков остаются доступными. */
+  practiceVariantId?: string;
   id: string;
   title: string;
   /** Сколько минут занимает урок */

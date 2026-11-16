@@ -129,7 +129,7 @@ export function AttemptReport({
                         <Badge variant="admin">оценка {Math.round(s.value)} из 3</Badge>
                       )}
                       <span className="font-mono-num text-[13px] text-[var(--text)]">
-                        {p === null ? "—" : fmtPoints(p)} / {fmtPoints(a.weight)}
+                        {p === null ? (module.code === "b" ? "Ожидает проверки" : "—") : fmtPoints(p)} / {fmtPoints(a.weight)}
                       </span>
                     </span>
                   </div>
