@@ -4,6 +4,7 @@
  * Контрольные примеры Приложения 9 отделены от переменных учебных наборов.
  */
 import type { Lesson, Variant } from "@/lib/poligon/types";
+import { withBLessonVisuals } from "./b-lesson-visuals";
 
 // Файлы новых учебных наборов выдаёт API конкретной попытки после её начала.
 // Фиксированный XLSX «Осеннего кубка» остаётся только у архивных вариантов.
@@ -419,7 +420,7 @@ export const B_SKILL_MAPPING = [
   }
 ];
 
-export const B_SKILL_LESSONS: Lesson[] = [
+const B_SKILL_LESSONS_RAW: Lesson[] = [
   {
     "id": "b-skill-b1-1",
     "title": "Как сохранить рабочую копию",
@@ -1398,3 +1399,8 @@ export const B_SKILL_LESSONS: Lesson[] = [
     ]
   }
 ];
+
+export const B_SKILL_LESSONS: Lesson[] = B_SKILL_LESSONS_RAW.map((lesson) => ({
+  ...lesson,
+  blocks: withBLessonVisuals(lesson),
+}));

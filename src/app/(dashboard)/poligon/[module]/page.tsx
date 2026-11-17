@@ -7,8 +7,7 @@ import { prisma } from "@/lib/db";
 import { getPoligonUser } from "@/lib/poligon/server";
 import { CRITERIA } from "@/content/poligon/criteria";
 import { QUIZ } from "@/content/poligon/quiz";
-import type { ModuleCode, Variant } from "@/lib/poligon/types";
-import { fmtMinutes, fmtPoints, getModule, maxPoints, variantTasks } from "@/lib/poligon/core";
+import { fmtMinutes, fmtPoints, getModule } from "@/lib/poligon/core";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { NoAccess } from "@/components/poligon/NoAccess";
@@ -16,6 +15,7 @@ import { AttemptList } from "@/components/poligon/AttemptList";
 import { PcRunList } from "@/components/poligon/PcRunList";
 import { BTaskMenu } from "@/components/poligon/BTaskMenu";
 import { cn } from "@/lib/utils";
+import { LessonList, VariantGrid } from "@/components/poligon/LearningCards";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,6 @@ export default async function ModulePage({
   const quiz = QUIZ[mod.code];
   const trainers = mod.variants.filter((v) => v.kind === "trainer");
   const runs = mod.variants.filter((v) => v.kind !== "trainer");
-  const doneSet = new Set(done.map((d) => d.lessonId));
   const criteria = CRITERIA[mod.code];
 
   return (
@@ -129,30 +128,7 @@ export default async function ModulePage({
 
       {mod.code !== "b" && tab === "learn" && <h2 className="mb-2 text-[17px]">Уроки</h2>}
       {mod.code !== "b" && tab === "learn" && (
-        <ol className="flex flex-col gap-2">
-          {mod.lessons.map((l, i) => (
-            <li key={l.id}>
-              <Link
-                href={`/poligon/${mod.code}/learn/${l.id}`}
-                className="surface-card flex items-center gap-3 px-4 py-3 hover:border-[var(--border-field)]"
-              >
-                <span
-                  className={cn(
-                    "flex size-8 shrink-0 items-center justify-center rounded-full font-mono-num text-[14px] font-semibold",
-                    doneSet.has(l.id) ? "bg-[var(--success-bg)] text-[var(--success-ink)]" : "bg-[var(--control)] text-[var(--text-2)]"
-                  )}
-                >
-                  {doneSet.has(l.id) ? "✓" : i + 1}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-medium text-[var(--text)]">{l.title}</span>
-                  <span className="block text-[13px] text-[var(--text-3)]">{l.summary}</span>
-                </span>
-                <span className="shrink-0 text-[13px] text-[var(--text-3)]">{l.minutes} мин</span>
-              </Link>
-            </li>
-          ))}
-        </ol>
+        <LessonList lessons={mod.lessons} code={mod.code} doneIds={done.map(d => d.lessonId)} />
       )}
 
       {mod.code !== "b" && tab === "test" && <VariantGrid variants={runs} code={mod.code} />}
@@ -164,31 +140,6 @@ export default async function ModulePage({
           <PcRunList runs={pcRuns} />
         </section>
       )}
-    </div>
-  );
-}
-
-/** Карточки заданий: тренажёры, тренировки с файлами, прогон как на чемпионате */
-function VariantGrid({ variants, code }: { variants: Variant[]; code: ModuleCode }) {
-  return (
-    <div className="grid gap-3 min-[720px]:grid-cols-2">
-      {variants.map((v) => (
-        <Link
-          key={v.id}
-          href={`/poligon/${code}/test/${v.id}`}
-          className="surface-card flex flex-col gap-2 p-4 hover:border-[var(--border-field)]"
-        >
-          <span className="flex flex-wrap gap-1.5">
-            <Badge variant={v.kind === "championship" ? "danger" : v.kind === "trainer" ? "points" : "default"}>
-              {v.kind === "championship" ? "Как на чемпионате · жёсткий таймер" : v.kind === "trainer" ? "Тренажёр · разбор сразу" : "Тренировка с файлами"}
-            </Badge>
-            <Badge>{fmtMinutes(v.minutes)}</Badge>
-            <Badge variant="points">{fmtPoints(maxPoints(variantTasks(code, v)))} б.</Badge>
-          </span>
-          <span className="font-display text-[17px] font-semibold text-[var(--text)]">{v.title}</span>
-          <span className="text-[14px] text-[var(--text-2)]">{v.summary}</span>
-        </Link>
-      ))}
     </div>
   );
 }

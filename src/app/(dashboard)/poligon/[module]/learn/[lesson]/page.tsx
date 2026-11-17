@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Blocks } from "@/components/poligon/Blocks";
 import { LessonDoneButton } from "@/components/poligon/LessonDoneButton";
 import { NoAccess } from "@/components/poligon/NoAccess";
+import { B_SKILL_MAPPING } from "@/content/poligon/b-lessons";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,13 @@ export default async function LessonPage({ params }: { params: Promise<{ module:
   const lesson = mod ? getLesson(mod, lessonId) : null;
   if (!mod || !lesson) notFound();
 
-  const index = mod.lessons.indexOf(lesson);
-  const prev = mod.lessons[index - 1];
-  const next = mod.lessons[index + 1];
+  const primaryB = mod.code === "b" && lesson.id.startsWith("b-skill-");
+  // Основной курс Б — 21 урок. Архив не продолжает его нумерацию и переходы.
+  const course = mod.code === "b" ? mod.lessons.filter(l => l.id.startsWith("b-skill-") === primaryB) : mod.lessons;
+  const index = course.indexOf(lesson);
+  const prev = course[index - 1];
+  const next = course[index + 1];
+  const related = primaryB ? B_SKILL_MAPPING.find(m => m.lessonId === lesson.id)?.sourceLessonIds ?? [] : [];
   const done = await prisma.poligonLessonDone.findUnique({
     where: { userId_lessonId: { userId: user.id, lessonId: lesson.id } },
   });
@@ -38,10 +43,10 @@ export default async function LessonPage({ params }: { params: Promise<{ module:
       <PageHeader
         eyebrow={
           <Link href={`/poligon/${mod.code}?tab=learn`} className="hover:underline">
-            ← Модуль {mod.letter} · урок {index + 1} из {mod.lessons.length}
+            ← Модуль {mod.letter} · урок {index + 1} из {course.length}
           </Link>
         }
-        title={lesson.title}
+        title={primaryB ? `${index + 1}. ${lesson.title}` : lesson.title}
         description={`${lesson.summary} · ${lesson.minutes} мин`}
       />
       {aspects.length > 0 && (
@@ -57,6 +62,15 @@ export default async function LessonPage({ params }: { params: Promise<{ module:
       <article className="surface-card p-4 min-[720px]:p-6">
         <Blocks blocks={lesson.blocks} />
       </article>
+      {related.length > 0 && <details className="mt-4 rounded-[var(--radius-control)] border border-[var(--border)] px-4 py-2">
+        <summary className="min-h-11 cursor-pointer py-2 text-[14px] font-medium text-[var(--text)]">Нужна помощь с кнопками и формулами Excel?</summary>
+        <ul className="flex flex-col gap-1 pb-2 text-[14px]">
+          {related.map(id => {
+            const source = mod.lessons.find(l => l.id === id);
+            return source ? <li key={id}><Link className="inline-flex min-h-11 items-center py-2 text-[var(--points-ink)] hover:underline" href={`/poligon/b/learn/${id}`}>{source.title} →</Link></li> : null;
+          })}
+        </ul>
+      </details>}
       {lesson.practiceVariantId && (
         <Button asChild className="mt-4">
           <Link href={`/poligon/${mod.code}/test/${lesson.practiceVariantId}`}>Отработать навык в Excel →</Link>
