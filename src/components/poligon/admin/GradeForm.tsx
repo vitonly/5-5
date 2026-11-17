@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { confirmAction } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { B_ASPECT_LESSON } from "@/content/poligon/b-course-map";
 
 type Summary = { good: string; improve: string; nextSteps: string };
 
@@ -148,6 +150,8 @@ export function GradeForm({
                       </span>
                     </div>
                     {a.method && <p className="mb-1.5 text-[12px] text-[var(--text-3)]">Как проверять: {a.method}</p>}
+                    {B_ASPECT_LESSON[a.id] && <Link className="mb-2 inline-flex min-h-11 items-center text-sm text-[var(--points-ink)] hover:underline" href={`/poligon/b/learn/b-step-${String(B_ASPECT_LESSON[a.id]).padStart(2, "0")}`}>Урок {B_ASPECT_LESSON[a.id]} — как отработать этот навык →</Link>}
+                    {a.type === "S" && a.levels && <details className="mb-2 text-sm text-[var(--text-2)]"><summary className="min-h-11 cursor-pointer py-2">Исходная шкала ведомости: уровни 0–3</summary><ol className="flex flex-col gap-2">{a.levels.map((level, i) => <li key={i}><strong>{i}.</strong> {level}</li>)}</ol></details>}
                     {a.id.startsWith("b") && s?.value == null && <p className="mb-2 text-[13px] text-[var(--warning-ink)]">Ожидает проверки наставника{a.id === "b4-1" || a.id === "b4-2" ? ": только очное наблюдение, сайт это не подтверждает" : ""}.</p>}
 
                     {a.type === "I" ? (

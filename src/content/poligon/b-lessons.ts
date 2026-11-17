@@ -5,6 +5,8 @@
  */
 import type { Lesson, Variant } from "@/lib/poligon/types";
 import { withBLessonVisuals } from "./b-lesson-visuals";
+import { B_BEGINNER_LESSONS } from "./b-beginner-lessons";
+import { B_ASPECT_LESSON } from "./b-course-map";
 
 // Файлы новых учебных наборов выдаёт API конкретной попытки после её начала.
 // Фиксированный XLSX «Осеннего кубка» остаётся только у архивных вариантов.
@@ -24,7 +26,7 @@ export const B_PRACTICE_VARIANTS: Variant[] = [
       { type: "list", ordered: true, items: [
         "Сравни все поля: найди точный дубль и подтверждённый повтор с другим ID. Повтор ID сам по себе не повод удалять строку.",
         "Сохрани разные реальные матчи, записи разных платформ и инцидент с неизвестной длительностью. Не заменяй неизвестное нулём.",
-        "Если объединяешь команды, обнови ссылки во всех связанных таблицах. Запиши в журнал исходные строки, сравниваемые поля и основание решения.",
+        "Если подтверждён повтор команды, найди его старый ID через Ctrl+F на листах Матчи и Составы команд и замени на оставшийся ID. В Журнал запиши, какие строки сравнил и почему считаешь их повтором.",
         "Приведи даты, время и числа к единому формату, создай таблицы Ctrl+T и сохрани обработанные данные."
       ] },
       { type: "callout", tone: "tip", text: "Учебные подсказки помогают разобраться в решении. Качество XLSX и судейские аспекты проверяет наставник; длина записи в журнале не доказывает правильность очистки." },
@@ -149,7 +151,7 @@ export const B_PRACTICE_VARIANTS: Variant[] = [
   },
 ];
 
-export const B_SKILL_MAPPING = [
+const B_LEGACY_SKILL_MAPPING = [
   {
     "aspectId": "b1-1",
     "lessonId": "b-skill-b1-1",
@@ -1404,3 +1406,10 @@ export const B_SKILL_LESSONS: Lesson[] = B_SKILL_LESSONS_RAW.map((lesson) => ({
   ...lesson,
   blocks: withBLessonVisuals(lesson),
 }));
+
+/** Каждый аспект имеет один основной урок; практика не начисляет его баллы повторно. */
+export const B_SKILL_MAPPING = B_LEGACY_SKILL_MAPPING.map((mapping) => {
+  const lesson = B_BEGINNER_LESSONS.find(l => l.id === `b-step-${String(B_ASPECT_LESSON[mapping.aspectId]).padStart(2, "0")}`)!;
+  return { ...mapping, lessonId: lesson.id, practiceVariantId: lesson.practiceVariantId! };
+});
+export { B_BEGINNER_LESSONS };

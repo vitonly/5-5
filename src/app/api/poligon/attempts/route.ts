@@ -63,6 +63,7 @@ async function postHandler(request: NextRequest) {
       focus = [...new Set(failedIds)];
     }
     workbook._b_seed = randomBytes(8).toString("hex");
+    workbook._b_version = "2";
     workbook._b_mode = mode;
     workbook._b_focus = JSON.stringify(focus);
   } else if (official) {

@@ -1,7 +1,7 @@
 /** Единый источник нормализованных данных, грязных строк и ключей модуля Б. */
 export type BCell = string | number | null;
 export interface BCleaningCase {
-  id: "exact" | "other-id" | "similar" | "platforms" | "missing-duration" | "format";
+  id: "exact" | "other-id" | "similar" | "platforms" | "missing-duration" | "format" | "negative";
   title: string;
   /** Первая строка всегда содержит заголовки. */
   before: string[][];
@@ -22,6 +22,7 @@ export interface BDataset {
   cleaningCases: BCleaningCase[];
   totals: {
     teams: number; players: number; matches: number; incidents: number; networkMinutes: number;
+    knownDurations?: number;
     /** top5: длительность по убыванию, затем ID; byHour: число матчей, ключ «17»;
      * byIncident: количество событий (включая null); byPlatform: сумма наблюдений зрителей. */
     top5: string[]; byHour: Record<string, number>; byIncident: Record<string, number>; byPlatform: Record<string, number>;
@@ -29,7 +30,9 @@ export interface BDataset {
 }
 
 /** Не зависит от времени, локали, Math.random и порядка внешних источников. */
-export function makeBDataset(seed: string): BDataset {
+export function makeBDataset(seed: string, version = 1): BDataset {
+  // Старые попытки без версии всегда получают прежние строки и прежний ключ.
+  if (version >= 2) seed = `beginner-v2:${seed}`;
   let state = 2166136261;
   for (let i = 0; i < seed.length; i++) state = Math.imul(state ^ seed.charCodeAt(i), 16777619) >>> 0;
   const next = (n: number) => {
@@ -47,15 +50,16 @@ export function makeBDataset(seed: string): BDataset {
   });
   const platforms = ["Twitch", "YouTube", "VK Видео", "RuTube"];
   const offset = next(platforms.length);
+  const startHour = version >= 2 ? 9 + next(8) : 14;
   const matches: BDataset["matches"] = Array.from({ length: 15 }, (_, i) => {
     const a = i < 2 ? 0 : next(teams.length);
     const b = i < 2 ? 1 : (a + 1 + next(teams.length - 1)) % teams.length;
     return { id: id("M", i), date: `2026-10-${String(10 + Math.floor(i / 5)).padStart(2, "0")}`,
-      time: `${String(14 + i % 5).padStart(2, "0")}:${i === 1 ? "30" : "00"}`,
+      time: `${String(startHour + i % 5).padStart(2, "0")}:${i === 1 ? "30" : "00"}`,
       team1: teams[a].id, team2: teams[b].id, duration: 25 + next(80) };
   });
   // Почти одинаковые встречи — самостоятельные события, различается время начала.
-  matches[1] = { ...matches[0], id: matches[1].id, time: "14:30" };
+  matches[1] = { ...matches[0], id: matches[1].id, time: `${String(startHour).padStart(2, "0")}:30` };
   // Эта встреча ссылается на повторную регистрацию T99 в сырой выгрузке.
   // Нормализованный состав события остаётся тем же после замены T99 на основной ID.
   matches[2] = { ...matches[2], team1: teams[1].id, team2: teams[0].id };
@@ -66,6 +70,7 @@ export function makeBDataset(seed: string): BDataset {
   const viewers: BDataset["viewers"] = matches.flatMap((m, i) => Array.from({ length: i === 0 ? 2 : 1 + next(2) }, (_, j) => ({
     matchId: m.id, platform: platforms[(offset + i + j) % platforms.length], viewers: 1000 + next(4500),
   })));
+  if (version >= 2 && next(2)) incidents[incidents.length - 1].duration = null;
   const rawSheets: BDataset["rawSheets"] = {
     Участники: [["ID_команды", "Название", "Игроков"], ...teams.map(t => [t.id, t.name, t.players])],
     Матчи: [["ID_матча", "Дата", "Время", "Команда_1", "Команда_2", "Длительность_мин"], ...matches.map(m => [m.id, m.date, m.time, m.team1, m.team2, m.duration])],
@@ -109,9 +114,37 @@ export function makeBDataset(seed: string): BDataset {
   for (const m of matches) { const h = String(Number(m.time.slice(0, 2))); byHour[h] = (byHour[h] ?? 0) + 1; }
   for (const i of incidents) byIncident[i.type] = (byIncident[i.type] ?? 0) + 1;
   for (const v of viewers) byPlatform[v.platform] = (byPlatform[v.platform] ?? 0) + v.viewers;
+  if (version >= 2) {
+    const original = rawSheets.Матчи.find(row => row[0] === matches[matches.length - 1].id)!;
+    const originalDuration = matches[matches.length - 1].duration;
+    // Выгрузка явно указывает исходную встречу: минус нельзя просто стереть и посчитать матч дважды.
+    rawSheets.Матчи[0].push("Основной_ID_матча");
+    for (const row of rawSheets.Матчи.slice(1)) row.push(row[0]);
+    const bad = [...original]; bad[0] = "M99"; bad[5] = -originalDuration;
+    rawSheets.Матчи.push(bad);
+    cleaningCases.push({ id: "negative", title: "Отрицательные минуты в повторной записи",
+      before: table("Матчи", [original, bad]), after: table("Матчи", [original]), decision: "remove",
+      fields: ["Основной_ID_матча", "Дата", "Время", "Команда_1", "Команда_2"], comparison: "Реестр указывает ту же встречу; дата, время и команды совпадают",
+      why: `У M99 в столбце Основной_ID_матча стоит ${original[0]}; дата, время и команды совпали. Это повторная запись с ошибкой, не новая встреча.`,
+      impact: "Оставляем исходный матч один раз. Не превращаем минус в плюс без проверки.",
+      excel: `На листе Матчи нажми Ctrl+F, найди M99 и ${original[0]}. Сверь Основной_ID_матча, дату, время и команды; убери только подтверждённый повтор.` });
+    const platformsCase = cleaningCases.find(c => c.id === "platforms")!;
+    platformsCase.why = "Один матч показали на двух площадках. У каждой свой показатель зрителей.";
+    platformsCase.excel = "На листе Зрители сравни ID_матча и Платформа. Сохрани обе строки; число с пробелом введи заново без пробела.";
+    const formatCase = cleaningCases.find(c => c.id === "format")!;
+    formatCase.before[0][0] = "Команда или матч";
+    formatCase.after[0][0] = "Команда или матч";
+    formatCase.why = "Команда и матч остаются теми же. Исправляем только пробелы, название и запись числа.";
+    formatCase.excel = `На листе Участники введи название «${teams[0].name}» без лишних пробелов. На листе Матчи найди ${cleanMatch[0]} через Ctrl+F и запиши ${duration} числом в Длительность_мин.`;
+    // Переставляем строки после построения связанных примеров; заголовки остаются первыми.
+    for (const rows of Object.values(rawSheets)) for (let i = rows.length - 1; i > 1; i--) {
+      const j = 1 + next(i); [rows[i], rows[j]] = [rows[j], rows[i]];
+    }
+  }
   return { teams, matches, incidents, viewers, rawSheets, cleaningCases, totals: {
     teams: teams.length, players: teams.reduce((s, t) => s + t.players, 0), matches: matches.length, incidents: incidents.length,
     networkMinutes: incidents.filter(i => i.type === "Сеть").reduce((s, i) => s + (i.duration ?? 0), 0),
+    ...(version >= 2 ? { knownDurations: incidents.filter(i => i.duration !== null).length } : {}),
     top5: [...matches].sort((a, b) => b.duration - a.duration || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, 5).map(m => m.id),
     byHour, byIncident, byPlatform,
   } };

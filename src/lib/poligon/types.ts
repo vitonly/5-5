@@ -51,6 +51,8 @@ export type Block =
   | { type: "h"; text: string }
   | { type: "list"; items: string[]; ordered?: boolean }
   | { type: "table"; head: string[]; rows: string[][] }
+  | { type: "comparison"; head: string[]; before: string[][]; after: string[][]; notes?: Record<string, string>; caption?: string }
+  | { type: "quiz"; id: string; question: string; options: string[]; correct: number; feedback: string }
   /** Плашка: points — «за это дают баллы», tip — совет, warn — ловушка */
   | { type: "callout"; tone: "points" | "tip" | "warn"; title?: string; text: string }
   /** Формула Excel или фрагмент кода — моноширинным шрифтом, с кнопкой копирования */

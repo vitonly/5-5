@@ -102,8 +102,8 @@ function worksheet(rows: BCell[][]): string {
 }
 
 /** Выгружаются именно грязные строки; ключи и решения в файл ученика не попадают. */
-export function buildBDatasetXlsx(seed: string): Buffer {
-  const sheets = Object.entries(makeBDataset(seed).rawSheets), files = new Map<string, string>();
+export function buildBDatasetXlsx(seed: string, version = 1): Buffer {
+  const sheets = Object.entries(makeBDataset(seed, version).rawSheets), files = new Map<string, string>();
   files.set("[Content_Types].xml", declaration + `<Types xmlns="${CT}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` + sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") + "</Types>");
   files.set("_rels/.rels", declaration + `<Relationships xmlns="${PKG}"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
   files.set("xl/workbook.xml", declaration + `<workbook xmlns="${S}" xmlns:r="${R}"><sheets>` + sheets.map(([name], i) => `<sheet name="${escape(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("") + "</sheets></workbook>");
@@ -231,6 +231,9 @@ export interface BXlsxInspection {
   /** Только содержимое частей, без заключения о правильности сводных таблиц. */
   pivots: { path: string; name: string | null; cacheId: string | null; ref: string | null }[];
   chartTypes: string[];
+  /** Объекты, на которые действительно ссылаются листы книги. */
+  attachedPivotCount: number;
+  attachedChartTypes: string[];
 }
 /** Факты о книге; наличие сводной таблицы не проверяет её данные и вычисления. */
 export function inspectBXlsx(buf: Buffer): BXlsxInspection {
@@ -290,7 +293,38 @@ export function inspectBXlsx(buf: Buffer): BXlsxInspection {
       chartTypes.push(direction === "bar" || direction === "col" ? `${child.name}:${direction}` : child.name);
     }
   }
-  return { worksheets, cells: worksheets.reduce((sum, s) => sum + s.cells.length, 0), pivots, chartTypes: [...new Set(chartTypes)].sort() };
+  const attachedPivots = new Set<string>(), attachedCharts = new Set<string>();
+  const caches = new Map(children(root, S, "pivotCaches").flatMap(n => children(n, S, "pivotCache")).map(n => [n.attrs.cacheId, n.attrs[`{${R}}id`]]));
+  for (const sheet of worksheets) {
+    const ws = part(files, sheet.path, S, "worksheet"), wsRels = relationships(files, sheet.path);
+    for (const ref of all(ws, S, "pivotTablePart")) {
+      const target = linked(wsRels, ref.attrs[`{${R}}id`], "pivotTable");
+      const pivot = part(files, target, S, "pivotTableDefinition");
+      const cacheRef = caches.get(pivot.attrs.cacheId);
+      if (cacheRef) {
+        const cachePath = linked(rels, cacheRef, "pivotCacheDefinition");
+        part(files, cachePath, S, "pivotCacheDefinition");
+        attachedPivots.add(target);
+      }
+    }
+    for (const drawing of all(ws, S, "drawing")) {
+      const target = linked(wsRels, drawing.attrs[`{${R}}id`], "drawing");
+      const drawingXml = files.get(target);
+      if (!drawingXml) fail("нет части рисунка");
+      const drawingRels = relationships(files, target);
+      for (const ref of all(parseXml(drawingXml!), C, "chart")) attachedCharts.add(linked(drawingRels, ref.attrs[`{${R}}id`], "chart"));
+    }
+  }
+  const attachedChartTypes: string[] = [];
+  for (const target of attachedCharts) {
+    const chart = part(files, target, C, "chartSpace");
+    for (const plot of all(chart, C, "plotArea")) for (const child of plot.children) if (child.ns === C && child.name.endsWith("Chart")) {
+      const direction = child.name === "barChart" ? children(child, C, "barDir")[0]?.attrs.val : undefined;
+      attachedChartTypes.push(direction === "bar" || direction === "col" ? `${child.name}:${direction}` : child.name);
+    }
+  }
+  return { worksheets, cells: worksheets.reduce((sum, s) => sum + s.cells.length, 0), pivots, chartTypes: [...new Set(chartTypes)].sort(),
+    attachedPivotCount: attachedPivots.size, attachedChartTypes: [...new Set(attachedChartTypes)].sort() };
 }
 
 export interface BPptxInspection {

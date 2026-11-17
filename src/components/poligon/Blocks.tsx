@@ -5,6 +5,8 @@ import type { Block } from "@/lib/poligon/types";
 import { cn } from "@/lib/utils";
 import { RichText } from "./RichText";
 import { CopyButton } from "./CopyButton";
+import { BeforeAfter } from "./BeforeAfter";
+import { LessonQuiz } from "./LessonQuiz";
 import { ConnectorsMock, ConsoleMock, ExcelMock, SlidesMock, WinMock, WordMock } from "./Figures";
 
 const CALLOUT_STYLE = {
@@ -37,6 +39,10 @@ export function Blocks({ blocks }: { blocks: Block[] }) {
 
 function BlockView({ block }: { block: Block }) {
   switch (block.type) {
+    case "comparison":
+      return <BeforeAfter {...block} />;
+    case "quiz":
+      return <LessonQuiz {...block} />;
     case "h":
       return <h3 className="mt-3 font-display text-[18px] font-semibold text-[var(--text)]">{block.text}</h3>;
     case "p":

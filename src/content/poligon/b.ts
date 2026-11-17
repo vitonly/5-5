@@ -4,7 +4,7 @@
  * В строках можно выделять **жирным**.
  */
 import type { PoligonModule } from "@/lib/poligon/types";
-import { B_PRACTICE_VARIANTS, B_SKILL_LESSONS } from "./b-lessons";
+import { B_PRACTICE_VARIANTS, B_SKILL_LESSONS, B_BEGINNER_LESSONS } from "./b-lessons";
 
 const DATASET_URL = "/poligon/files/b-osenniy-kubok.xlsx";
 
@@ -1061,6 +1061,6 @@ const LEGACY_MODULE_B: PoligonModule = {
 // Прежние уроки и варианты остаются доступны по тем же адресам, вместе с исходными разборами.
 export const MODULE_B: PoligonModule = {
   ...LEGACY_MODULE_B,
-  lessons: [...B_SKILL_LESSONS, ...LEGACY_MODULE_B.lessons],
+  lessons: [...B_BEGINNER_LESSONS, ...B_SKILL_LESSONS, ...LEGACY_MODULE_B.lessons],
   variants: [...B_PRACTICE_VARIANTS, ...LEGACY_MODULE_B.variants],
 };

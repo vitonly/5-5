@@ -25,9 +25,9 @@ export default async function LessonPage({ params }: { params: Promise<{ module:
   const lesson = mod ? getLesson(mod, lessonId) : null;
   if (!mod || !lesson) notFound();
 
-  const primaryB = mod.code === "b" && lesson.id.startsWith("b-skill-");
-  // Основной курс Б — 21 урок. Архив не продолжает его нумерацию и переходы.
-  const course = mod.code === "b" ? mod.lessons.filter(l => l.id.startsWith("b-skill-") === primaryB) : mod.lessons;
+  const primaryB = mod.code === "b" && lesson.id.startsWith("b-step-");
+  // Основной курс Б — 19 уроков. Старые уроки остаются отдельным архивом.
+  const course = mod.code === "b" ? mod.lessons.filter(l => l.id.startsWith("b-step-") === primaryB) : mod.lessons;
   const index = course.indexOf(lesson);
   const prev = course[index - 1];
   const next = course[index + 1];

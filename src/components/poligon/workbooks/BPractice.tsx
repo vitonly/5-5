@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Workbook } from "@/lib/poligon/a-practicum";
 import { makeBDataset } from "@/lib/poligon/b-dataset";
-import { B_CHARTS, B_MODES, B_PIVOTS, bDelivery, bSections, reviewBPractice, type BReview } from "@/lib/poligon/b-practice";
+import { bCharts, B_MODES, bPivots, bPivotGroups, bDelivery, bSections, reviewBPractice, type BReview } from "@/lib/poligon/b-practice";
 import { toast } from "@/components/ui/toast";
+import { BeforeAfter } from "../BeforeAfter";
 
 const card = "flex min-w-0 flex-col gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-4";
 const control = "min-h-11 w-full min-w-0 touch-manipulation rounded-[var(--radius-control)] border border-[var(--border-field)] bg-[var(--surface)] px-3 py-2 text-base text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-70";
@@ -55,7 +56,7 @@ function FileFacts({ value }: { value: unknown }) {
         {typeof file.error === "string" && <p className="text-[var(--danger)]">{file.error}</p>}
         {facts && <>
           {Array.isArray(facts.worksheets) && <p>Листы: {facts.worksheets.filter(isRecord).map(s => String(s.name)).join(", ")}. Ячеек: {String(facts.cells ?? "—")}.</p>}
-          {Array.isArray(facts.pivots) && <><p>Найдено сводных: {facts.pivots.length}.</p><ul className="list-inside list-disc">{facts.pivots.filter(isRecord).map((p, j) => <li key={j}>{String(p.name ?? "Без имени")} · диапазон {String(p.ref ?? "не указан")}</li>)}</ul></>}
+          {Array.isArray(facts.pivots) && <><p>Найдено частей сводных: {facts.pivots.length}. Подключено к листам: {String(facts.attachedPivotCount ?? "не проверялось")}.</p><ul className="list-inside list-disc">{facts.pivots.filter(isRecord).map((p, j) => <li key={j}>{String(p.name ?? "Без имени")} · диапазон {String(p.ref ?? "не указан")}</li>)}</ul></>}
           {Array.isArray(facts.chartTypes) && <p>Типы диаграмм в XLSX: {facts.chartTypes.map(String).join(", ") || "не найдены"}.</p>}
           {typeof facts.count === "number" && <p>Слайдов: {facts.count}. Формат 16:9: {facts.aspect16by9 === true ? "да" : facts.aspect16by9 === false ? "нет" : "не указан"}.</p>}
           {Array.isArray(facts.slides) && <details><summary className="min-h-11 cursor-pointer py-2">Прочитанный текст слайдов</summary>{facts.slides.filter(isRecord).map((s, j) => <p key={j} className="whitespace-pre-wrap break-words py-2">{j + 1}. {String(s.text ?? "")}</p>)}</details>}
@@ -93,7 +94,8 @@ function BPracticeWorkbook({ id, initial, readOnly = false, onChange, attemptId,
   const draftWarning = useRef(false);
   const seed = String(initial._b_seed ?? "");
   const mode = String(initial._b_mode ?? "guided");
-  const d = useMemo(() => makeBDataset(seed), [seed]);
+  const version = initial._b_version === "2" ? 2 : 1;
+  const d = useMemo(() => makeBDataset(seed, version), [seed, version]);
   const sections = bSections(id);
   const delivery = bDelivery(seed);
   const focusValue = parse(initial._b_focus);
@@ -114,7 +116,7 @@ function BPracticeWorkbook({ id, initial, readOnly = false, onChange, attemptId,
         if (edited.current || !isRecord(draft) || draft.seed !== seed || !isWorkbook(draft.w)) return;
         const restored: Workbook = { ...draft.w };
         // Служебные поля задаёт сервер, а не старый локальный черновик.
-        for (const key of ["_b_seed", "_b_mode", "_b_focus", "_b_report", "_b_filecheck", "_b_revealed"]) {
+        for (const key of ["_b_seed", "_b_version", "_b_mode", "_b_focus", "_b_report", "_b_filecheck", "_b_revealed"]) {
           if (initial[key] === undefined) delete restored[key]; else restored[key] = initial[key];
         }
         current.current = restored;
@@ -208,6 +210,7 @@ function BPracticeWorkbook({ id, initial, readOnly = false, onChange, attemptId,
     platforms: "Одна встреча, разные площадки трансляции",
     "missing-duration": "Событие зарегистрировано, число минут не указано",
     format: "Значения требуют очистки текста и перевода длительности в минуты",
+    negative: "Отрицательное число стоит в подтверждённом повторе той же встречи",
   })[c.id]]);
 
   return <div className="flex min-w-0 flex-col gap-5 text-[var(--text)]">
@@ -225,7 +228,7 @@ function BPracticeWorkbook({ id, initial, readOnly = false, onChange, attemptId,
       <p>Сравни строки, выбери поля сравнения и действие. Отметь только необходимые поля. Эти решения перенеси в лист «Журнал» книги Excel.</p>
       {cleanCases.map(c => <article key={c.id} className={card}>
         <h3 className="font-semibold">{c.title}</h3>
-        <div className={review ? "grid gap-4 min-[720px]:grid-cols-2" : ""}><Table rows={c.before} caption="Было" />{review && <Table rows={c.after} caption="Стало — разбор" />}</div>
+        {review ? <BeforeAfter head={c.before[0]} before={c.before.slice(1)} after={c.after.slice(1)} notes={Object.fromEntries(c.after.slice(1).flatMap((row, r) => row.flatMap((cell, col) => c.before[r + 1]?.[col] !== cell ? [[`${r},${col}`, "Исправлено после сравнения исходных строк"]] : [])))} caption={`${c.why} ${c.impact}`} /> : <Table rows={c.before} caption="Было" />}
         <fieldset className="flex flex-col gap-2" disabled={readOnly}><legend className="mb-1">Какие поля сравниваешь?</legend>
           <div className="grid gap-1 sm:grid-cols-2">{[...new Set([...c.fields, ...c.before[0], "Название", "ID_матча"])].map(field => <label key={field} className="flex min-h-11 touch-manipulation items-center gap-3 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2">
             <input type="checkbox" className="size-5 shrink-0 accent-[var(--points)]" checked={s(`fields_${c.id}`).split("|").includes(field)} onChange={e => {
@@ -248,10 +251,11 @@ function BPracticeWorkbook({ id, initial, readOnly = false, onChange, attemptId,
       {hints && <p className="text-sm text-[var(--text-2)]">СЧЁТЗ считает заполненные ID, СУММ — числовые значения. Не заменяй неизвестную длительность нулём. Для топ-5 сортируй длительность по убыванию, при равенстве — ID по возрастанию.</p>}
       <div className="grid gap-3 sm:grid-cols-2">{([
         ["teams", "Число команд"], ["players", "Число игроков"], ["matches", "Число матчей"], ["incidents", "Число инцидентов"], ["network", "Известная длительность сетевых сбоев, мин"],
+        ...(version >= 2 ? [["known", "Число событий с известной длительностью"] as const] : []),
       ] as const).filter(([key]) => show(`calc_${key}`)).map(([key, label]) => <div key={key} className={card}>{input(`calc_${key}`, label, true)}{feedback(`calc_${key}`)}</div>)}</div>
       {show("top5") && <div className={card}>{input("top5", "Топ-5 матчей по длительности: ID по порядку, через запятую")}{feedback("top5")}</div>}
-      {B_PIVOTS.filter(p => pivotVisible(p.id)).map(p => {
-        const groups = p.id === "time" ? d.totals.byHour : p.id === "incident" ? d.totals.byIncident : d.totals.byPlatform;
+      {bPivots(version).filter(p => pivotVisible(p.id)).map(p => {
+        const groups = bPivotGroups(d, p.id, version);
         const fields = ["Нет", ...fieldOptions, "Час начала"];
         return <article className={card} key={p.id}>
           <h3 className="font-semibold">Сводная: {p.title}</h3>
@@ -285,7 +289,7 @@ function BPracticeWorkbook({ id, initial, readOnly = false, onChange, attemptId,
     {visualVisible && <section className="surface-card flex flex-col gap-4 p-4">
       <h2 className="text-xl font-semibold">3. Диаграммы и презентация</h2>
       <p>В отчёте XLSX используй минимум два разных типа диаграмм. Подготовь PPTX: ровно 5 слайдов, широкий формат (16:9). Загрузи оба файла в общий блок файлов попытки.</p>
-      {B_CHARTS.filter(c => show(`chart_${c.id}`)).map(c => <article className={card} key={c.id}>
+      {bCharts(version).filter(c => show(`chart_${c.id}`)).map(c => <article className={card} key={c.id}>
         <h3 className="font-semibold">{c.title}</h3>
         {select(`chart_${c.id}`, "Тип диаграммы", ["Столбцы", "Полосы", "Линия", "Кольцо", "Круг", "Точечная"])}
         {hints && <p className="text-sm text-[var(--text-2)]">{c.hint}</p>}

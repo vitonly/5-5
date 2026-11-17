@@ -19,11 +19,12 @@ async function getHandler(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Попытка не найдена" }, { status: 404 });
   }
   if (!isBPractice(attempt.variantId)) return NextResponse.json({ error: "Это не учебная практика модуля Б" }, { status: 400 });
-  const seed = parseWorkbook(attempt.workbook)._b_seed;
+  const workbook = parseWorkbook(attempt.workbook);
+  const seed = workbook._b_seed;
   if (typeof seed !== "string" || !/^[a-f0-9]{16}$/.test(seed)) {
     return NextResponse.json({ error: "Нет исходных данных попытки — начни новую практику" }, { status: 400 });
   }
-  const bytes = await buildBDatasetXlsx(seed);
+  const bytes = await buildBDatasetXlsx(seed, workbook._b_version === "2" ? 2 : 1);
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

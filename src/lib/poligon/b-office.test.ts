@@ -87,12 +87,30 @@ test("XLSX воспроизводим и содержит грязные стр�
   assert.deepEqual(report.pivots, []); assert.deepEqual(report.chartTypes, []);
 });
 
+test("сводная учитывается только при связи лист → объект → кэш книги; график — через рисунок листа", () => {
+  const parts = workbook();
+  parts["xl/workbook.xml"] = parts["xl/workbook.xml"].replace("</q:workbook>", '<q:pivotCaches><q:pivotCache cacheId="999" z:id="cache"/></q:pivotCaches></q:workbook>');
+  parts["xl/_rels/workbook.xml.rels"] = rels([["ws", "worksheet", "worksheets/custom.xml"], ["ss", "sharedStrings", "sharedStrings.xml"], ["cache", "pivotCacheDefinition", "pivotCache/one.xml"]]);
+  parts["xl/pivotCache/one.xml"] = `<pivotCacheDefinition xmlns="${s}"><cacheSource type="worksheet"><worksheetSource ref="A1:D5" sheet="Факты &amp; данные"/></cacheSource></pivotCacheDefinition>`;
+  parts["xl/worksheets/custom.xml"] = parts["xl/worksheets/custom.xml"].replace("</worksheet>", `<pivotTableParts count="1"><pivotTablePart xmlns:r="${r}" r:id="pv"/></pivotTableParts><drawing xmlns:r="${r}" r:id="drawing"/></worksheet>`);
+  parts["xl/worksheets/_rels/custom.xml.rels"] = rels([["pv", "pivotTable", "../pivotTables/one.xml"], ["drawing", "drawing", "../drawings/one.xml"]]);
+  parts["xl/drawings/one.xml"] = `<wsDr xmlns="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="${r}"><c:chart r:id="chart"/></wsDr>`;
+  parts["xl/drawings/_rels/one.xml.rels"] = rels([["chart", "chart", "../charts/one.xml"]]);
+  const found = inspectBXlsx(fixture(parts));
+  assert.equal(found.attachedPivotCount, 1);
+  assert.deepEqual(found.attachedChartTypes, ["barChart", "lineChart"]);
+  parts["xl/workbook.xml"] = parts["xl/workbook.xml"].replace(/<q:pivotCaches>.*?<\/q:pivotCaches>/, "");
+  assert.equal(inspectBXlsx(fixture(parts)).attachedPivotCount, 0);
+});
+
 test("namespace URI, разреженные ссылки, shared/inline, формулы и факты сводных", () => {
   const report = inspectBXlsx(fixture(workbook()));
   assert.deepEqual(report.worksheets[0].cells.map(c => [c.ref, c.value]), [["C3", "А&Б😀"], ["F3", " x y"], ["G3", 3], ["H3", null], ["I3", "#N/A"]]);
   assert.equal(report.worksheets[0].cells[2].formula, "1+2");
   assert.deepEqual(report.pivots, [{ path: "xl/pivotTables/one.xml", name: "Сводная", cacheId: "999", ref: "B4:D9" }]);
   assert.deepEqual(report.chartTypes, ["barChart", "lineChart"]);
+  assert.equal(report.attachedPivotCount, 0, "неподключённая XML-часть не доказывает наличие сводной на листе");
+  assert.deepEqual(report.attachedChartTypes, []);
   assert.equal("correct" in report, false);
   const strict = Object.fromEntries(Object.entries(workbook()).map(([key, xml]) => [key, xml.replaceAll(s, "http://purl.oclc.org/ooxml/spreadsheetml/main").replaceAll(r, "http://purl.oclc.org/ooxml/officeDocument/relationships")]));
   assert.equal(inspectBXlsx(fixture(strict)).cells, 5);

@@ -9,6 +9,8 @@ import { hit, retryAfterSec } from "@/lib/rate-limit";
 import { canUsePoligon, parseFiles, type AttemptFile } from "@/lib/poligon/core";
 import { parseWorkbook } from "@/lib/poligon/a-practicum";
 import { isBPractice } from "@/lib/poligon/b-practice";
+import { makeBDataset } from "@/lib/poligon/b-dataset";
+import { bFileEvidence } from "@/lib/poligon/b-file-evidence";
 import { inspectBXlsx, inspectBPptx } from "@/lib/poligon/b-office";
 
 export const runtime = "nodejs";
@@ -18,12 +20,12 @@ type Requirement = { label: string; ok: boolean | null; feedback: string };
 
 // Это свойства загруженного файла, отдельно от проверки ответов в тетради.
 function fileRequirements(variantId: string, facts: {
-  pivots?: unknown[]; chartTypes?: string[]; count?: number; aspect16by9?: boolean | null;
+  pivots?: unknown[]; chartTypes?: string[]; attachedPivotCount?: number; count?: number; aspect16by9?: boolean | null;
 }): Requirement[] {
   const requirements: Requirement[] = [];
   if (facts.pivots && ["b-practice-report", "b-practice-full"].includes(variantId)) {
-    requirements.push({ label: "Не менее трёх сводных таблиц в XLSX", ok: facts.pivots.length >= 3,
-      feedback: `Найдено частей сводных: ${facts.pivots.length}. Наличие частей не подтверждает правильность расчётов.` });
+    requirements.push({ label: "Не менее трёх сводных таблиц в XLSX", ok: (facts.attachedPivotCount ?? 0) >= 3,
+      feedback: `Сводных, подключённых к листам и кэшу книги: ${facts.attachedPivotCount ?? 0}. Обычная итоговая таблица не считается сводной; правильность её данных проверит наставник.` });
   }
   if (facts.chartTypes && ["b-practice-visual", "b-practice-full"].includes(variantId)) {
     requirements.push({ label: "Не менее двух типов диаграмм в XLSX", ok: new Set(facts.chartTypes).size >= 2,
@@ -39,7 +41,7 @@ function fileRequirements(variantId: string, facts: {
   return requirements;
 }
 
-async function inspectFile(file: AttemptFile, variantId: string) {
+async function inspectFile(file: AttemptFile, variantId: string, workbook: ReturnType<typeof parseWorkbook>) {
   const { url, name } = file;
   // Ни URL извне, ни вложенные пути, ни кодированные разделители не принимаем.
   if (!/^\/uploads\/[A-Za-z0-9_-][A-Za-z0-9._-]*\.(xlsx|pptx)$/i.test(url) || url.includes("..")) {
@@ -69,9 +71,10 @@ async function inspectFile(file: AttemptFile, variantId: string) {
         // Значения и формулы ячеек не возвращаем и не переносим в тетрадь.
         const facts = {
           worksheets: inspected.worksheets.map((sheet) => ({ name: sheet.name, cellCount: sheet.cells.length })),
-          cells: inspected.cells, pivots: inspected.pivots, chartTypes: inspected.chartTypes,
+          cells: inspected.cells, pivots: inspected.pivots, attachedPivotCount: inspected.attachedPivotCount, chartTypes: inspected.attachedChartTypes,
         };
-        return { name, url, facts, requirements: fileRequirements(variantId, facts) };
+        const evidence = typeof workbook._b_seed === "string" ? bFileEvidence(inspected, makeBDataset(workbook._b_seed, workbook._b_version === "2" ? 2 : 1), variantId) : [];
+        return { name, url, facts, requirements: [...fileRequirements(variantId, facts), ...evidence] };
       }
       const inspected = await inspectBPptx(buffer);
       const facts = {
@@ -108,8 +111,9 @@ async function postHandler(_request: NextRequest, { params }: { params: Promise<
   hit(limitKey, 60_000);
   // Тело запроса не используем: проверяем исключительно сохранённые ссылки.
   const facts = [];
+  const workbook = parseWorkbook(attempt.workbook);
   for (const file of files.slice(0, 20)) {
-    const result = await inspectFile(file, attempt.variantId);
+    const result = await inspectFile(file, attempt.variantId, workbook);
     // Ошибка чтения не считается успешно подтверждённым свойством файла.
     facts.push(result.error ? { ...result, requirements: [{ label: "Файл Office прочитан", ok: false,
       feedback: result.error }] satisfies Requirement[] } : result);
@@ -126,7 +130,6 @@ async function postHandler(_request: NextRequest, { params }: { params: Promise<
   if (Buffer.byteLength(JSON.stringify(response), "utf8") > MAX_FACTS_BYTES) {
     return NextResponse.json({ error: "Отчёт о файлах превышает 100 КБ", facts: [] }, { status: 413 });
   }
-  const workbook = parseWorkbook(attempt.workbook);
   workbook._b_filecheck = JSON.stringify(facts);
   const updated = await prisma.poligonAttempt.updateMany({
     where: { id, status: "IN_PROGRESS", updatedAt: attempt.updatedAt, workbook: attempt.workbook, fileUrls: attempt.fileUrls },
